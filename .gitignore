@@ -56,6 +56,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# ---- Claude Code (chỉ dùng cục bộ, không push) ----
+CLAUDE.md
+.claude/
+
 # ---- IDE / OS ----
 .idea/
 .vscode/
