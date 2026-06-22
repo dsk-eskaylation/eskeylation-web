@@ -74,6 +74,8 @@ async def run_async_migrations() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        # Supabase pooler (PgBouncer) không hỗ trợ prepared statement của asyncpg
+        connect_args={"statement_cache_size": 0},
     )
 
     async with connectable.connect() as connection:

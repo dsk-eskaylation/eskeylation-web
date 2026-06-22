@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     # Celery / Redis
     redis_url: str = "redis://localhost:6379/0"
 
+    # JWT
+    jwt_secret: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 24
+
     # Storage cục bộ cho dev (Phase 9 thay bằng Supabase Storage).
     media_root: str = "media"
 

@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -11,11 +12,12 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# Lưu ý: Supabase yêu cầu kết nối qua connection pooler (PgBouncer).
-# Tắt prepared statement cache của asyncpg để tương thích PgBouncer (transaction mode).
+# Supabase Transaction pooler (PgBouncer, cổng 6543) đã tự pool kết nối,
+# nên SQLAlchemy dùng NullPool để không pool chồng. Tắt prepared statement
+# cache của asyncpg cho tương thích PgBouncer.
 engine = create_async_engine(
     settings.database_url,
-    pool_pre_ping=True,
+    poolclass=NullPool,
     connect_args={"statement_cache_size": 0},
 )
 
