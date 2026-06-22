@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     # Storage cục bộ cho dev (Phase 9 thay bằng Supabase Storage).
     media_root: str = "media"
 
+    # CORS — origin của frontend (React/Vite). Khai báo JSON list trong .env.
+    cors_origins: list[str] = ["http://localhost:5173"]
+
+    # Môi trường: "dev" | "prod" — ảnh hưởng log, hiển thị lỗi.
+    environment: str = "dev"
+
 
 @lru_cache
 def get_settings() -> Settings:

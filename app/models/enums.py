@@ -1,20 +1,20 @@
 import enum
 
 
-class UserRole(str, enum.Enum):
+class UserRole(enum.StrEnum):
     admin = "admin"
     editor = "editor"
     author = "author"
 
 
-class ContentType(str, enum.Enum):
+class ContentType(enum.StrEnum):
     music = "music"
     gallery = "gallery"
     community = "community"
     homepage = "homepage"
 
 
-class ContentStatus(str, enum.Enum):
+class ContentStatus(enum.StrEnum):
     draft = "draft"
     published = "published"
     archived = "archived"

@@ -1,7 +1,7 @@
 [project]
 name = "eskeylation-web"
 version = "0.1.0"
-description = "Add your description here"
+description = "Eskaylation — kho lưu trữ số cho cộng đồng DSK (FastAPI + Supabase)"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -20,5 +20,31 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.15.18",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "-ra"
+markers = [
+    "integration: test cần kết nối Supabase thật (qua .env)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore:.*HMAC key.*:UserWarning",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = ["B008"]  # FastAPI dùng Depends()/Query() làm default — hợp lệ
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B017", "S101"]

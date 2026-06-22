@@ -1,8 +1,13 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 from app.models.mixins import TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.content import Content
 
 
 class Media(TimestampMixin, Base):

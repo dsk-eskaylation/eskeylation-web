@@ -1,7 +1,8 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Coroutine, Sequence
+from typing import Any
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,19 @@ from app.models.user import User
 from app.services.security import decode_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+
+class PaginationParams:
+    """Tham số phân trang dùng chung cho mọi endpoint list."""
+
+    def __init__(
+        self,
+        page: int = Query(1, ge=1, description="Trang, bắt đầu từ 1"),
+        page_size: int = Query(20, ge=1, le=100, description="Số mục mỗi trang"),
+    ) -> None:
+        self.page = page
+        self.page_size = page_size
+
 
 _credentials_error = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -26,8 +40,8 @@ async def get_current_user(
     try:
         payload = decode_token(token)
         user_id = int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, ValueError):
-        raise _credentials_error
+    except (jwt.PyJWTError, KeyError, ValueError) as exc:
+        raise _credentials_error from exc
 
     user = await session.get(User, user_id)
     if user is None or not user.is_active:
@@ -35,7 +49,9 @@ async def get_current_user(
     return user
 
 
-def require_role(*roles: UserRole):
+def require_role(
+    *roles: UserRole,
+) -> Callable[..., Coroutine[Any, Any, User]]:
     """Dependency phân quyền: chỉ cho qua nếu user có một trong các role."""
 
     allowed: Sequence[UserRole] = roles

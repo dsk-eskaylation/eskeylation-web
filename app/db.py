@@ -28,6 +28,11 @@ class Base(DeclarativeBase):
     pass
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_session() -> AsyncGenerator[AsyncSession]:
+    """Dependency cấp session; rollback nếu request lỗi để không treo transaction."""
     async with SessionLocal() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise

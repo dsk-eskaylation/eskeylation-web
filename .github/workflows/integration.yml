@@ -1,0 +1,26 @@
+name: Integration tests
+
+# Chạy thủ công (cần cấu hình secrets DATABASE_URL + JWT_SECRET cho repo).
+on:
+  workflow_dispatch:
+
+jobs:
+  integration:
+    name: Integration tests (Supabase)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv + Python
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Integration tests
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: uv run pytest -m integration
