@@ -1,16 +1,19 @@
+"""Storage abstraction. Mọi truy cập media đi qua interface này.
+
+LocalStorage cho dev; SupabaseStorage cho prod (S3-compatible + CDN). Đổi backend
+bằng setting storage_backend — service/router KHÔNG gọi thẳng SDK Supabase.
+"""
+
+import mimetypes
 from abc import ABC, abstractmethod
 from pathlib import Path
+
+import httpx
 
 from app.config import get_settings
 
 
 class Storage(ABC):
-    """Interface lưu trữ media. Mọi truy cập media đi qua đây.
-
-    Phase 0 dùng LocalStorage cho dev; Phase 9 thêm SupabaseStorage
-    mà không phải sửa service/router gọi đến interface này.
-    """
-
     @abstractmethod
     def save(self, key: str, data: bytes) -> str:
         """Lưu nội dung theo key, trả về URL truy cập."""
@@ -50,5 +53,54 @@ class LocalStorage(Storage):
         (self.root / key).unlink(missing_ok=True)
 
 
+class SupabaseStorage(Storage):
+    """Lưu media trên Supabase Storage qua REST API (bucket nên public để có CDN)."""
+
+    def __init__(self, base_url: str, service_key: str, bucket: str) -> None:
+        base = base_url.rstrip("/")
+        self._api = f"{base}/storage/v1"
+        self._public_base = f"{base}/storage/v1/object/public/{bucket}"
+        self._bucket = bucket
+        self._headers = {
+            "Authorization": f"Bearer {service_key}",
+            "apikey": service_key,
+        }
+
+    def save(self, key: str, data: bytes) -> str:
+        content_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
+        resp = httpx.post(
+            f"{self._api}/object/{self._bucket}/{key}",
+            content=data,
+            headers={**self._headers, "Content-Type": content_type, "x-upsert": "true"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return self.url(key)
+
+    def url(self, key: str) -> str:
+        return f"{self._public_base}/{key}"
+
+    def read(self, key: str) -> bytes:
+        resp = httpx.get(
+            f"{self._api}/object/{self._bucket}/{key}",
+            headers=self._headers,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    def delete(self, key: str) -> None:
+        resp = httpx.delete(
+            f"{self._api}/object/{self._bucket}/{key}",
+            headers=self._headers,
+            timeout=30,
+        )
+        if resp.status_code != httpx.codes.NOT_FOUND:
+            resp.raise_for_status()
+
+
 def get_storage() -> Storage:
-    return LocalStorage(get_settings().media_root)
+    s = get_settings()
+    if s.storage_backend == "supabase":
+        return SupabaseStorage(s.supabase_url, s.supabase_service_key, s.storage_bucket)
+    return LocalStorage(s.media_root)

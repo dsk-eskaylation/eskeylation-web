@@ -7,6 +7,7 @@ import filetype
 from fastapi import HTTPException, UploadFile, status
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
 from app.models.media import Media
@@ -75,7 +76,8 @@ async def create_media(
         )
 
     key = f"{uuid.uuid4().hex}.{ext}"
-    get_storage().save(key, data)
+    # storage có thể gọi mạng (Supabase) → chạy trong threadpool, không chặn loop.
+    await run_in_threadpool(get_storage().save, key, data)
 
     media = Media(
         storage_key=key,
@@ -93,6 +95,6 @@ async def create_media(
 
 
 async def delete_media(session: AsyncSession, media: Media) -> None:
-    get_storage().delete(media.storage_key)
+    await run_in_threadpool(get_storage().delete, media.storage_key)
     await session.delete(media)
     await session.commit()

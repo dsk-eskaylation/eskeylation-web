@@ -20,8 +20,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
 
-    # Storage cục bộ cho dev (Phase 9 thay bằng Supabase Storage).
-    media_root: str = "media"
+    # Storage: "local" (dev) | "supabase" (prod, dùng Supabase Storage + CDN).
+    storage_backend: str = "local"
+    media_root: str = "media"  # dùng khi backend = local
+
+    # Supabase Storage (khi backend = supabase). Bucket nên đặt public để có CDN URL.
+    supabase_url: str = ""  # https://<project-ref>.supabase.co
+    supabase_service_key: str = ""  # service_role key
+    storage_bucket: str = "media"
 
     # Upload media — giới hạn size (byte) và MIME được phép.
     max_image_size: int = 10 * 1024 * 1024  # 10 MB
