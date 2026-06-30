@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.db import engine
-from app.routers import auth, media, public
+from app.routers import admin_content, auth, media, public
 
 settings = get_settings()
 
@@ -34,6 +34,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(public.router)
 app.include_router(media.router)
+app.include_router(admin_content.router)
 
 # Phục vụ media cục bộ ở dev (production dùng Supabase Storage + CDN — Phase 9).
 _media_dir = Path(settings.media_root)

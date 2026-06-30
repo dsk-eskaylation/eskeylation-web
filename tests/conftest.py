@@ -110,6 +110,16 @@ async def link_media(db) -> Callable[..., Awaitable[ContentMedia]]:
 
 
 @pytest_asyncio.fixture
+async def track_content(db) -> AsyncIterator[list[int]]:
+    """Đăng ký id content tạo qua API để dọn sau test (cascade xoá content_media)."""
+    ids: list[int] = []
+    yield ids
+    if ids:
+        await db.execute(delete(Content).where(Content.id.in_(ids)))
+        await db.commit()
+
+
+@pytest_asyncio.fixture
 async def track_media(db) -> AsyncIterator[list[int]]:
     """Đăng ký id media tạo qua API để dọn (cả row lẫn file) sau test."""
     ids: list[int] = []
