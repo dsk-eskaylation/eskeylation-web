@@ -13,7 +13,8 @@ _supabase_configured = bool(
 
 # ---------- selection (unit) ----------
 
-def test_default_backend_la_local():
+def test_get_storage_chon_local(monkeypatch):
+    monkeypatch.setattr(_settings, "storage_backend", "local")
     assert isinstance(get_storage(), LocalStorage)
 
 
