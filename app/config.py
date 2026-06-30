@@ -40,6 +40,23 @@ class Settings(BaseSettings):
     # Môi trường: "dev" | "prod" — ảnh hưởng log, hiển thị lỗi.
     environment: str = "dev"
 
+    # Bảo mật nội dung — tag/attribute HTML an toàn cho rich text (bleach).
+    allowed_html_tags: list[str] = [
+        "p", "br", "b", "strong", "i", "em", "u", "s",
+        "ul", "ol", "li", "a", "blockquote", "code", "pre", "h2", "h3", "h4",
+    ]
+    allowed_html_attributes: dict[str, list[str]] = {
+        "a": ["href", "title", "rel"],
+    }
+    # Host được phép cho embed video (chống SSRF / iframe lạ).
+    allowed_embed_hosts: list[str] = [
+        "youtube.com",
+        "www.youtube.com",
+        "youtu.be",
+        "vimeo.com",
+        "player.vimeo.com",
+    ]
+
 
 @lru_cache
 def get_settings() -> Settings:

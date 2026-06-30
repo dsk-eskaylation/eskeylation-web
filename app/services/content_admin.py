@@ -11,6 +11,7 @@ from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
 from app.models.media import ContentMedia, Media
 from app.schemas.admin import ContentCreate, ContentMediaIn, ContentUpdate
+from app.services.sanitize import sanitize_body, sanitize_summary, validate_embeds
 from app.services.slug import unique_slug
 
 
@@ -55,12 +56,13 @@ async def _replace_media(
 async def create_content(
     session: AsyncSession, data: ContentCreate, author_id: int
 ) -> Content:
+    validate_embeds(data.body)
     content = Content(
         type=data.type,
         title=data.title,
         slug=await unique_slug(session, data.title),
-        summary=data.summary,
-        body=data.body,
+        summary=sanitize_summary(data.summary),
+        body=sanitize_body(data.body),
         status=ContentStatus.draft,
         author_id=author_id,
     )
@@ -78,9 +80,10 @@ async def update_content(
     if "title" in fields:
         content.title = fields["title"]
     if "summary" in fields:
-        content.summary = fields["summary"]
+        content.summary = sanitize_summary(fields["summary"])
     if "body" in fields:
-        content.body = fields["body"]
+        validate_embeds(fields["body"])
+        content.body = sanitize_body(fields["body"])
     if "media" in fields:
         await _replace_media(session, content, data.media or [])
     await session.commit()
