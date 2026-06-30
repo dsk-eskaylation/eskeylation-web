@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import SessionLocal
@@ -18,6 +18,7 @@ from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType, UserRole
 from app.models.media import ContentMedia, Media
 from app.models.user import User
+from app.services.storage import get_storage
 
 
 def unique_slug(prefix: str = "pytest") -> str:
@@ -106,6 +107,20 @@ async def link_media(db) -> Callable[..., Awaitable[ContentMedia]]:
         return link
 
     return _link
+
+
+@pytest_asyncio.fixture
+async def track_media(db) -> AsyncIterator[list[int]]:
+    """Đăng ký id media tạo qua API để dọn (cả row lẫn file) sau test."""
+    ids: list[int] = []
+    yield ids
+    if ids:
+        rows = (await db.scalars(select(Media).where(Media.id.in_(ids)))).all()
+        storage = get_storage()
+        for m in rows:
+            storage.delete(m.storage_key)
+        await db.execute(delete(Media).where(Media.id.in_(ids)))
+        await db.commit()
 
 
 @pytest_asyncio.fixture

@@ -1,12 +1,14 @@
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.config import get_settings
 from app.db import engine
-from app.routers import auth, public
+from app.routers import auth, media, public
 
 settings = get_settings()
 
@@ -31,6 +33,12 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(public.router)
+app.include_router(media.router)
+
+# Phục vụ media cục bộ ở dev (production dùng Supabase Storage + CDN — Phase 9).
+_media_dir = Path(settings.media_root)
+_media_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=_media_dir), name="media")
 
 
 @app.get("/health", tags=["health"])

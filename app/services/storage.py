@@ -19,6 +19,14 @@ class Storage(ABC):
     def url(self, key: str) -> str:
         """Trả về URL ổn định cho key."""
 
+    @abstractmethod
+    def read(self, key: str) -> bytes:
+        """Đọc nội dung theo key."""
+
+    @abstractmethod
+    def delete(self, key: str) -> None:
+        """Xoá nội dung theo key (bỏ qua nếu không tồn tại)."""
+
 
 class LocalStorage(Storage):
     """Lưu file xuống thư mục cục bộ (chỉ dùng cho dev)."""
@@ -34,6 +42,12 @@ class LocalStorage(Storage):
 
     def url(self, key: str) -> str:
         return f"/{self.root.as_posix()}/{key}"
+
+    def read(self, key: str) -> bytes:
+        return (self.root / key).read_bytes()
+
+    def delete(self, key: str) -> None:
+        (self.root / key).unlink(missing_ok=True)
 
 
 def get_storage() -> Storage:

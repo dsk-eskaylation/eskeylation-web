@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     # Storage cục bộ cho dev (Phase 9 thay bằng Supabase Storage).
     media_root: str = "media"
 
+    # Upload media — giới hạn size (byte) và MIME được phép.
+    max_image_size: int = 10 * 1024 * 1024  # 10 MB
+    max_video_size: int = 200 * 1024 * 1024  # 200 MB
+    allowed_image_types: list[str] = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+    ]
+    allowed_video_types: list[str] = ["video/mp4", "video/webm"]
+
     # CORS — origin của frontend (React/Vite). Khai báo JSON list trong .env.
     cors_origins: list[str] = ["http://localhost:5173"]
 
