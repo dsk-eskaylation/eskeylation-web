@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { Home } from './pages/Home'
+import { Music } from './pages/Music'
 import { ContentList } from './pages/ContentList'
 import './App.css'
 
@@ -10,10 +11,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Home />} />
-          <Route
-            path="music"
-            element={<ContentList type="music" title="Nghe nhạc" />}
-          />
+          <Route path="music" element={<Music />} />
           <Route
             path="photos"
             element={<ContentList type="photos" title="Ảnh" />}
