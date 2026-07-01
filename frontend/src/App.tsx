@@ -2,7 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { Home } from './pages/Home'
 import { Music } from './pages/Music'
-import { ContentList } from './pages/ContentList'
+import { Feed } from './pages/Feed'
 import './App.css'
 
 export default function App() {
@@ -14,11 +14,11 @@ export default function App() {
           <Route path="music" element={<Music />} />
           <Route
             path="photos"
-            element={<ContentList type="photos" title="Ảnh" />}
+            element={<Feed type="photos" emptyTitle="Chưa có ảnh" />}
           />
           <Route
             path="community"
-            element={<ContentList type="community" title="Cộng đồng" />}
+            element={<Feed type="community" emptyTitle="Chưa có bài viết" />}
           />
         </Route>
       </Routes>
