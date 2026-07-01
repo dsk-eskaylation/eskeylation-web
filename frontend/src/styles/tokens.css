@@ -1,0 +1,42 @@
+/* Design tokens Eskaylation — dark theme, trích từ Figma "bàn giao DEV".
+   Tinh chỉnh thêm khi dựng từng màn hình (font chính xác lấy sau). */
+:root {
+  /* Nền & bề mặt */
+  --color-bg: #060606;
+  --color-surface: #101010;
+  --color-overlay: rgba(0, 0, 0, 0.8);
+
+  /* Chữ */
+  --color-text: #ffffff;
+  --color-text-muted: #807f7f;
+
+  /* Viền & nét */
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-border-strong: #807f7f;
+
+  /* Pill nav (glass) */
+  --nav-bg: rgba(6, 6, 6, 0.2);
+  --nav-border: #807f7f;
+  --nav-blur: 18.8px;
+  --shadow-nav: 0 4px 4px rgba(0, 0, 0, 0.25);
+
+  /* Bo góc */
+  --radius-pill: 104px;
+  --radius-panel: 20px;
+  --radius-md: 12px;
+
+  /* Khoảng cách */
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Layout */
+  --page-max: 1728px;
+  --page-pad: 120px;
+
+  /* Font */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}

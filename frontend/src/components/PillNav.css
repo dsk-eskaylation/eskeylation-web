@@ -1,0 +1,29 @@
+.pill-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-4) var(--space-8);
+  background: var(--nav-bg);
+  border: 0.5px solid var(--nav-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-nav);
+  backdrop-filter: blur(var(--nav-blur));
+  -webkit-backdrop-filter: blur(var(--nav-blur));
+}
+
+.pill-nav__link {
+  color: var(--color-text-muted);
+  font-size: 16px;
+  font-weight: 500;
+  padding: 6px 4px;
+  transition: color 0.15s ease;
+  white-space: nowrap;
+}
+
+.pill-nav__link:hover {
+  color: var(--color-text);
+}
+
+.pill-nav__link--active {
+  color: var(--color-text);
+}
