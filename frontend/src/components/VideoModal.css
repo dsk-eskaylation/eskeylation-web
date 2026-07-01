@@ -1,0 +1,33 @@
+.video-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.video-modal__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 48px;
+}
+
+.video-modal__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #c9c8c8;
+}
+
+.video-modal__frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: none;
+  border-radius: var(--radius-md);
+  background: #000;
+  object-fit: cover;
+}
+
+.video-modal__frame--empty {
+  background: linear-gradient(135deg, #141414, #0a0a0a);
+}

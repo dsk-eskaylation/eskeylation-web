@@ -1,0 +1,53 @@
+.post-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 420px;
+  cursor: pointer;
+}
+
+.post-card--blurred {
+  filter: blur(2px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.post-card__media {
+  position: relative;
+}
+
+.post-card__more {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--color-overlay);
+  color: #fff;
+  font-size: 14px;
+  backdrop-filter: blur(4px);
+}
+
+.post-card__caption {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  color: #fff;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.post-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.post-card__title {
+  font-size: 16px;
+  color: var(--color-text);
+}

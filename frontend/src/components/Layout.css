@@ -1,0 +1,24 @@
+.layout {
+  min-height: 100vh;
+}
+
+.layout__nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+}
+
+.layout__main {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 var(--page-pad) var(--space-10);
+}
+
+@media (max-width: 768px) {
+  .layout__main {
+    padding: 0 var(--space-6) var(--space-8);
+  }
+}
