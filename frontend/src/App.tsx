@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { Home } from './pages/Home'
 import { Music } from './pages/Music'
+import { MusicAll } from './pages/MusicAll'
 import { Feed } from './pages/Feed'
 import './App.css'
 
@@ -12,6 +13,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="music" element={<Music />} />
+          <Route path="music/all" element={<MusicAll />} />
           <Route
             path="photos"
             element={<Feed type="photos" emptyTitle="Chưa có ảnh" />}
