@@ -10,7 +10,7 @@ dependencies = [
     "bcrypt>=5.0.0",
     "bleach>=6.4.0",
     "celery>=5.6.3",
-    "fastapi>=0.138.0",
+    "fastapi[standard]>=0.138.0",
     "filetype>=1.2.0",
     "httpx>=0.28.1",
     "pillow>=12.2.0",
@@ -46,6 +46,10 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["app"]
 omit = ["app/workers/*"]  # Celery task cần worker/Redis, đo riêng
+# Code async (FastAPI/SQLAlchemy) chuyển ngữ cảnh qua greenlet — tracer mặc định
+# không theo được, làm coverage báo thiếu giả các thân handler async. Bật greenlet
+# để đo đúng các dòng đã thực thi.
+concurrency = ["greenlet"]
 
 [tool.coverage.report]
 show_missing = true

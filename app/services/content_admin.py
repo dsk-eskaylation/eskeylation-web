@@ -87,6 +87,8 @@ async def update_content(
     if "media" in fields:
         await _replace_media(session, content, data.media or [])
     await session.commit()
+    # expire_on_commit=False giữ media_links cũ trên object -> ép reload cho đúng
+    session.expire(content, ["media_links"])
     return await get_with_media(session, content.id)
 
 
