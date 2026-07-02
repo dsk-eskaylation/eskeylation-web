@@ -90,6 +90,22 @@
   transform: scale(1.03);
 }
 
+@media (max-width: 640px) {
+  .post-card {
+    gap: 10px;
+  }
+  .post-card__grid {
+    gap: 10px 8px;
+  }
+  .post-card__name {
+    font-size: 16px;
+  }
+  .post-card__avatar {
+    width: 38px;
+    height: 38px;
+  }
+}
+
 /* Ô "+N" (Figma EL-f3f6e944: nền ảnh + phủ tối + số) */
 .post-card__more {
   position: absolute;

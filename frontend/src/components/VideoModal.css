@@ -73,3 +73,16 @@
 .video-modal__frame--empty {
   background: linear-gradient(135deg, #141414, #0a0a0a);
 }
+
+@media (max-width: 640px) {
+  .video-modal {
+    gap: 12px;
+  }
+  .video-modal__title,
+  .video-modal__artist {
+    font-size: 16px;
+  }
+  .video-modal__line {
+    width: 16px;
+  }
+}

@@ -52,3 +52,16 @@
   --dur-fast: 0.2s;
   --dur-med: 0.4s;
 }
+
+/* Responsive lề trang: desktop 120 -> iPad 64 -> mobile 20 */
+@media (max-width: 1280px) {
+  :root {
+    --page-pad: 64px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --page-pad: 20px;
+  }
+}

@@ -82,4 +82,23 @@
   .pill-nav__brand {
     display: none;
   }
+  .pill-nav,
+  .pill-nav__group {
+    gap: 6px;
+  }
+  .pill-nav {
+    padding: 8px;
+    max-width: calc(100vw - 24px);
+  }
+  .pill-nav__link {
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 380px) {
+  .pill-nav__link {
+    padding: 8px 9px;
+    font-size: 12px;
+  }
 }

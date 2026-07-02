@@ -27,9 +27,9 @@
 
 @media (max-width: 900px) {
   .layout__nav {
-    padding-top: 20px;
+    padding-top: 16px;
   }
   .layout__main {
-    padding: 0 var(--space-6) var(--space-8);
+    padding-bottom: var(--space-8);
   }
 }

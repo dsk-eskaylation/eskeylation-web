@@ -88,13 +88,33 @@
   transform: scale(1.4);
 }
 
-@media (max-width: 640px) {
+/* ---- iPad (đồng bộ slideMetrics trong Feed.tsx: card 460, gap 60) ---- */
+@media (max-width: 900px) {
+  .feed {
+    padding-top: 100px;
+    gap: 32px;
+  }
   .feed__track {
-    margin-left: calc(50vw - 45vw);
-    margin-right: calc(50vw - 45vw);
-    gap: 40px;
+    gap: 60px;
+    margin-left: calc(50vw - 230px);
+    margin-right: calc(50vw - 230px);
   }
   .feed__slide {
-    width: 90vw;
+    width: 460px;
+  }
+}
+
+/* ---- Mobile (card 88vw, gap 24) ---- */
+@media (max-width: 640px) {
+  .feed__track {
+    gap: 24px;
+    margin-left: 6vw;
+    margin-right: 6vw;
+  }
+  .feed__slide {
+    width: 88vw;
+  }
+  .feed__slide--near {
+    filter: blur(1.5px);
   }
 }

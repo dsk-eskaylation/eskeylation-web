@@ -12,8 +12,24 @@ interface Props {
   emptyTitle: string
 }
 
-const CARD_W = 536 // Figma: card 536px
-const GAP = 146 // Figma #1:1846 gap 146
+/* Kích thước card + gap theo viewport (đồng bộ với Feed.css):
+   desktop 536/146 (Figma), tablet 460/60, mobile 88vw/24 */
+function slideMetrics(vw: number) {
+  if (vw <= 640) return { card: vw * 0.88, gap: 24 }
+  if (vw <= 900) return { card: 460, gap: 60 }
+  return { card: 536, gap: 146 }
+}
+
+function useSlideStep() {
+  const [vw, setVw] = useState(() => window.innerWidth)
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const { card, gap } = slideMetrics(vw)
+  return card + gap
+}
 
 /** Feed carousel (Figma "Ảnh"/"Cộng đồng"): bài giữa nét, hai bên blur;
     trượt mượt bằng translateX; click bên cạnh để chuyển, click giữa mở modal.
@@ -21,6 +37,8 @@ const GAP = 146 // Figma #1:1846 gap 146
 export function Feed({ type, emptyTitle }: Props) {
   const [active, setActive] = useState(0)
   const [open, setOpen] = useState(false)
+  const [touchX, setTouchX] = useState<number | null>(null)
+  const step = useSlideStep()
   const state = useApi(() => api.list(type, { pageSize: 30 }), [type])
 
   const items = state.status === 'success' ? state.data.items : []
@@ -42,11 +60,20 @@ export function Feed({ type, emptyTitle }: Props) {
   if (items.length === 0) return <EmptyState title={emptyTitle} />
 
   const cur = items[idx]
-  const step = CARD_W + GAP
 
   return (
     <div className="feed">
-      <div className="feed__viewport">
+      <div
+        className="feed__viewport"
+        onTouchStart={(e) => setTouchX(e.touches[0].clientX)}
+        onTouchEnd={(e) => {
+          if (touchX === null) return
+          const dx = e.changedTouches[0].clientX - touchX
+          if (dx < -40) setActive((v) => Math.min(items.length - 1, v + 1))
+          if (dx > 40) setActive((v) => Math.max(0, v - 1))
+          setTouchX(null)
+        }}
+      >
         <div
           className="feed__track"
           style={{ transform: `translateX(${-idx * step}px)` }}

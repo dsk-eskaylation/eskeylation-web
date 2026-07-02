@@ -26,3 +26,17 @@
   margin: 0;
   color: var(--color-text-muted);
 }
+
+@media (max-width: 640px) {
+  .empty-state {
+    gap: 28px;
+    padding: 90px 0;
+  }
+  .empty-state__img {
+    width: 140px;
+    height: 140px;
+  }
+  .empty-state__title {
+    font-size: 22px;
+  }
+}

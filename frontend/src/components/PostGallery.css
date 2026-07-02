@@ -73,6 +73,9 @@
 }
 
 @media (max-width: 640px) {
+  .post-gallery {
+    padding-right: 32px;
+  }
   .post-gallery__grid {
     grid-template-columns: 1fr;
   }

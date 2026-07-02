@@ -85,17 +85,57 @@
   animation: page-enter 0.5s var(--ease-out) both;
 }
 
+/* ---- iPad ---- */
 @media (max-width: 1100px) {
   .music-all {
     padding-top: 130px;
+    gap: 48px;
   }
   .music-all__grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 24px 24px;
+  }
+  .music-all__cats {
+    gap: 8px;
+  }
+  .music-all__cat {
+    padding: 10px 14px;
+    font-size: 16px;
   }
 }
 
+/* ---- Mobile ---- */
 @media (max-width: 640px) {
+  .music-all {
+    padding-top: 110px;
+    gap: 36px;
+  }
+  .music-all__head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .music-all__back {
+    align-self: flex-start;
+  }
+  /* Pills cuộn ngang, không xuống dòng */
+  .music-all__cats {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+  .music-all__cats::-webkit-scrollbar {
+    display: none;
+  }
+  .music-all__cat {
+    flex-shrink: 0;
+  }
+  .music-all__head .search-bar {
+    width: 100%;
+  }
   .music-all__grid {
     grid-template-columns: 1fr;
+    gap: 28px;
   }
 }
