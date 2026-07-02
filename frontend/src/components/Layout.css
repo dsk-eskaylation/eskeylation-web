@@ -2,13 +2,21 @@
   min-height: 100vh;
 }
 
+/* Figma: nav nổi ở y=50, giữa trang */
 .layout__nav {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 10;
+  left: 0;
+  right: 0;
+  z-index: 50;
   display: flex;
   justify-content: center;
-  padding: var(--space-6) var(--space-4);
+  padding-top: 50px;
+  pointer-events: none;
+}
+
+.layout__nav > * {
+  pointer-events: auto;
 }
 
 .layout__main {
@@ -17,7 +25,10 @@
   padding: 0 var(--page-pad) var(--space-10);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
+  .layout__nav {
+    padding-top: 20px;
+  }
   .layout__main {
     padding: 0 var(--space-6) var(--space-8);
   }

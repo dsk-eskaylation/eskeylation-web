@@ -1,3 +1,7 @@
+/* Font theo Figma — import tách riêng để một font lỗi không kéo sập font khác. */
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,300..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
 @import './styles/tokens.css';
 
 * {
@@ -11,6 +15,10 @@ body,
   min-height: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background:
     radial-gradient(circle at 19% 22%, #1a1919 0%, rgba(6, 6, 6, 0) 55%),
@@ -18,6 +26,7 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 a {
@@ -28,4 +37,37 @@ a {
 img {
   display: block;
   max-width: 100%;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Hiệu ứng vào trang: fade + trượt nhẹ (mượt, tắt khi user giảm chuyển động) */
+.page-enter {
+  animation: page-enter var(--dur-med) var(--ease-out) both;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
 }

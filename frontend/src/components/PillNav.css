@@ -1,8 +1,9 @@
+/* PillNav — Figma #1:372: pill glass padding 16, gap 40, viền 0.5px, blur 18.8 */
 .pill-nav {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-4);
+  gap: 40px;
+  padding: 16px;
   background: var(--nav-bg);
   border: 0.5px solid var(--nav-border);
   border-radius: var(--radius-pill);
@@ -14,49 +15,71 @@
 .pill-nav__group {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 40px;
 }
 
+/* Brand giữa — GSF SemiBold 24, ls -0.05em */
 .pill-nav__brand {
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.05em;
-  color: #c9c8c8;
-  padding: 0 var(--space-4);
+  color: var(--color-text);
   white-space: nowrap;
+  transition: text-shadow var(--dur-fast) ease;
 }
 
+.pill-nav__brand:hover {
+  text-shadow: var(--glow-text);
+}
+
+/* Item — Figma: padding 12px 46px, radius 22, chữ 18 */
 .pill-nav__link {
+  position: relative;
   color: var(--color-text-muted);
+  font-family: var(--font-nav);
   font-size: 18px;
-  padding: 12px 40px;
+  padding: 12px 46px;
   border-radius: 22px;
-  transition:
-    color 0.15s ease,
-    background 0.15s ease;
+  border-left: 1px solid transparent;
+  border-right: 1px solid transparent;
   white-space: nowrap;
+  transition:
+    color 0.25s ease,
+    text-shadow 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
 .pill-nav__link:hover {
   color: var(--color-text);
 }
 
+/* Active — Figma: SemiBold trắng + glow + viền dọc trái/phải + shadow */
 .pill-nav__link--active {
-  color: #ffffff;
+  color: var(--color-text-bright);
   font-weight: 600;
-  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
-  text-shadow: 0 0 20px rgba(239, 239, 239, 0.83);
+  text-shadow: var(--glow-text);
+  border-left-color: var(--color-text);
+  border-right-color: var(--color-text);
+  box-shadow: var(--shadow-nav);
 }
 
-@media (max-width: 768px) {
-  .pill-nav {
-    gap: var(--space-3);
+@media (max-width: 1100px) {
+  .pill-nav,
+  .pill-nav__group {
+    gap: 16px;
   }
   .pill-nav__link {
-    padding: 8px 16px;
+    padding: 10px 20px;
     font-size: 15px;
   }
   .pill-nav__brand {
     font-size: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .pill-nav__brand {
+    display: none;
   }
 }

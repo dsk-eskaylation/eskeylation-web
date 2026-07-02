@@ -59,7 +59,9 @@ function Player({ content }: { content: ContentOut }) {
   )
 }
 
-/** Modal video: đóng (Escape/nút/nền) sẽ unmount player -> dừng phát. */
+/** Modal video (Figma "Nghe nhạc/ Khi đã chọn" #1:1675): không khung,
+    header [TÊN BÀI — line — NGHỆ SĨ ......... X], video full width.
+    Đóng (Escape/nút/nền) sẽ unmount player -> dừng phát. */
 export function VideoModal({
   content,
   onClose,
@@ -67,13 +69,29 @@ export function VideoModal({
   content: ContentOut
   onClose: () => void
 }) {
-  const artist = typeof content.body.artist === 'string' ? content.body.artist : null
+  const artist = typeof content.body.artist === 'string' ? content.body.artist : 'DSK'
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} variant="bare" showClose={false}>
       <div className="video-modal">
         <header className="video-modal__head">
-          <h2 className="video-modal__title">{content.title}</h2>
-          {artist && <span className="muted">{artist}</span>}
+          <div className="video-modal__meta">
+            <h2 className="video-modal__title">{content.title.toUpperCase()}</h2>
+            <svg viewBox="0 0 23 2" className="video-modal__line" aria-hidden="true">
+              <line x1="0" y1="1" x2="23" y2="1" stroke="currentColor" />
+            </svg>
+            <span className="video-modal__artist">{artist.toUpperCase()}</span>
+          </div>
+          <button
+            type="button"
+            className="video-modal__close"
+            onClick={onClose}
+            aria-label="Đóng"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" strokeWidth="2" />
+              <line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          </button>
         </header>
         <Player content={content} />
       </div>

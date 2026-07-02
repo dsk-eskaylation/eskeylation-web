@@ -1,53 +1,106 @@
+/* PostCard — Figma EL-f49357b6/EL-bc3a81e8 (cột gap 14, ảnh 259x143) */
 .post-card {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  width: 420px;
+  width: 536px;
+  max-width: 100%;
   cursor: pointer;
 }
 
-.post-card--blurred {
-  filter: blur(2px);
-  opacity: 0.5;
-  pointer-events: none;
+/* Header (Figma EL-c094fdcc: avatar 45 + cột gap 8) */
+.post-card__head {
+  display: flex;
+  gap: 12px;
 }
 
-.post-card__media {
-  position: relative;
+.post-card__avatar {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: var(--color-text-bright);
+  flex-shrink: 0;
 }
 
-.post-card__more {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: var(--color-overlay);
-  color: #fff;
-  font-size: 14px;
-  backdrop-filter: blur(4px);
+.post-card__id {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.post-card__name {
+  font-size: 18px; /* Figma style_5607154b */
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-text-bright);
+}
+
+.post-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px; /* Figma style_106edbc5 */
+  letter-spacing: 0.01em;
+  color: var(--color-text-muted);
+}
+
+.post-card__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
 }
 
 .post-card__caption {
   margin: 0;
-  font-size: 14px;
+  font-size: 14px; /* Figma style_b7676fbd */
   font-weight: 300;
   letter-spacing: 0.06em;
   line-height: 1.5;
-  color: #fff;
+  color: var(--color-text-bright);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.post-card__meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+/* Lưới ảnh 2 cột (Figma EL-3937ca2a: hàng gap 21, cột gap 18) */
+.post-card__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 21px 18px;
 }
 
-.post-card__title {
-  font-size: 16px;
+.post-card__cell {
+  position: relative;
+  aspect-ratio: 259 / 143;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.post-card__cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s var(--ease-out);
+}
+
+.post-card:hover .post-card__cell img {
+  transform: scale(1.03);
+}
+
+/* Ô "+N" (Figma EL-f3f6e944: nền ảnh + phủ tối + số) */
+.post-card__more {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.49);
   color: var(--color-text);
+  font-family: var(--font-accent);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }

@@ -1,3 +1,4 @@
+/* MusicCard — Figma EL-3ff63958 (cột gap 10, meta + khung 431x237 có góc ngắm) */
 .music-card {
   display: flex;
   flex-direction: column;
@@ -12,13 +13,117 @@
 
 .music-card__meta {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.music-card__row {
+  display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
 }
 
-.music-card__title {
-  font-size: 16px;
-  font-weight: 500;
+.music-card__row--title {
+  font-size: 16px; /* Figma style_34bc643e / style_caae9f2c */
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--color-text);
+}
+
+.music-card__row--sub {
+  font-size: 12px; /* Figma style_19e79665 */
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  color: var(--color-text-muted);
+}
+
+/* Khung có 4 góc ngắm 14x14 (Figma EL-fa73244a), ảnh lọt trong 7px */
+.music-card__frame {
+  position: relative;
+  padding: 7px;
+  aspect-ratio: 445 / 251;
+}
+
+.music-card__corner {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-top: 1px solid var(--color-text);
+  border-left: 1px solid var(--color-text);
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+.music-card__corner--tl {
+  top: 0;
+  left: 0;
+}
+.music-card__corner--tr {
+  top: 0;
+  right: 0;
+  transform: scaleX(-1);
+}
+.music-card__corner--bl {
+  bottom: 0;
+  left: 0;
+  transform: scaleY(-1);
+}
+.music-card__corner--br {
+  bottom: 0;
+  right: 0;
+  transform: scale(-1, -1);
+}
+.music-card:hover .music-card__corner {
+  opacity: 1;
+}
+
+.music-card__thumb {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-thumb);
+  background: var(--color-surface);
+}
+.music-card__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s var(--ease-out);
+}
+.music-card:hover .music-card__thumb img {
+  transform: scale(1.05);
+}
+
+.music-card__placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #141414, #0a0a0a);
+}
+
+/* Nút play giữa (Figma EL-7f083d3a: nền rgba(0,0,0,.44) r40, tam giác 31px) */
+.music-card__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border-radius: 40px;
+  background: rgba(0, 0, 0, 0.44);
+  color: var(--color-text);
+  transition:
+    transform 0.3s var(--ease-out),
+    background 0.3s ease;
+}
+.music-card__play svg {
+  width: 31px;
+  height: 31px;
+}
+.music-card:hover .music-card__play {
+  transform: translate(-50%, -50%) scale(1);
+  background: rgba(0, 0, 0, 0.6);
 }

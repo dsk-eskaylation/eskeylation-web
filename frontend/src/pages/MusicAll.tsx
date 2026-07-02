@@ -9,7 +9,7 @@ import { VideoModal } from '../components/VideoModal'
 import { EmptyState } from '../components/EmptyState'
 import './MusicAll.css'
 
-const CATEGORIES = ['LOVE RAP', 'GANGSTA', "DISSIN'", 'AI']
+const CATEGORIES = ['LIFE RAP', 'LOVE RAP', 'GANGSTA', "DISSIN'", 'AI']
 
 export function MusicAll() {
   const [q, setQ] = useState('')
@@ -28,17 +28,40 @@ export function MusicAll() {
 
   return (
     <div className="music-all">
+      {/* Header (Figma #1:1385): Quay về | pills | search */}
       <header className="music-all__head">
         <Link to="/music" className="music-all__back">
-          ‹ Quay về
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polyline
+              points="14,5 7,12 14,19"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            />
+          </svg>
+          Quay về
         </Link>
+
         <div className="music-all__cats">
+          <button
+            type="button"
+            className={
+              category === null
+                ? 'music-all__cat music-all__cat--active'
+                : 'music-all__cat'
+            }
+            onClick={() => setCategory(null)}
+          >
+            Tất cả
+          </button>
           {CATEGORIES.map((c) => (
             <button
               key={c}
               type="button"
               className={
-                category === c ? 'music-all__cat music-all__cat--active' : 'music-all__cat'
+                category === c
+                  ? 'music-all__cat music-all__cat--active'
+                  : 'music-all__cat'
               }
               onClick={() => setCategory(category === c ? null : c)}
             >
@@ -46,23 +69,27 @@ export function MusicAll() {
             </button>
           ))}
         </div>
-        <SearchBar value={q} onChange={setQ} />
+
+        <SearchBar value={q} onChange={setQ} onClear={() => setQ('')} />
       </header>
 
-      {state.status === 'loading' && <p className="muted">Đang tải…</p>}
       {state.status === 'success' && items.length === 0 && (
-        <EmptyState title="Không tìm thấy bài hát" />
+        <EmptyState title="Hiện tại chưa có bài hát nào TT.  " />
       )}
 
       <div className="music-all__grid">
-        {items.map((item) => (
-          <MusicCard key={item.id} content={item} onClick={() => setSelected(item)} />
+        {items.map((item, i) => (
+          <div
+            className="music-all__cell"
+            key={item.id}
+            style={{ animationDelay: `${(i % 9) * 60}ms` }}
+          >
+            <MusicCard content={item} onClick={() => setSelected(item)} />
+          </div>
         ))}
       </div>
 
-      {selected && (
-        <VideoModal content={selected} onClose={() => setSelected(null)} />
-      )}
+      {selected && <VideoModal content={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+/* Modal — overlay Figma fill_f4392668 rgba(0,0,0,0.8) */
 .modal {
   position: fixed;
   inset: 0;
@@ -7,34 +8,81 @@
   justify-content: center;
   padding: var(--space-6);
   background: var(--color-overlay);
-  backdrop-filter: blur(4px);
+  animation: modal-overlay-in 0.25s ease both;
 }
 
+@keyframes modal-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Khung panel (Figma EL-ef611fd5: #101010, r20, padding 20) */
 .modal__panel {
   position: relative;
   max-width: 1100px;
-  width: 100%;
+  width: fit-content;
   max-height: 90vh;
   overflow: auto;
-  padding: var(--space-6);
+  padding: 20px;
   background: var(--color-surface);
   border-radius: var(--radius-panel);
+  animation: modal-panel-in 0.32s var(--ease-out) both;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* Không khung — video "Khi đã chọn" (Figma #1:1675) */
+.modal__panel--bare {
+  max-width: min(1487px, calc(100vw - 2 * var(--page-pad)));
+  width: 100%;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .modal__close {
   position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  width: 40px;
-  height: 40px;
+  top: 20px;
+  right: 20px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  font-size: 16px;
+  background: none;
+  color: var(--color-text);
   cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), color var(--dur-fast) ease;
 }
 
 .modal__close:hover {
-  background: rgba(255, 255, 255, 0.16);
+  color: var(--color-text-bright);
+  transform: rotate(90deg);
+}
+
+.modal__close svg {
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 900px) {
+  .modal__panel--bare {
+    max-width: 100%;
+  }
 }

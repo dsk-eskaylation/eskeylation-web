@@ -1,8 +1,9 @@
+/* Xem tất cả — Figma frame "Nghe nhạc/ Xem tất cả" #1:1167 (nội dung từ y=87) */
 .music-all {
-  padding-top: 120px;
+  padding-top: 160px;
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: 75px; /* Figma #1:1384 gap 75 */
 }
 
 .music-all__head {
@@ -13,50 +14,87 @@
   flex-wrap: wrap;
 }
 
+/* Quay về (Figma #1:1386: chevron + chữ 18 SemiBold) */
 .music-all__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.06em;
-  color: #c9c8c8;
+  color: var(--color-text);
+  transition: text-shadow var(--dur-fast) ease, transform var(--dur-fast) ease;
+}
+.music-all__back svg {
+  width: 24px;
+  height: 24px;
+  transition: transform 0.25s var(--ease-out);
+}
+.music-all__back:hover {
+  text-shadow: var(--glow-text);
+}
+.music-all__back:hover svg {
+  transform: translateX(-4px);
 }
 
+/* Pills lọc (Figma #1:1389: gap 20; active glow, thường opacity 0.5) */
 .music-all__cats {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 20px;
+  flex-wrap: wrap;
 }
 
 .music-all__cat {
   border: none;
   background: none;
   cursor: pointer;
-  font-family: inherit;
-  font-size: 16px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.06em;
   padding: 12px 20px;
   border-radius: 22px;
   color: var(--color-text-muted);
   opacity: 0.5;
+  box-shadow: var(--shadow-nav);
+  transition:
+    opacity 0.25s ease,
+    color 0.25s ease,
+    text-shadow 0.25s ease;
+}
+
+.music-all__cat:hover {
+  opacity: 0.8;
+  color: var(--color-text);
 }
 
 .music-all__cat--active {
   opacity: 1;
   color: var(--color-text);
-  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25);
+  text-shadow: var(--glow-text);
 }
 
+/* Grid 3 cột (Figma #1:1404: gap cột 40, hàng 30) */
 .music-all__grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 40px 30px;
+  gap: 30px 40px;
 }
 
-@media (max-width: 900px) {
+.music-all__cell {
+  animation: page-enter 0.5s var(--ease-out) both;
+}
+
+@media (max-width: 1100px) {
+  .music-all {
+    padding-top: 130px;
+  }
   .music-all__grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .music-all__grid {
     grid-template-columns: 1fr;
   }
