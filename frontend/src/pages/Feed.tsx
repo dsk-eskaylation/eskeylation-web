@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
 import { PostCard } from '../components/PostCard'
@@ -37,7 +37,8 @@ function useSlideStep() {
 export function Feed({ type, emptyTitle }: Props) {
   const [active, setActive] = useState(0)
   const [open, setOpen] = useState(false)
-  const [touchX, setTouchX] = useState<number | null>(null)
+  // Vị trí chạm là giá trị tạm (không ảnh hưởng render) -> dùng ref để khỏi re-render
+  const touchX = useRef<number | null>(null)
   const step = useSlideStep()
   const state = useApi(() => api.list(type, { pageSize: 30 }), [type])
 
@@ -65,13 +66,15 @@ export function Feed({ type, emptyTitle }: Props) {
     <div className="feed">
       <div
         className="feed__viewport"
-        onTouchStart={(e) => setTouchX(e.touches[0].clientX)}
+        onTouchStart={(e) => {
+          touchX.current = e.touches[0].clientX
+        }}
         onTouchEnd={(e) => {
-          if (touchX === null) return
-          const dx = e.changedTouches[0].clientX - touchX
+          if (touchX.current === null) return
+          const dx = e.changedTouches[0].clientX - touchX.current
           if (dx < -40) setActive((v) => Math.min(items.length - 1, v + 1))
           if (dx > 40) setActive((v) => Math.max(0, v - 1))
-          setTouchX(null)
+          touchX.current = null
         }}
       >
         <div

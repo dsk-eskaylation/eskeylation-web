@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import './Modal.css'
 
 interface Props {
@@ -12,9 +12,16 @@ interface Props {
 
 /** Modal shell dùng chung: overlay tối, Escape + click nền để đóng, animation vào. */
 export function Modal({ onClose, children, variant = 'panel', showClose = true }: Props) {
+  // Giữ onClose trong ref để effect chỉ subscribe 1 lần,
+  // không gỡ/gắn lại listener mỗi khi cha re-render tạo callback mới.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
     }
     window.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
@@ -22,7 +29,7 @@ export function Modal({ onClose, children, variant = 'panel', showClose = true }
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = ''
     }
-  }, [onClose])
+  }, [])
 
   return (
     <div className="modal" onClick={onClose} role="dialog" aria-modal="true">

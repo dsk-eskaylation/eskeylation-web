@@ -29,27 +29,29 @@ const DEFAULT_MAINTAIN = [
   'Được “sao kê" ở phần comment bài viết này',
 ]
 
-/* Dải chữ ESKAYLATION chạy ngang (Figma #1:215/#1:265) — 2 bản sao để loop liền mạch */
+/* Dải chữ ESKAYLATION chạy ngang (Figma #1:215/#1:265) — 2 bản sao để loop liền mạch.
+   JSX tĩnh hoist ra ngoài component để không phải tạo lại 22 item + 44 svg mỗi render. */
+const MARQUEE_ITEMS = Array.from({ length: 11 }).map((_, i) => (
+  <span className="marquee__item" key={i}>
+    <svg viewBox="0 0 12 29" className="marquee__slash">
+      <line x1="11" y1="1" x2="1" y2="28" stroke="currentColor" strokeWidth="1" />
+    </svg>
+    ESKAYLATION
+    <svg viewBox="0 0 12 29" className="marquee__slash">
+      <line x1="11" y1="1" x2="1" y2="28" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  </span>
+))
+
 function Marquee({ reverse = false }: { reverse?: boolean }) {
-  const strip = (key: string) => (
-    <div className="marquee__strip" key={key} aria-hidden="true">
-      {Array.from({ length: 11 }).map((_, i) => (
-        <span className="marquee__item" key={i}>
-          <svg viewBox="0 0 12 29" className="marquee__slash">
-            <line x1="11" y1="1" x2="1" y2="28" stroke="currentColor" strokeWidth="1" />
-          </svg>
-          ESKAYLATION
-          <svg viewBox="0 0 12 29" className="marquee__slash">
-            <line x1="11" y1="1" x2="1" y2="28" stroke="currentColor" strokeWidth="1" />
-          </svg>
-        </span>
-      ))}
-    </div>
-  )
   return (
     <div className={reverse ? 'marquee marquee--reverse' : 'marquee'}>
-      {strip('a')}
-      {strip('b')}
+      <div className="marquee__strip" aria-hidden="true">
+        {MARQUEE_ITEMS}
+      </div>
+      <div className="marquee__strip" aria-hidden="true">
+        {MARQUEE_ITEMS}
+      </div>
     </div>
   )
 }
@@ -165,8 +167,8 @@ export function Home() {
         <Marquee />
         <div className="home__about">
           <div className="home__about-brand">
-            <span className="home__about-name">ESKAYLATION</span>
-            <span className="home__about-q">Là gì?</span>
+            <span className="home__about-name">DSK</span>
+            <span className="home__about-q">Là ai?</span>
           </div>
           <p className="home__about-text">{intro}</p>
         </div>

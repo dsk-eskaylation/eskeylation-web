@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { useApi } from '../api/useApi'
+import { useApi, useDebounced } from '../api/useApi'
 import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
 import { MusicCard } from '../components/MusicCard'
@@ -13,16 +13,17 @@ const CATEGORIES = ['LIFE RAP', 'LOVE RAP', 'GANGSTA', "DISSIN'", 'AI']
 
 export function MusicAll() {
   const [q, setQ] = useState('')
+  const debouncedQ = useDebounced(q) // tránh gọi API theo từng phím gõ
   const [category, setCategory] = useState<string | null>(null)
   const [selected, setSelected] = useState<ContentOut | null>(null)
   const state = useApi(
     () =>
       api.list('music', {
-        q: q || undefined,
+        q: debouncedQ || undefined,
         category: category || undefined,
         pageSize: 60,
       }),
-    [q, category],
+    [debouncedQ, category],
   )
   const items = state.status === 'success' ? state.data.items : []
 

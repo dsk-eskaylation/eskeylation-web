@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { useApi } from '../api/useApi'
+import { useApi, useDebounced } from '../api/useApi'
 import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
 import { VideoModal } from '../components/VideoModal'
@@ -12,16 +12,6 @@ const CATEGORIES = ['LIFE RAP', 'LOVE RAP', 'GANGSTA', "DISSIN'", 'AI']
 
 function primaryMedia(c: ContentOut) {
   return c.media.find((m) => m.is_primary) ?? c.media[0]
-}
-
-/** Debounce giá trị search cho mượt (gõ xong 300ms mới gọi API). */
-function useDebounced(value: string, delay = 300) {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
 }
 
 /* Góc ngắm trang trí quanh player (Figma EL-20a8c54a: 12x12, nét trên+trái) */
@@ -51,7 +41,11 @@ export function Music() {
   )
 
   const items = state.status === 'success' ? state.data.items : []
-  const featured = items.find((i) => i.id === featuredId) ?? items[0]
+  /* Tìm vị trí bài đang chọn 1 lần rồi lấy ra, thay vì find + indexOf 2 vòng lặp */
+  const foundIdx = featuredId === null ? -1 : items.findIndex((i) => i.id === featuredId)
+  const fIdx = foundIdx === -1 ? 0 : foundIdx
+  const featured: ContentOut | undefined = items[fIdx]
+  const featuredMedia = featured ? primaryMedia(featured) : undefined
   const searching = q.trim().length > 0
   const noResult = searching && state.status === 'success' && items.length === 0
 
@@ -61,7 +55,6 @@ export function Music() {
   }
 
   /* Playlist dọc quanh bài đang chọn (Figma #1:570: 5 thumb, giữa nổi bật) */
-  const fIdx = featured ? items.indexOf(featured) : 0
   const around = items.length
     ? [-2, -1, 0, 1, 2].map((d) => items[(fIdx + d + items.length) % items.length])
     : []
@@ -148,10 +141,10 @@ export function Music() {
               onClick={() => setPlaying(featured)}
               aria-label={`Phát ${featured.title}`}
             >
-              {primaryMedia(featured) ? (
+              {featuredMedia ? (
                 <img
                   key={featured.id}
-                  src={primaryMedia(featured)!.url}
+                  src={featuredMedia.url}
                   alt={featured.title}
                 />
               ) : (
@@ -177,21 +170,22 @@ export function Music() {
               </svg>
               {around.length > 1 && (
                 <div className="music__playlist" aria-label="Danh sách phát">
-                  {around.map((item, i) => (
-                    <button
-                      key={`${item.id}-${i}`}
-                      type="button"
-                      className={
-                        i === 2 ? 'music__thumb music__thumb--active' : 'music__thumb'
-                      }
-                      onClick={() => (i === 2 ? setPlaying(item) : pick(item))}
-                      aria-label={item.title}
-                    >
-                      {primaryMedia(item) && (
-                        <img src={primaryMedia(item)!.url} alt="" loading="lazy" />
-                      )}
-                    </button>
-                  ))}
+                  {around.map((item, i) => {
+                    const media = primaryMedia(item)
+                    return (
+                      <button
+                        key={`${item.id}-${i}`}
+                        type="button"
+                        className={
+                          i === 2 ? 'music__thumb music__thumb--active' : 'music__thumb'
+                        }
+                        onClick={() => (i === 2 ? setPlaying(item) : pick(item))}
+                        aria-label={item.title}
+                      >
+                        {media && <img src={media.url} alt="" loading="lazy" />}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
