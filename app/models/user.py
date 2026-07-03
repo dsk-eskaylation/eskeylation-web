@@ -1,4 +1,4 @@
-from sqlalchemy import Enum, String
+from sqlalchemy import CheckConstraint, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -17,3 +17,10 @@ class User(TimestampMixin, Base):
         default=UserRole.author,
     )
     is_active: Mapped[bool] = mapped_column(default=True)
+
+    __table_args__ = (
+        # CHECK enum ở tầng DB vì native_enum=False lưu VARCHAR (db-review C4)
+        CheckConstraint(
+            "role IN ('admin', 'editor', 'author')", name="ck_users_role"
+        ),
+    )
