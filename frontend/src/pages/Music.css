@@ -6,33 +6,12 @@
   gap: 50px; /* Figma #1:535 gap 50 */
 }
 
-/* Topbar ghim dưới PillNav khi cuộn — search + thể loại luôn nhìn thấy */
 .music__topbar {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 40px;
   flex-wrap: wrap;
-  position: sticky;
-  top: 118px; /* ngay dưới nav fixed (50px + chiều cao pill) */
-  z-index: 30;
-  padding: 14px 0;
-  background: rgba(6, 6, 6, 0.82);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
-/* Che khoảng hở giữa topbar và mép trên màn hình (vùng sau PillNav) */
-.music__topbar::before {
-  content: '';
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100vw;
-  height: 118px;
-  background: linear-gradient(180deg, #060606 60%, rgba(6, 6, 6, 0.82));
-  pointer-events: none;
 }
 
 /* ---- Search + dropdown + lỗi ---- */
@@ -360,12 +339,6 @@
     padding-top: 160px;
     gap: 40px;
   }
-  .music__topbar {
-    top: 86px; /* nav mobile: padding-top 16 + pill thấp hơn */
-  }
-  .music__topbar::before {
-    height: 86px;
-  }
   .music__stage {
     flex-direction: column;
     align-items: stretch;
@@ -407,12 +380,7 @@
   .music__topbar {
     flex-direction: column;
     align-items: stretch;
-    gap: 16px;
-    top: 66px; /* nav mobile nhỏ nhất */
-    padding: 10px 0;
-  }
-  .music__topbar::before {
-    height: 66px;
+    gap: 24px;
   }
   .music__search,
   .music__search .search-bar,
