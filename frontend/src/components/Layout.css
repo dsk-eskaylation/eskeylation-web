@@ -2,7 +2,7 @@
   min-height: 100vh;
 }
 
-/* Figma: nav nổi ở y=50, giữa trang */
+/* Figma: nav nổi ở y=50, giữa trang; icon tài khoản neo góc phải cùng hàng */
 .layout__nav {
   position: fixed;
   top: 0;
@@ -19,17 +19,53 @@
   pointer-events: auto;
 }
 
+/* Icon neo góc phải, cao bằng dải PillNav + căn giữa dọc -> thẳng hàng với nav */
+.layout__auth {
+  position: absolute;
+  right: 40px;
+  top: 50px;
+  height: 78px; /* = chiều cao PillNav desktop */
+  display: flex;
+  align-items: center;
+}
+
 .layout__main {
   max-width: var(--page-max);
   margin: 0 auto;
   padding: 0 var(--page-pad) var(--space-10);
 }
 
+@media (max-width: 1100px) {
+  .layout__auth {
+    right: 20px;
+    height: 70px; /* pill thu nhỏ (link 10x20, font 15) */
+  }
+}
+
 @media (max-width: 900px) {
   .layout__nav {
     padding-top: 16px;
   }
+  .layout__auth {
+    top: 16px;
+  }
   .layout__main {
     padding-bottom: var(--space-8);
+  }
+}
+
+/* Mobile: nav gần full-width -> icon xuống hàng riêng phía trên, canh phải */
+@media (max-width: 720px) {
+  .layout__nav {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .layout__auth {
+    position: static;
+    height: auto;
+    align-self: flex-end;
   }
 }

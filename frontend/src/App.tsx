@@ -6,6 +6,7 @@ import { Music } from './pages/Music'
 import { MusicAll } from './pages/MusicAll'
 import { Feed } from './pages/Feed'
 import { Login } from './pages/Login'
+import { Register } from './pages/Register'
 import { Cms } from './pages/Cms'
 import './App.css'
 
@@ -30,6 +31,7 @@ export default function App() {
 
         {/* Khu vực quản trị — không dùng PillNav public */}
         <Route path="login" element={<Login />} />
+        <Route path="register" element={<Register />} />
         <Route
           path="cms"
           element={

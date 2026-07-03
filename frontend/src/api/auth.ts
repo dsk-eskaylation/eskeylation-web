@@ -34,6 +34,20 @@ export async function login(email: string, password: string): Promise<void> {
   setToken(data.access_token)
 }
 
+/** POST /auth/register — tài khoản tạo ra ở trạng thái chờ admin duyệt. */
+export async function register(email: string, password: string): Promise<void> {
+  const res = await fetch('/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    const detail = typeof data?.detail === 'string' ? data.detail : null
+    throw new Error(detail ?? `Đăng ký lỗi ${res.status}`)
+  }
+}
+
 export function authHeaders(): Record<string, string> {
   const token = getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}

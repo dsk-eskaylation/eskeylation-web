@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { useApi, useDebounced } from '../api/useApi'
+import { useApi } from '../api/useApi'
 import type { ContentOut } from '../api/types'
-import { SearchBar } from '../components/SearchBar'
 import { VideoModal } from '../components/VideoModal'
 import { EmptyState } from '../components/EmptyState'
 import './Music.css'
 
 const CATEGORIES = ['LIFE RAP', 'LOVE RAP', 'GANGSTA', "DISSIN'", 'AI']
+
+/* Mảng rỗng ổn định — tránh effect chạy lại vì tạo [] mới mỗi render */
+const EMPTY_ITEMS: ContentOut[] = []
 
 function primaryMedia(c: ContentOut) {
   return c.media.find((m) => m.is_primary) ?? c.media[0]
@@ -24,35 +26,40 @@ function Brackets({ flip = false }: { flip?: boolean }) {
   )
 }
 
+/** Trang Nghe nhạc (Figma #1:373) — trải nghiệm "đang phát":
+    thể loại ở giữa phía trên, sân khấu 3 cột (tên bài | player | playlist).
+    KHÔNG có search ở đây — muốn tìm bài, user bấm "Xem tất cả" (theo design).
+    Điều hướng nhanh: phím ↑/↓ hoặc click thumb để đổi bài, Enter/click player để phát. */
 export function Music() {
-  const [q, setQ] = useState('')
-  const debouncedQ = useDebounced(q)
   const [category, setCategory] = useState<string | null>(null)
   const [featuredId, setFeaturedId] = useState<number | null>(null)
   const [playing, setPlaying] = useState<ContentOut | null>(null)
 
   const state = useApi(
-    () =>
-      api.list('music', {
-        q: debouncedQ || undefined,
-        category: category || undefined,
-      }),
-    [debouncedQ, category],
+    () => api.list('music', { category: category || undefined }),
+    [category],
   )
 
-  const items = state.status === 'success' ? state.data.items : []
-  /* Tìm vị trí bài đang chọn 1 lần rồi lấy ra, thay vì find + indexOf 2 vòng lặp */
-  const foundIdx = featuredId === null ? -1 : items.findIndex((i) => i.id === featuredId)
+  const items = state.status === 'success' ? state.data.items : EMPTY_ITEMS
+  const foundIdx =
+    featuredId === null ? -1 : items.findIndex((i) => i.id === featuredId)
   const fIdx = foundIdx === -1 ? 0 : foundIdx
   const featured: ContentOut | undefined = items[fIdx]
   const featuredMedia = featured ? primaryMedia(featured) : undefined
-  const searching = q.trim().length > 0
-  const noResult = searching && state.status === 'success' && items.length === 0
 
-  const pick = (item: ContentOut) => {
-    setFeaturedId(item.id)
-    setQ('')
-  }
+  /* Đặt mình vào người nghe: đứng ở player, ↑/↓ lướt bài như đổi kênh */
+  useEffect(() => {
+    if (playing || items.length < 2) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+      e.preventDefault()
+      const dir = e.key === 'ArrowDown' ? 1 : -1
+      const next = items[(fIdx + dir + items.length) % items.length]
+      setFeaturedId(next.id)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [items, fIdx, playing])
 
   /* Playlist dọc quanh bài đang chọn (Figma #1:570: 5 thumb, giữa nổi bật) */
   const around = items.length
@@ -64,35 +71,8 @@ export function Music() {
 
   return (
     <div className="music">
+      {/* Thể loại ở GIỮA phía trên player (Figma #1:536: cột 183 tại trung tâm) */}
       <div className="music__topbar">
-        <div className="music__search">
-          <SearchBar
-            value={q}
-            onChange={setQ}
-            placeholder="Tìm kiếm bài hát"
-            error={noResult}
-            onClear={() => setQ('')}
-          />
-          {/* Dropdown gợi ý (Figma #1:758) */}
-          {searching && items.length > 0 && (
-            <ul className="music__suggest" role="listbox">
-              {items.slice(0, 4).map((item) => (
-                <li key={item.id}>
-                  <button type="button" onClick={() => pick(item)}>
-                    {item.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {/* Báo lỗi tìm kiếm (Figma #1:972) */}
-          {noResult && (
-            <p className="music__search-error">
-              <span>*</span>Hiện tại chưa có bài hát này. Bạn hãy thử lại
-            </p>
-          )}
-        </div>
-
         <div className="music__categories">
           {CATEGORIES.map((c) => {
             const active = category === c
@@ -103,10 +83,10 @@ export function Music() {
                 className={active ? 'music__cat music__cat--active' : 'music__cat'}
                 onClick={() => setCategory(active ? null : c)}
               >
+                {c}
                 <svg viewBox="0 0 27 2" className="music__cat-line" aria-hidden="true">
                   <line x1="0" y1="1" x2="27" y2="1" stroke="currentColor" />
                 </svg>
-                {c}
               </button>
             )
           })}
@@ -114,14 +94,12 @@ export function Music() {
       </div>
 
       {state.status === 'error' && <EmptyState title="Không tải được nhạc." />}
-      {state.status === 'success' && items.length === 0 && !searching && (
+      {state.status === 'success' && items.length === 0 && (
         <EmptyState title="Hiện tại chưa có bài hát nào TT.  " />
       )}
 
       {featured && (
-        <section
-          className={searching ? 'music__stage music__stage--dim' : 'music__stage'}
-        >
+        <section className="music__stage">
           {/* Tiêu đề bài + gạch ngang (Figma #1:554) */}
           <div className="music__head" key={featured.id}>
             <h2 className="music__title">
@@ -142,11 +120,7 @@ export function Music() {
               aria-label={`Phát ${featured.title}`}
             >
               {featuredMedia ? (
-                <img
-                  key={featured.id}
-                  src={featuredMedia.url}
-                  alt={featured.title}
-                />
+                <img key={featured.id} src={featuredMedia.url} alt={featured.title} />
               ) : (
                 <span className="music__player-empty" />
               )}
@@ -159,9 +133,13 @@ export function Music() {
             <Brackets flip />
           </div>
 
-          {/* Cột phải: Xem tất cả + playlist dọc (Figma #1:565) */}
+          {/* Cột phải: Xem tất cả (nơi có tìm kiếm) + playlist dọc (Figma #1:565) */}
           <aside className="music__side">
-            <Link to="/music/all" className="music__see-all">
+            <Link
+              to="/music/all"
+              className="music__see-all"
+              title="Xem toàn bộ và tìm kiếm bài hát"
+            >
               Xem tất cả
             </Link>
             <div className="music__side-row">
@@ -179,7 +157,9 @@ export function Music() {
                         className={
                           i === 2 ? 'music__thumb music__thumb--active' : 'music__thumb'
                         }
-                        onClick={() => (i === 2 ? setPlaying(item) : pick(item))}
+                        onClick={() =>
+                          i === 2 ? setPlaying(item) : setFeaturedId(item.id)
+                        }
                         aria-label={item.title}
                       >
                         {media && <img src={media.url} alt="" loading="lazy" />}

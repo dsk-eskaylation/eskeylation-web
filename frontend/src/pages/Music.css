@@ -6,92 +6,27 @@
   gap: 50px; /* Figma #1:535 gap 50 */
 }
 
+/* Topbar: thể loại thành dải tab ngang căn giữa, ngay trên sân khấu.
+   Giữ chữ Figma (Google Sans Flex 20) + gạch chân accent khi active/hover. */
 .music__topbar {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 40px;
-  flex-wrap: wrap;
+  justify-content: center;
 }
 
-/* ---- Search + dropdown + lỗi ---- */
-.music__search {
-  position: relative;
-}
-
-.music__suggest {
-  position: absolute;
-  top: 66px; /* Figma #1:758 y=66 */
-  left: 0;
-  width: 400px;
-  margin: 0;
-  padding: 12px;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border: 0.5px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: rgba(6, 6, 6, 0.88);
-  backdrop-filter: blur(12px);
-  z-index: 20;
-  animation: suggest-in 0.25s var(--ease-out) both;
-}
-
-@keyframes suggest-in {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.music__suggest button {
-  width: 100%;
-  padding: 10px;
-  border: none;
-  background: none;
-  color: var(--color-text);
-  font-size: 14px;
-  text-align: center;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background var(--dur-fast) ease;
-}
-.music__suggest button:hover {
-  background: rgba(255, 255, 255, 0.07);
-}
-
-/* Figma #1:972: chữ đỏ #AF0A0A 18px */
-.music__search-error {
-  position: absolute;
-  top: 55px;
-  left: 6px;
-  margin: 0;
-  display: flex;
-  gap: 4px;
-  font-size: 18px;
-  letter-spacing: -0.06em;
-  color: var(--color-error);
-  animation: suggest-in 0.25s var(--ease-out) both;
-}
-
-/* ---- Danh mục dọc (Figma #1:541: cột 183px, gap 14, canh phải) ---- */
 .music__categories {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 14px;
-  width: 183px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(24px, 4vw, 46px);
 }
 
+/* Mỗi tab: chữ trên, gạch chân dưới (hiện khi active/hover) */
 .music__cat {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   border: none;
   background: none;
   cursor: pointer;
@@ -108,7 +43,7 @@
   width: 27px;
   height: 2px;
   opacity: 0;
-  transform: translateX(-8px);
+  transform: scaleX(0.3);
   transition:
     opacity 0.25s ease,
     transform 0.25s var(--ease-out);
@@ -122,7 +57,7 @@
 .music__cat--active .music__cat-line,
 .music__cat:hover .music__cat-line {
   opacity: 1;
-  transform: translateX(0);
+  transform: scaleX(1);
 }
 
 /* ---- Sân khấu: tiêu đề | player | cột phải (Figma #1:553 gap 112) ---- */
@@ -131,9 +66,6 @@
   align-items: center;
   gap: clamp(40px, 6vw, 112px);
   transition: opacity 0.3s ease;
-}
-.music__stage--dim {
-  opacity: 0.4; /* Figma: stage mờ khi đang tìm kiếm */
 }
 
 .music__head {
@@ -377,22 +309,11 @@
   .music {
     padding-top: 130px;
   }
-  .music__topbar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 24px;
-  }
-  .music__search,
-  .music__search .search-bar,
-  .music__suggest {
-    width: 100%;
-  }
-  /* Danh mục chuyển thành hàng ngang cuộn được */
+  /* Nhiều thể loại trên màn hẹp -> cho cuộn ngang, ẩn scrollbar */
   .music__categories {
-    flex-direction: row;
-    align-items: center;
     width: 100%;
-    gap: 18px;
+    gap: 22px;
+    justify-content: flex-start; /* tránh cắt mép khi cuộn */
     overflow-x: auto;
     padding-bottom: 6px;
     scrollbar-width: none;
@@ -403,9 +324,6 @@
   .music__cat {
     font-size: 16px;
     flex-shrink: 0;
-  }
-  .music__cat-line {
-    display: none;
   }
   .music__title {
     font-size: 18px;
@@ -421,10 +339,5 @@
   .music__thumb--active {
     width: 122px;
     height: 68px;
-  }
-  .music__search-error {
-    font-size: 15px;
-    position: static;
-    margin-top: 8px;
   }
 }
