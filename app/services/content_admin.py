@@ -159,9 +159,7 @@ async def set_status(
     return await get_with_media(session, content.id)
 
 
-async def duplicate(
-    session: AsyncSession, content: Content, author_id: int
-) -> Content:
+async def duplicate(session: AsyncSession, content: Content, author_id: int) -> Content:
     copy = Content(
         type=content.type,
         title=f"{content.title} (copy)",

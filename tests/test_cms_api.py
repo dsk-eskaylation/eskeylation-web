@@ -230,9 +230,7 @@ async def test_duplicate(client, make_user, make_media, track_content):
 # ---------- list (filter + pagination) ----------
 
 
-async def test_list_filter_type_va_status(
-    client, make_user, make_media, track_content
-):
+async def test_list_filter_type_va_status(client, make_user, make_media, track_content):
     author = await token_for(client, make_user, UserRole.author)
     editor = await token_for(client, make_user, UserRole.editor)
     # 1 music draft, 1 gallery published (gallery cần media mới publish được)
@@ -241,7 +239,11 @@ async def test_list_filter_type_va_status(
     )
     media = await make_media()
     media_c = await _create(
-        client, author, track_content, type="gallery", title="LG",
+        client,
+        author,
+        track_content,
+        type="gallery",
+        title="LG",
         media=[{"media_id": media.id}],
     )
     pub = await client.post(

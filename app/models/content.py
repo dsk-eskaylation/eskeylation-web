@@ -65,9 +65,7 @@ class Content(TimestampMixin, Base):
         Index("ix_contents_search_vector", "search_vector", postgresql_using="gin"),
         UniqueConstraint("type", "slug", name="uq_contents_type_slug"),
         # CHECK enum ở tầng DB vì native_enum=False lưu VARCHAR (db-review C4)
-        CheckConstraint(
-            f"type IN ({_values(ContentType)})", name="ck_contents_type"
-        ),
+        CheckConstraint(f"type IN ({_values(ContentType)})", name="ck_contents_type"),
         CheckConstraint(
             f"status IN ({_values(ContentStatus)})", name="ck_contents_status"
         ),

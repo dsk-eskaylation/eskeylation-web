@@ -48,8 +48,24 @@ class Settings(BaseSettings):
 
     # Bảo mật nội dung — tag/attribute HTML an toàn cho rich text (bleach).
     allowed_html_tags: list[str] = [
-        "p", "br", "b", "strong", "i", "em", "u", "s",
-        "ul", "ol", "li", "a", "blockquote", "code", "pre", "h2", "h3", "h4",
+        "p",
+        "br",
+        "b",
+        "strong",
+        "i",
+        "em",
+        "u",
+        "s",
+        "ul",
+        "ol",
+        "li",
+        "a",
+        "blockquote",
+        "code",
+        "pre",
+        "h2",
+        "h3",
+        "h4",
     ]
     allowed_html_attributes: dict[str, list[str]] = {
         "a": ["href", "title", "rel"],

@@ -20,7 +20,5 @@ class User(TimestampMixin, Base):
 
     __table_args__ = (
         # CHECK enum ở tầng DB vì native_enum=False lưu VARCHAR (db-review C4)
-        CheckConstraint(
-            "role IN ('admin', 'editor', 'author')", name="ck_users_role"
-        ),
+        CheckConstraint("role IN ('admin', 'editor', 'author')", name="ck_users_role"),
     )

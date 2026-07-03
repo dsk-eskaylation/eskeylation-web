@@ -34,9 +34,7 @@ async def _exists(
     content_type: ContentType,
     exclude_id: int | None,
 ) -> bool:
-    stmt = select(Content.id).where(
-        Content.slug == slug, Content.type == content_type
-    )
+    stmt = select(Content.id).where(Content.slug == slug, Content.type == content_type)
     if exclude_id is not None:
         stmt = stmt.where(Content.id != exclude_id)
     return (await session.scalar(stmt)) is not None

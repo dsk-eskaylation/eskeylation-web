@@ -15,9 +15,7 @@ pytestmark = pytest.mark.integration
 # ---------- Validate ở tầng service/API (trả 422, không nổ 500) ----------
 
 
-async def test_hai_primary_bi_chan_422(
-    client, make_user, make_media, track_content
-):
+async def test_hai_primary_bi_chan_422(client, make_user, make_media, track_content):
     token = await token_for(client, make_user, UserRole.author)
     m1 = await make_media()
     m2 = await make_media()
@@ -134,14 +132,10 @@ async def test_db_chan_hai_primary(db, make_content, make_media):
     m1 = await make_media()
     m2 = await make_media()
     db.add(
-        ContentMedia(
-            content_id=content.id, media_id=m1.id, position=0, is_primary=True
-        )
+        ContentMedia(content_id=content.id, media_id=m1.id, position=0, is_primary=True)
     )
     db.add(
-        ContentMedia(
-            content_id=content.id, media_id=m2.id, position=1, is_primary=True
-        )
+        ContentMedia(content_id=content.id, media_id=m2.id, position=1, is_primary=True)
     )
     with pytest.raises(IntegrityError):
         await db.commit()
