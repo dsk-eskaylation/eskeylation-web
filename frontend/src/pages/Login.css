@@ -1,0 +1,149 @@
+/* Login — cùng ngôn ngữ thiết kế Figma: pill glass, viền 0.5px, glow */
+.login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  position: relative;
+  overflow: hidden;
+}
+
+.login__orb {
+  position: absolute;
+  width: 900px;
+  height: 900px;
+  border-radius: 50%;
+  border: 1px solid var(--color-text-muted);
+  filter: blur(10.45px);
+  top: -320px;
+  right: -320px;
+  pointer-events: none;
+}
+
+.login__card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(420px, 100%);
+  padding: 40px 36px;
+  background: var(--nav-bg);
+  border: 0.5px solid var(--nav-border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-nav);
+  backdrop-filter: blur(var(--nav-blur));
+  -webkit-backdrop-filter: blur(var(--nav-blur));
+}
+
+.login__brand {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  color: var(--color-text);
+  text-align: center;
+  transition: text-shadow var(--dur-fast) ease;
+}
+.login__brand:hover {
+  text-shadow: var(--glow-text);
+}
+
+.login__sub {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.login__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.login__label {
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  color: var(--color-text-muted);
+  padding-left: 20px;
+}
+
+.login__field input {
+  padding: 14px 20px;
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 52px; /* cùng radius với search-bar Figma */
+  background: transparent;
+  color: var(--color-text);
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  font-family: inherit;
+  outline: none;
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.login__field input:focus {
+  border-color: var(--color-text);
+  box-shadow: 0 0 12px rgba(239, 239, 239, 0.12);
+}
+.login__field input::placeholder {
+  color: var(--color-text-muted);
+  font-weight: 300;
+}
+
+.login__error {
+  margin: 0;
+  display: flex;
+  gap: 4px;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  color: var(--color-error);
+  animation: page-enter 0.25s var(--ease-out) both;
+}
+
+.login__submit {
+  margin-top: 6px;
+  padding: 13px 20px;
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 52px;
+  background: rgba(128, 127, 127, 0.14);
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition:
+    background 0.25s ease,
+    text-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+.login__submit:hover:not(:disabled) {
+  background: rgba(128, 127, 127, 0.26);
+  border-color: var(--color-text);
+  text-shadow: var(--glow-text);
+}
+.login__submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.login__back {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+  transition: color var(--dur-fast) ease;
+}
+.login__back:hover {
+  color: var(--color-text);
+}
+
+@media (max-width: 480px) {
+  .login__card {
+    padding: 28px 20px;
+  }
+  .login__orb {
+    display: none;
+  }
+}
