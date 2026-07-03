@@ -6,12 +6,32 @@
   gap: 75px; /* Figma #1:1384 gap 75 */
 }
 
+/* Header ghim dưới PillNav khi cuộn grid — Quay về/pills/search luôn nhìn thấy */
 .music-all__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
+  position: sticky;
+  top: 118px;
+  z-index: 30;
+  padding: 14px 0;
+  background: rgba(6, 6, 6, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.music-all__head::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+  height: 118px;
+  background: linear-gradient(180deg, #060606 60%, rgba(6, 6, 6, 0.82));
+  pointer-events: none;
 }
 
 /* Quay về (Figma #1:1386: chevron + chữ 18 SemiBold) */
@@ -91,6 +111,12 @@
     padding-top: 130px;
     gap: 48px;
   }
+  .music-all__head {
+    top: 86px;
+  }
+  .music-all__head::before {
+    height: 86px;
+  }
   .music-all__grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 24px 24px;
@@ -113,7 +139,12 @@
   .music-all__head {
     flex-direction: column;
     align-items: stretch;
-    gap: 16px;
+    gap: 12px;
+    top: 66px;
+    padding: 10px 0;
+  }
+  .music-all__head::before {
+    height: 66px;
   }
   .music-all__back {
     align-self: flex-start;
