@@ -6,12 +6,11 @@ from app.config import get_settings
 from app.services.storage import LocalStorage, SupabaseStorage, get_storage
 
 _settings = get_settings()
-_supabase_configured = bool(
-    _settings.supabase_url and _settings.supabase_service_key
-)
+_supabase_configured = bool(_settings.supabase_url and _settings.supabase_service_key)
 
 
 # ---------- selection (unit) ----------
+
 
 def test_get_storage_chon_local(monkeypatch):
     monkeypatch.setattr(_settings, "storage_backend", "local")
@@ -35,6 +34,7 @@ def test_supabase_url_la_public_cdn():
 
 # ---------- LocalStorage roundtrip (unit) ----------
 
+
 def test_local_storage_roundtrip(tmp_path):
     s = LocalStorage(str(tmp_path))
     s.save("d/f.txt", b"hi")
@@ -45,6 +45,7 @@ def test_local_storage_roundtrip(tmp_path):
 
 
 # ---------- Supabase roundtrip thật (chỉ chạy khi đã cấu hình) ----------
+
 
 @pytest.mark.integration
 @pytest.mark.skipif(
