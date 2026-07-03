@@ -112,6 +112,20 @@ async def test_admin_khong_the_tu_khoa_minh(client, make_user):
     assert r.status_code == 422
 
 
+async def test_me_tra_vai_tro(client, make_user):
+    token = await token_for(client, make_user, UserRole.editor)
+    r = await client.get("/auth/me", headers=auth(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["role"] == "editor"
+    assert "hashed_password" not in data
+
+
+async def test_me_khong_token_401(client):
+    r = await client.get("/auth/me")
+    assert r.status_code == 401
+
+
 async def test_security_headers_co_mat(client):
     r = await client.get("/health")
     assert r.headers["x-content-type-options"] == "nosniff"

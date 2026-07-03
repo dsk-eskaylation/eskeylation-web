@@ -6,6 +6,15 @@ import type { Page } from './types'
 
 export type ContentType = 'music' | 'gallery' | 'community' | 'homepage'
 export type ContentStatus = 'draft' | 'published' | 'archived'
+export type UserRole = 'admin' | 'editor' | 'author'
+
+export interface AdminUser {
+  id: number
+  email: string
+  role: UserRole
+  is_active: boolean
+  created_at: string
+}
 
 export interface AdminMediaItem {
   media_id: number
@@ -128,4 +137,16 @@ export const adminApi = {
     if (altText) form.append('alt_text', altText)
     return request<MediaUploaded>('/admin/media', { method: 'POST', body: form })
   },
+
+  // Tài khoản đang đăng nhập (để biết vai trò)
+  me: () => request<AdminUser>('/auth/me'),
+
+  // ---- Quản lý tài khoản (chỉ admin; editor/author gọi sẽ nhận 403) ----
+  listUsers: () => request<AdminUser[]>('/admin/users'),
+
+  updateUser: (id: number, payload: { is_active?: boolean; role?: UserRole }) =>
+    request<AdminUser>(`/admin/users/${id}`, jsonInit('PATCH', payload)),
+
+  createUser: (payload: { email: string; password: string; role?: UserRole }) =>
+    request<AdminUser>('/admin/users', jsonInit('POST', payload)),
 }

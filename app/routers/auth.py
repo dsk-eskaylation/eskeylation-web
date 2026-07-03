@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
+from app.dependencies import get_current_user
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.auth import Token
@@ -46,6 +47,12 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN, detail="Tài khoản bị khoá"
         )
     return Token(access_token=create_access_token(str(user.id)))
+
+
+@router.get("/me", response_model=UserRead)
+async def me(user: User = Depends(get_current_user)) -> UserRead:
+    """Thông tin tài khoản đang đăng nhập — để frontend biết vai trò."""
+    return UserRead.model_validate(user)
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)

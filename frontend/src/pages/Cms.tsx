@@ -3,14 +3,28 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   AdminApiError,
   adminApi,
+  type AdminUser,
   type ContentAdmin,
   type ContentMediaIn,
   type ContentStatus,
   type ContentType,
+  type UserRole,
 } from '../api/admin'
 import { clearToken } from '../api/auth'
 import { Modal } from '../components/Modal'
 import './Cms.css'
+
+const ROLES: { value: UserRole; label: string }[] = [
+  { value: 'admin', label: 'Quản trị' },
+  { value: 'editor', label: 'Biên tập' },
+  { value: 'author', label: 'Tác giả' },
+]
+
+const ROLE_LABEL: Record<UserRole, string> = {
+  admin: 'Quản trị',
+  editor: 'Biên tập',
+  author: 'Tác giả',
+}
 
 const TYPES: { value: ContentType; label: string }[] = [
   { value: 'music', label: 'Nhạc' },
@@ -314,9 +328,245 @@ function Editor({
   )
 }
 
+function fmtDay(iso: string) {
+  const d = new Date(iso)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
+/** Form thêm tài khoản (Modal) — admin tạo trực tiếp, kích hoạt luôn. */
+function NewUserForm({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState<UserRole>('author')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (password.length < 8) {
+      setError('Mật khẩu phải từ 8 ký tự')
+      return
+    }
+    setBusy(true)
+    try {
+      await adminApi.createUser({ email, password, role })
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tạo tài khoản lỗi')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <form className="cms-editor" onSubmit={onSubmit}>
+        <h2 className="cms-editor__title">Thêm tài khoản</h2>
+        <label className="cms-field">
+          <span>Email</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </label>
+        <label className="cms-field">
+          <span>Mật khẩu (tối thiểu 8 ký tự)</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={8}
+            required
+          />
+        </label>
+        <div className="cms-field">
+          <span>Vai trò</span>
+          <div className="cms-editor__types">
+            {ROLES.map((r) => (
+              <button
+                key={r.value}
+                type="button"
+                className={role === r.value ? 'cms-pill cms-pill--active' : 'cms-pill'}
+                onClick={() => setRole(r.value)}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {error && (
+          <p className="cms-error">
+            <span>*</span>
+            {error}
+          </p>
+        )}
+        <div className="cms-editor__foot">
+          <button type="button" className="cms-pill" onClick={onClose}>
+            Huỷ
+          </button>
+          <button type="submit" className="cms-pill cms-pill--active" disabled={busy}>
+            {busy ? 'Đang tạo…' : 'Tạo'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+/** Panel quản lý tài khoản (chỉ admin): duyệt tài khoản chờ, đổi vai trò, thêm mới. */
+function UsersPanel({ meId }: { meId: number | null }) {
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      setUsers(await adminApi.listUsers())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tải danh sách tài khoản lỗi')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const act = async (fn: () => Promise<unknown>) => {
+    setError(null)
+    try {
+      await fn()
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Thao tác lỗi')
+    }
+  }
+
+  const pending = users.filter((u) => !u.is_active)
+  const active = users.filter((u) => u.is_active)
+
+  const renderRow = (u: AdminUser) => (
+    <li key={u.id} className="cms__row page-enter">
+      <div className="cms__row-main">
+        <span className={u.is_active ? 'cms-badge cms-badge--published' : 'cms-badge cms-badge--draft'}>
+          {u.is_active ? 'Hoạt động' : 'Chờ duyệt'}
+        </span>
+        <div className="cms__row-text">
+          <span className="cms__row-title">{u.email}</span>
+          <span className="cms__row-meta">
+            {ROLE_LABEL[u.role]} · tạo {fmtDay(u.created_at)}
+            {u.id === meId && ' · bạn'}
+          </span>
+        </div>
+      </div>
+      <div className="cms__row-actions">
+        {!u.is_active && (
+          <button
+            type="button"
+            className="cms-pill cms-pill--publish"
+            onClick={() => void act(() => adminApi.updateUser(u.id, { is_active: true }))}
+          >
+            Duyệt
+          </button>
+        )}
+        {/* Đổi vai trò — không cho tự đổi chính mình (server cũng chặn) */}
+        {u.id !== meId &&
+          ROLES.filter((r) => r.value !== u.role).map((r) => (
+            <button
+              key={r.value}
+              type="button"
+              className="cms-pill"
+              onClick={() => void act(() => adminApi.updateUser(u.id, { role: r.value }))}
+              title={`Đổi thành ${r.label}`}
+            >
+              → {r.label}
+            </button>
+          ))}
+        {u.is_active && u.id !== meId && (
+          <button
+            type="button"
+            className="cms-pill cms-pill--danger"
+            onClick={() => {
+              if (window.confirm(`Khoá tài khoản ${u.email}?`))
+                void act(() => adminApi.updateUser(u.id, { is_active: false }))
+            }}
+          >
+            Khoá
+          </button>
+        )}
+      </div>
+    </li>
+  )
+
+  return (
+    <>
+      <div className="cms__filters">
+        <span className="cms__count">
+          {users.length} tài khoản
+          {pending.length > 0 && ` · ${pending.length} chờ duyệt`}
+        </span>
+        <button
+          type="button"
+          className="cms-pill cms-pill--new"
+          onClick={() => setCreating(true)}
+        >
+          + Thêm tài khoản
+        </button>
+      </div>
+
+      {error && (
+        <p className="cms-error">
+          <span>*</span>
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <p className="cms__status">Đang tải…</p>
+      ) : (
+        <>
+          {pending.length > 0 && (
+            <>
+              <p className="cms__section-label">Chờ duyệt ({pending.length})</p>
+              <ul className="cms__list">{pending.map(renderRow)}</ul>
+            </>
+          )}
+          <p className="cms__section-label">Đang hoạt động ({active.length})</p>
+          <ul className="cms__list">{active.map(renderRow)}</ul>
+        </>
+      )}
+
+      {creating && (
+        <NewUserForm
+          onClose={() => setCreating(false)}
+          onSaved={() => {
+            setCreating(false)
+            void load()
+          }}
+        />
+      )}
+    </>
+  )
+}
+
 /** Trang CMS quản lý nội dung — list + filter + workflow + editor. */
 export function Cms() {
   const navigate = useNavigate()
+  const [me, setMe] = useState<AdminUser | null>(null)
+  const [view, setView] = useState<'content' | 'users'>('content')
   const [type, setType] = useState<ContentType | null>(null)
   const [status, setStatus] = useState<ContentStatus | null>(null)
   const [items, setItems] = useState<ContentAdmin[]>([])
@@ -325,6 +575,18 @@ export function Cms() {
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<ContentAdmin | null>(null)
   const [creating, setCreating] = useState(false)
+
+  // Biết vai trò để hiện tab Tài khoản (chỉ admin)
+  useEffect(() => {
+    adminApi
+      .me()
+      .then(setMe)
+      .catch((err) => {
+        if (err instanceof AdminApiError && err.status === 401)
+          navigate('/login', { replace: true })
+      })
+  }, [navigate])
+  const isAdmin = me?.role === 'admin'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -377,6 +639,23 @@ export function Cms() {
           ESKAYLATION <em>CMS</em>
         </span>
         <div className="cms__topbar-actions">
+          {/* Chuyển view: Nội dung <-> Tài khoản (tab Tài khoản chỉ hiện cho admin) */}
+          <button
+            type="button"
+            className={view === 'content' ? 'cms-pill cms-pill--active' : 'cms-pill'}
+            onClick={() => setView('content')}
+          >
+            Nội dung
+          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className={view === 'users' ? 'cms-pill cms-pill--active' : 'cms-pill'}
+              onClick={() => setView('users')}
+            >
+              Tài khoản
+            </button>
+          )}
           <Link to="/" className="cms-pill">
             Xem trang
           </Link>
@@ -386,6 +665,72 @@ export function Cms() {
         </div>
       </header>
 
+      {view === 'users' && isAdmin ? (
+        <UsersPanel meId={me?.id ?? null} />
+      ) : (
+        <CmsContent
+          type={type}
+          setType={setType}
+          status={status}
+          setStatus={setStatus}
+          items={items}
+          total={total}
+          loading={loading}
+          error={error}
+          act={act}
+          onNew={() => setCreating(true)}
+          onEdit={setEditing}
+        />
+      )}
+
+      {(creating || editing) && (
+        <Editor
+          initial={editing}
+          onClose={() => {
+            setCreating(false)
+            setEditing(null)
+          }}
+          onSaved={() => {
+            setCreating(false)
+            setEditing(null)
+            void load()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+interface CmsContentProps {
+  type: ContentType | null
+  setType: (t: ContentType | null) => void
+  status: ContentStatus | null
+  setStatus: (s: ContentStatus | null) => void
+  items: ContentAdmin[]
+  total: number
+  loading: boolean
+  error: string | null
+  act: (fn: () => Promise<unknown>) => Promise<void>
+  onNew: () => void
+  onEdit: (c: ContentAdmin) => void
+}
+
+/** View quản lý nội dung (tách khỏi Cms để đọc dễ hơn). */
+function CmsContent({
+  type,
+  setType,
+  status,
+  setStatus,
+  items,
+  total,
+  loading,
+  error,
+  act,
+  onNew,
+  onEdit,
+}: CmsContentProps) {
+  return (
+    <>
       <div className="cms__filters">
         <div className="cms__filter-group">
           <button
@@ -422,11 +767,7 @@ export function Cms() {
           ))}
         </div>
 
-        <button
-          type="button"
-          className="cms-pill cms-pill--new"
-          onClick={() => setCreating(true)}
-        >
+        <button type="button" className="cms-pill cms-pill--new" onClick={onNew}>
           + Nội dung mới
         </button>
       </div>
@@ -461,11 +802,7 @@ export function Cms() {
                   </div>
                 </div>
                 <div className="cms__row-actions">
-                  <button
-                    type="button"
-                    className="cms-pill"
-                    onClick={() => setEditing(c)}
-                  >
+                  <button type="button" className="cms-pill" onClick={() => onEdit(c)}>
                     Sửa
                   </button>
                   {c.status !== 'published' ? (
@@ -517,21 +854,6 @@ export function Cms() {
           </ul>
         </>
       )}
-
-      {(creating || editing) && (
-        <Editor
-          initial={editing}
-          onClose={() => {
-            setCreating(false)
-            setEditing(null)
-          }}
-          onSaved={() => {
-            setCreating(false)
-            setEditing(null)
-            void load()
-          }}
-        />
-      )}
-    </div>
+    </>
   )
 }
