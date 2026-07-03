@@ -7,6 +7,7 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
@@ -23,6 +24,16 @@ from app.services.storage import get_storage
 
 def unique_slug(prefix: str = "pytest") -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
+
+
+@pytest.fixture(autouse=True)
+def _reset_ratelimit():
+    """Bộ đếm rate limit sạch trước mỗi test — login dày đặc trong suite
+    không được phép làm 429 lan giữa các test."""
+    from app.services import ratelimit
+
+    ratelimit.reset()
+    yield
 
 
 @pytest_asyncio.fixture

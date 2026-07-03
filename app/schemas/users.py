@@ -14,6 +14,13 @@ class UserCreate(BaseModel):
     role: UserRole = UserRole.author
 
 
+class UserUpdate(BaseModel):
+    """Admin duyệt/đổi quyền tài khoản — chỉ field được gửi mới thay đổi."""
+
+    is_active: bool | None = None
+    role: UserRole | None = None
+
+
 class UserRead(BaseModel):
     """KHÔNG bao giờ lộ hashed_password."""
 

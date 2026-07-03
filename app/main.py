@@ -17,11 +17,30 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
+logger = logging.getLogger("eskaylation")
+
+# Lưới an toàn: không cho chạy prod với secret mặc định
+if settings.jwt_secret == "change-me-in-production":
+    if settings.environment == "prod":
+        raise RuntimeError("JWT_SECRET chưa được đặt — không được chạy prod!")
+    logger.warning("JWT_SECRET đang là giá trị mặc định — chỉ chấp nhận ở dev.")
+
 app = FastAPI(
     title="Eskaylation API",
     version="0.1.0",
     description="API công khai và quản trị cho kho lưu trữ số DSK.",
 )
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    """Header bảo mật cơ bản cho mọi response."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
+
 
 app.add_middleware(
     CORSMiddleware,

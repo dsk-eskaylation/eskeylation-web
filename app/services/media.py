@@ -46,10 +46,28 @@ def _image_dimensions(data: bytes) -> tuple[int, int]:
         ) from exc
 
 
+async def _read_capped(file: UploadFile, cap: int) -> bytes:
+    """Đọc upload theo chunk, dừng ngay khi vượt trần — không cho body khổng lồ
+    chiếm hết RAM trước khi kịp kiểm tra size."""
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(1024 * 1024):
+        total += len(chunk)
+        if total > cap:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"File vượt giới hạn {cap // (1024 * 1024)}MB",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 async def create_media(
     session: AsyncSession, file: UploadFile, alt_text: str | None = None
 ) -> Media:
-    data = await file.read()
+    data = await _read_capped(
+        file, max(settings.max_image_size, settings.max_video_size)
+    )
     if not data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File rỗng")
 
