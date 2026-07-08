@@ -1,16 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { clearToken, isLoggedIn } from '../api/auth'
+import { getSession, logout, type SessionUser } from '../api/auth'
 import './AuthButtons.css'
 
 /** Nút tài khoản góc phải mọi trang public: icon tròn kính mờ, bấm xổ dropdown.
-    Chưa đăng nhập: Đăng nhập / Đăng ký. Đã đăng nhập: CMS / Đăng xuất.
-    Gọn nên không đè PillNav; đóng khi bấm ra ngoài hoặc Escape. */
+    Trạng thái đăng nhập lấy từ /auth/me (phiên cookie httpOnly).
+    Chưa đăng nhập: Đăng nhập / Đăng ký. Đã đăng nhập: CMS / Đăng xuất. */
 export function AuthButtons() {
   const navigate = useNavigate()
-  const logged = isLoggedIn()
+  const [user, setUser] = useState<SessionUser | null>(null)
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let alive = true
+    getSession().then((u) => {
+      if (alive) setUser(u)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -28,8 +38,9 @@ export function AuthButtons() {
     }
   }, [open])
 
-  const logout = () => {
-    clearToken()
+  const onLogout = async () => {
+    await logout()
+    setUser(null)
     setOpen(false)
     navigate('/', { replace: true })
   }
@@ -38,14 +49,23 @@ export function AuthButtons() {
     <div className="auth-menu" ref={rootRef}>
       <button
         type="button"
-        className={open ? 'auth-menu__trigger auth-menu__trigger--open' : 'auth-menu__trigger'}
+        className={
+          open ? 'auth-menu__trigger auth-menu__trigger--open' : 'auth-menu__trigger'
+        }
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Tài khoản"
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <circle
+            cx="12"
+            cy="8"
+            r="4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          />
           <path
             d="M4.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6"
             fill="none"
@@ -54,12 +74,12 @@ export function AuthButtons() {
             strokeLinecap="round"
           />
         </svg>
-        {logged && <span className="auth-menu__dot" aria-hidden="true" />}
+        {user && <span className="auth-menu__dot" aria-hidden="true" />}
       </button>
 
       {open && (
         <div className="auth-menu__panel" role="menu">
-          {logged ? (
+          {user ? (
             <>
               <Link
                 to="/cms"
@@ -73,7 +93,7 @@ export function AuthButtons() {
                 type="button"
                 role="menuitem"
                 className="auth-menu__item"
-                onClick={logout}
+                onClick={() => void onLogout()}
               >
                 Đăng xuất
               </button>

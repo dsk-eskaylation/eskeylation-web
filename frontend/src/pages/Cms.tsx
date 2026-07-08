@@ -10,7 +10,7 @@ import {
   type ContentType,
   type UserRole,
 } from '../api/admin'
-import { clearToken } from '../api/auth'
+import { logout as apiLogout } from '../api/auth'
 import { Modal } from '../components/Modal'
 import './Cms.css'
 
@@ -627,8 +627,8 @@ export function Cms() {
     }
   }
 
-  const logout = () => {
-    clearToken()
+  const logout = async () => {
+    await apiLogout()
     navigate('/login', { replace: true })
   }
 
@@ -659,7 +659,7 @@ export function Cms() {
           <Link to="/" className="cms-pill">
             Xem trang
           </Link>
-          <button type="button" className="cms-pill" onClick={logout}>
+          <button type="button" className="cms-pill" onClick={() => void logout()}>
             Đăng xuất
           </button>
         </div>

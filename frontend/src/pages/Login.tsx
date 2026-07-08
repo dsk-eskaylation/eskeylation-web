@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { isLoggedIn, login } from '../api/auth'
+import { Link, useNavigate } from 'react-router-dom'
+import { login } from '../api/auth'
 import './Login.css'
 
 /** Trang đăng nhập CMS — theo design language Figma "bàn giao DEV":
@@ -11,8 +11,6 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-
-  if (isLoggedIn()) return <Navigate to="/cms" replace />
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()

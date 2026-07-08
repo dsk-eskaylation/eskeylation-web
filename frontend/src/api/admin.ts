@@ -1,7 +1,7 @@
-/** Client API khu vực quản trị (/admin/*). Mọi request kèm Bearer token;
-    gặp 401 thì xoá token để RequireAuth đá về /login. */
+/** Client API khu vực quản trị (/admin/*). Xác thực qua cookie httpOnly
+    (credentials: 'include'); request mutating kèm X-CSRF-Token. */
 
-import { authHeaders, clearToken } from './auth'
+import { clearSessionCache, csrfHeaders } from './auth'
 import type { Page } from './types'
 
 export type ContentType = 'music' | 'gallery' | 'community' | 'homepage'
@@ -74,12 +74,16 @@ export class AdminApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  // Mutating request qua cookie phải kèm CSRF token (double-submit)
+  const csrf = method === 'GET' ? {} : csrfHeaders()
   const res = await fetch(path, {
     ...init,
-    headers: { ...authHeaders(), ...(init.headers ?? {}) },
+    credentials: 'include',
+    headers: { ...csrf, ...(init.headers ?? {}) },
   })
   if (res.status === 401) {
-    clearToken()
+    clearSessionCache()
     throw new AdminApiError(401, 'Phiên đăng nhập hết hạn')
   }
   if (!res.ok) {

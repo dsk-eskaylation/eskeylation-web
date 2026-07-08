@@ -2,7 +2,7 @@ from collections.abc import Callable, Coroutine, Sequence
 from typing import Any
 
 import jwt
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +11,13 @@ from app.models.enums import UserRole
 from app.models.user import User
 from app.services.security import decode_token
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+# Cookie phiên đăng nhập (httpOnly) — JS không đọc được, chống trộm token qua XSS.
+SESSION_COOKIE = "esk_session"
+# Cookie CSRF (KHÔNG httpOnly) — frontend đọc và gửi lại qua header X-CSRF-Token.
+CSRF_COOKIE = "esk_csrf"
+
+# auto_error=False để fallback sang cookie khi không có Authorization header.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
 class PaginationParams:
@@ -34,9 +40,14 @@ _credentials_error = HTTPException(
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    token: str | None = Depends(oauth2_scheme),
     session: AsyncSession = Depends(get_session),
 ) -> User:
+    # Ưu tiên Authorization header (API client/test), fallback cookie httpOnly (SPA).
+    token = token or request.cookies.get(SESSION_COOKIE)
+    if not token:
+        raise _credentials_error
     try:
         payload = decode_token(token)
         user_id = int(payload["sub"])

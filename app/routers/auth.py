@@ -1,16 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+import secrets
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db import get_session
-from app.dependencies import get_current_user
+from app.dependencies import CSRF_COOKIE, SESSION_COOKIE, get_current_user
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.auth import Token
 from app.schemas.users import UserCreate, UserRead
 from app.services.ratelimit import check_rate
 from app.services.security import create_access_token, hash_password, verify_password
+
+settings = get_settings()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -23,16 +29,41 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def _set_session_cookies(response: Response, token: str) -> None:
+    """Phiên đăng nhập qua cookie httpOnly (JS không đọc được — chống XSS trộm
+    token) + cookie CSRF double-submit cho SPA."""
+    max_age = settings.access_token_expire_minutes * 60
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=max_age,
+        httponly=True,
+        samesite="lax",
+        secure=settings.is_prod,
+        path="/",
+    )
+    response.set_cookie(
+        CSRF_COOKIE,
+        secrets.token_urlsafe(32),
+        max_age=max_age,
+        httponly=False,  # frontend phải đọc được để gửi X-CSRF-Token
+        samesite="lax",
+        secure=settings.is_prod,
+        path="/",
+    )
+
+
 @router.post("/login", response_model=Token)
 async def login(
     request: Request,
+    response: Response,
     form: OAuth2PasswordRequestForm = Depends(),
     session: AsyncSession = Depends(get_session),
 ) -> Token:
     # Chống brute-force: giới hạn theo (IP, email) và tổng theo IP
     ip = _client_ip(request)
-    check_rate(f"login:{ip}:{form.username}", limit=5)
-    check_rate(f"login-ip:{ip}", limit=60)
+    await check_rate(f"login:{ip}:{form.username}", limit=5)
+    await check_rate(f"login-ip:{ip}", limit=60)
 
     result = await session.execute(select(User).where(User.email == form.username))
     user = result.scalar_one_or_none()
@@ -46,7 +77,18 @@ async def login(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Tài khoản bị khoá"
         )
-    return Token(access_token=create_access_token(str(user.id)))
+    token = create_access_token(str(user.id))
+    _set_session_cookies(response, token)
+    # Vẫn trả token trong body cho API client/tool dùng Authorization header.
+    return Token(access_token=token)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(response: Response) -> None:
+    """Kết thúc phiên cookie. (JWT stateless — token header vẫn sống tới khi hết
+    hạn; cookie là đường dùng chính của SPA nên xoá cookie = đăng xuất.)"""
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    response.delete_cookie(CSRF_COOKIE, path="/")
 
 
 @router.get("/me", response_model=UserRead)
@@ -65,7 +107,7 @@ async def register(
     (is_active=False, role=author). Admin kích hoạt qua PATCH /admin/users/{id}.
     Không cho tự chọn role — chống leo quyền."""
     ip = _client_ip(request)
-    check_rate(f"register:{ip}", limit=10, window_seconds=300)
+    await check_rate(f"register:{ip}", limit=10, window_seconds=300)
 
     existing = await session.scalar(select(User.id).where(User.email == data.email))
     if existing is not None:
@@ -79,6 +121,13 @@ async def register(
         is_active=False,  # chờ admin duyệt
     )
     session.add(user)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        # Hai request đăng ký cùng email đua nhau qua bước check
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Email đã tồn tại"
+        ) from exc
     await session.refresh(user)
     return UserRead.model_validate(user)
