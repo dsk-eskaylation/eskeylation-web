@@ -6,8 +6,8 @@ on:
   pull_request:
 
 jobs:
-  lint-and-unit:
-    name: Lint & Unit tests
+  backend:
+    name: Backend — Lint & Unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,8 +17,9 @@ jobs:
         with:
           python-version: "3.13"
 
+      # --frozen: cài đúng theo uv.lock, lockfile lệch là fail ngay
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --frozen
 
       - name: Ruff lint
         run: uv run ruff check .
@@ -28,3 +29,39 @@ jobs:
 
       - name: Unit tests (không cần DB)
         run: uv run pytest -m "not integration"
+
+      # Audit CVE dependency Python (theo đúng lockfile)
+      - name: pip-audit
+        run: |
+          uv export --format requirements-txt --no-emit-project -o requirements-ci.txt
+          uvx pip-audit -r requirements-ci.txt --disable-pip
+
+  frontend:
+    name: Frontend — Lint & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # npm ci: cài đúng theo package-lock.json
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (oxlint)
+        run: npm run lint
+
+      - name: Typecheck + Build (tsc + vite)
+        run: npm run build
+
+      # Chỉ fail khi có CVE mức high trở lên
+      - name: npm audit
+        run: npm audit --audit-level=high
