@@ -31,6 +31,16 @@ async def _load(content_id: int, session: AsyncSession) -> Content:
     return content
 
 
+def _ensure_can_edit(content: Content, user: User) -> None:
+    """Author chỉ được xem chi tiết/sửa/nhân bản nội dung của CHÍNH MÌNH.
+    Editor/admin toàn quyền. Chống IDOR trong nhóm biên tập."""
+    if user.role == UserRole.author and content.author_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chỉ được thao tác trên nội dung của chính mình",
+        )
+
+
 @router.post("", response_model=ContentAdminRead, status_code=status.HTTP_201_CREATED)
 async def create_content(
     data: ContentCreate,
@@ -74,9 +84,11 @@ async def list_content(
 async def get_content(
     content_id: int,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(_editor),
+    user: User = Depends(_editor),
 ) -> ContentAdminRead:
-    return ContentAdminRead.from_model(await _load(content_id, session))
+    content = await _load(content_id, session)
+    _ensure_can_edit(content, user)
+    return ContentAdminRead.from_model(content)
 
 
 @router.patch("/{content_id}", response_model=ContentAdminRead)
@@ -84,9 +96,10 @@ async def update_content(
     content_id: int,
     data: ContentUpdate,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(_editor),
+    user: User = Depends(_editor),
 ) -> ContentAdminRead:
     content = await _load(content_id, session)
+    _ensure_can_edit(content, user)
     updated = await content_admin.update_content(session, content, data)
     return ContentAdminRead.from_model(updated)
 
@@ -144,5 +157,6 @@ async def duplicate_content(
     user: User = Depends(_editor),
 ) -> ContentAdminRead:
     content = await _load(content_id, session)
+    _ensure_can_edit(content, user)
     copy = await content_admin.duplicate(session, content, user.id)
     return ContentAdminRead.from_model(copy)

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -88,9 +89,17 @@ async def create_content(
         author_id=author_id,
     )
     session.add(content)
-    await session.flush()
-    await _replace_media(session, content, data.media)
-    await session.commit()
+    try:
+        await session.flush()
+        await _replace_media(session, content, data.media)
+        await session.commit()
+    except IntegrityError as exc:
+        # Hai request cùng title đua nhau qua unique_slug -> UNIQUE(type, slug)
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Slug vừa bị chiếm bởi thao tác khác — thử lại",
+        ) from exc
     return await get_with_media(session, content.id)
 
 
@@ -170,16 +179,23 @@ async def duplicate(session: AsyncSession, content: Content, author_id: int) -> 
         author_id=author_id,
     )
     session.add(copy)
-    await session.flush()
-    for link in content.media_links:
-        session.add(
-            ContentMedia(
-                content_id=copy.id,
-                media_id=link.media_id,
-                caption=link.caption,
-                position=link.position,
-                is_primary=link.is_primary,
+    try:
+        await session.flush()
+        for link in content.media_links:
+            session.add(
+                ContentMedia(
+                    content_id=copy.id,
+                    media_id=link.media_id,
+                    caption=link.caption,
+                    position=link.position,
+                    is_primary=link.is_primary,
+                )
             )
-        )
-    await session.commit()
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Slug vừa bị chiếm bởi thao tác khác — thử lại",
+        ) from exc
     return await get_with_media(session, copy.id)

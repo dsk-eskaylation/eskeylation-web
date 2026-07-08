@@ -1,6 +1,7 @@
 """Xử lý upload media: validate MIME/size, lấy dimensions, lưu qua storage."""
 
 import io
+import logging
 import uuid
 
 import filetype
@@ -14,6 +15,7 @@ from app.models.media import Media
 from app.services.storage import get_storage
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 _IMAGE_EXT = {
     "image/jpeg": "jpg",
@@ -111,6 +113,12 @@ async def create_media(
 
 
 async def delete_media(session: AsyncSession, media: Media) -> None:
-    await run_in_threadpool(get_storage().delete, media.storage_key)
+    """Xoá record DB TRƯỚC rồi mới xoá file storage — nếu xoá file lỗi thì chỉ
+    orphan file (dễ dọn), không bao giờ có record trỏ tới file đã mất."""
+    storage_key = media.storage_key
     await session.delete(media)
     await session.commit()
+    try:
+        await run_in_threadpool(get_storage().delete, storage_key)
+    except Exception:
+        logger.warning("Không xoá được file storage %s (orphan)", storage_key)

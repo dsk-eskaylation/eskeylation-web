@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # JWT
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60 * 24
+    access_token_expire_minutes: int = 60 * 12  # 12h — cân bằng UX/blast radius
 
     # Storage: "local" (dev) | "supabase" (prod, dùng Supabase Storage + CDN).
     storage_backend: str = "local"
@@ -43,8 +43,14 @@ class Settings(BaseSettings):
     # CORS — origin của frontend (React/Vite). Khai báo JSON list trong .env.
     cors_origins: list[str] = ["http://localhost:5173"]
 
-    # Môi trường: "dev" | "prod" — ảnh hưởng log, hiển thị lỗi.
+    # Môi trường: "dev" | "prod" — ảnh hưởng log, cookie Secure, guard secret.
     environment: str = "dev"
+
+    @property
+    def is_prod(self) -> bool:
+        """FAIL-SAFE: mọi giá trị KHÔNG PHẢI 'dev' đều coi là prod — tránh
+        đặt ENVIRONMENT=production/PROD/staging... làm guard bảo mật fail-open."""
+        return self.environment.strip().lower() != "dev"
 
     # Bảo mật nội dung — tag/attribute HTML an toàn cho rich text (bleach).
     allowed_html_tags: list[str] = [
