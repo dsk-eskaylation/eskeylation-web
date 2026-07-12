@@ -6,11 +6,12 @@ import type { ContentOut } from '../api/types'
 import { VideoModal } from '../components/VideoModal'
 import { EmptyState } from '../components/EmptyState'
 import { usePlayer, audioUrl, coverUrl, artistOf } from '../player/PlayerContext'
+import { MUSIC_GENRES } from '../genres'
 import './Music.css'
 
-/* 'ALL' là mục ảo -> chọn = bỏ lọc (category null). Gangsta đã gộp vào Dissin'.
-   'Thể Nghiệm' thay cho 'AI'. */
-const CATEGORIES = ['ALL', 'LIFE RAP', 'LOVE RAP', "DISSIN'", 'Thể Nghiệm']
+/* 'ALL' là mục ảo -> chọn = bỏ lọc (category null). Các thể loại lấy từ hằng
+   dùng chung với CMS (MUSIC_GENRES) để đồng bộ. */
+const CATEGORIES = ['ALL', ...MUSIC_GENRES]
 
 /* Mảng rỗng ổn định — tránh effect chạy lại vì tạo [] mới mỗi render */
 const EMPTY_ITEMS: ContentOut[] = []

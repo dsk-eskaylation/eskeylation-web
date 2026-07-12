@@ -31,6 +31,9 @@ class CommentOut(BaseModel):
     body: str
     author_name: str
     created_at: datetime
+    updated_at: datetime
+    # edited = đã chỉnh sửa (updated_at > created_at) -> UI hiện thời gian sửa + nhãn
+    edited: bool = False
     # Cảm xúc trên bình luận + cờ cho biết đây có phải bình luận của user hiện tại
     # (để UI hiện nút Sửa/Xoá).
     reactions: ReactionSummary = ReactionSummary()

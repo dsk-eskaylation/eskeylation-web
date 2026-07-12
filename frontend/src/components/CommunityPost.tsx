@@ -92,73 +92,50 @@ export function CommunityPost({
     }
   }, [id])
 
-  // Tải bình luận + mở WebSocket khi khu bình luận được mở.
-  // WS TỰ KẾT NỐI LẠI (backoff) khi rớt — server restart/reload sẽ giết mọi
-  // kết nối; không reconnect thì tab đang mở mất realtime vĩnh viễn (bug:
-  // "sửa comment không thấy realtime"). Khi nối lại thì refetch để bù event lỡ.
+  // Tải bình luận + mở WebSocket khi khu bình luận được mở
   useEffect(() => {
     if (!expanded) return
     let alive = true
-    let ws: WebSocket | null = null
-    let retry = 0
-    let retryTimer: number | undefined
+    community
+      .comments(id)
+      .then((page) => alive && setComments(page.items))
+      .catch(() => {})
 
-    const refetch = () => {
-      community
-        .comments(id)
-        .then((page) => alive && setComments(page.items))
-        .catch(() => {})
-    }
-    refetch()
-
-    const connect = () => {
+    const ws = new WebSocket(communityWsUrl(id))
+    ws.onmessage = (e) => {
       if (!alive) return
-      ws = new WebSocket(communityWsUrl(id))
-      ws.onopen = () => {
-        // Nối lại sau khi rớt -> đồng bộ lại dữ liệu đã lỡ trong lúc mất kết nối
-        if (retry > 0) refetch()
-        retry = 0
+      let ev: CommunityEvent
+      try {
+        ev = JSON.parse(e.data)
+      } catch {
+        return
       }
-      ws.onmessage = (e) => {
-        if (!alive) return
-        let ev: CommunityEvent
-        try {
-          ev = JSON.parse(e.data)
-        } catch {
-          return
-        }
-        if (ev.kind === 'comment') appendComment(ev.comment)
-        else if (ev.kind === 'comment_edit')
-          setComments((cur) =>
-            cur.map((c) => (c.id === ev.comment.id ? { ...c, body: ev.comment.body } : c)),
-          )
-        else if (ev.kind === 'comment_delete')
-          setComments((cur) => cur.filter((c) => c.id !== ev.comment_id))
-        else if (ev.kind === 'reaction')
-          setInter((cur) =>
-            cur
-              ? { ...cur, reactions: { ...cur.reactions, counts: ev.counts, total: ev.total } }
-              : cur,
-          )
-      }
-      ws.onclose = () => {
-        if (!alive) return
-        // Backoff 1s -> 2s -> 4s ... trần 15s; thử mãi (bài vẫn đang mở)
-        const delay = Math.min(1000 * 2 ** retry, 15_000)
-        retry += 1
-        retryTimer = window.setTimeout(connect, delay)
-      }
+      if (ev.kind === 'comment') appendComment(ev.comment)
+      else if (ev.kind === 'comment_edit')
+        setComments((cur) =>
+          cur.map((c) =>
+            c.id === ev.comment.id
+              ? {
+                  ...c,
+                  body: ev.comment.body,
+                  updated_at: ev.comment.updated_at,
+                  edited: ev.comment.edited,
+                }
+              : c,
+          ),
+        )
+      else if (ev.kind === 'comment_delete')
+        setComments((cur) => cur.filter((c) => c.id !== ev.comment_id))
+      else if (ev.kind === 'reaction')
+        setInter((cur) =>
+          cur
+            ? { ...cur, reactions: { ...cur.reactions, counts: ev.counts, total: ev.total } }
+            : cur,
+        )
     }
-    connect()
-
     return () => {
       alive = false
-      if (retryTimer) clearTimeout(retryTimer)
-      // gỡ onclose trước khi đóng để không kích hoạt reconnect
-      if (ws) {
-        ws.onclose = null
-        ws.close()
-      }
+      ws.close()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, id])
@@ -226,7 +203,11 @@ export function CommunityPost({
     if (!body) return
     try {
       const updated = await community.editComment(id, c.id, body)
-      patchComment(c.id, { body: updated.body })
+      patchComment(c.id, {
+        body: updated.body,
+        updated_at: updated.updated_at,
+        edited: updated.edited,
+      })
       setEditingId(null)
       setEditDraft('')
     } catch (err) {
@@ -363,7 +344,10 @@ export function CommunityPost({
                   {/* Issue 4: thời gian nằm CẠNH tên người bình luận */}
                   <div className="cpost__comment-head">
                     <span className="cpost__comment-author">{c.author_name}</span>
-                    <time className="cpost__comment-time">{fmtTime(c.created_at)}</time>
+                    <time className="cpost__comment-time">
+                      {fmtTime(c.edited ? c.updated_at : c.created_at)}
+                      {c.edited && ' (đã sửa)'}
+                    </time>
                   </div>
                   {editingId === c.id ? (
                     <form

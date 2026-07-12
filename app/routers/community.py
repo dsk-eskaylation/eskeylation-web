@@ -59,12 +59,19 @@ def _comment_out(
     is_mine: bool = False,
 ) -> CommentOut:
     counts, total, mine = reactions or ({}, 0, None)
+    # edited khi updated_at khác created_at. Lúc tạo, cả hai = now() trong CÙNG
+    # transaction nên BẰNG NHAU chính xác; chỉ update_comment_body mới đổi
+    # updated_at (reaction là bảng riêng, không đụng comment) -> so sánh khác nhau
+    # là đủ tin cậy, không cần ngưỡng thời gian.
+    edited = bool(c.updated_at and c.created_at and c.updated_at != c.created_at)
     return CommentOut(
         id=c.id,
         content_id=c.content_id,
         body=c.body,
         author_name=community.author_name(c.user),
         created_at=c.created_at,
+        updated_at=c.updated_at,
+        edited=edited,
         reactions=ReactionSummary(counts=counts, total=total, my_reaction=mine),
         is_mine=is_mine,
     )

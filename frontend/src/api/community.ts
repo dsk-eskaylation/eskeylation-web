@@ -15,6 +15,8 @@ export interface CommentOut {
   body: string
   author_name: string
   created_at: string
+  updated_at: string
+  edited: boolean
   reactions: ReactionSummary
   is_mine: boolean
 }

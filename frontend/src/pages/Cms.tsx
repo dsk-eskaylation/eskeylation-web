@@ -12,6 +12,7 @@ import {
   type UserRole,
 } from '../api/admin'
 import { logout as apiLogout } from '../api/auth'
+import { MUSIC_GENRES } from '../genres'
 import { Modal } from '../components/Modal'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useToast } from '../components/Toast'
@@ -269,11 +270,22 @@ function Editor({
               </label>
               <label className="cms-field">
                 <span>Thể loại</span>
-                <input
+                <select
+                  className="cms-field__select"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  placeholder="LOVE RAP / GANGSTA / DISSIN' / AI"
-                />
+                >
+                  <option value="">— Chọn thể loại —</option>
+                  {/* Giữ giá trị cũ không nằm trong danh sách chuẩn (dữ liệu cũ) */}
+                  {category && !(MUSIC_GENRES as readonly string[]).includes(category) && (
+                    <option value={category}>{category}</option>
+                  )}
+                  {MUSIC_GENRES.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
                 <small className="cms-field__hint">
                   Dùng để nhóm bài theo dòng nhạc ở trang Nghe nhạc.
                 </small>
