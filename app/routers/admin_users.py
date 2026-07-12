@@ -10,6 +10,7 @@ from app.dependencies import require_role
 from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.users import UserCreate, UserRead, UserUpdate
+from app.services import activity
 from app.services.security import hash_password
 
 router = APIRouter(prefix="/admin/users", tags=["users"])
@@ -21,7 +22,7 @@ _admin = require_role(UserRole.admin)
 async def create_user(
     data: UserCreate,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(_admin),
+    admin: User = Depends(_admin),
 ) -> UserRead:
     existing = await session.scalar(select(User.id).where(User.email == data.email))
     if existing is not None:
@@ -42,6 +43,15 @@ async def create_user(
             status_code=status.HTTP_409_CONFLICT, detail="Email đã tồn tại"
         ) from exc
     await session.refresh(user)
+    await activity.log(
+        session,
+        actor=admin,
+        action=activity.USER_CREATE,
+        entity_type="user",
+        entity_id=user.id,
+        entity_title=user.email,
+        detail={"role": user.role.value},
+    )
     return UserRead.model_validate(user)
 
 
@@ -68,12 +78,25 @@ async def update_user(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Không thể tự khoá hoặc tự hạ quyền chính mình",
         )
+    changes: dict = {}
     if "is_active" in fields and fields["is_active"] is not None:
         user.is_active = fields["is_active"]
+        # Phân biệt duyệt tài khoản với khoá -> nhãn rõ ràng ở nhật ký
+        changes["is_active"] = fields["is_active"]
     if "role" in fields and fields["role"] is not None:
+        changes["role"] = fields["role"].value
         user.role = fields["role"]
     await session.commit()
     await session.refresh(user)
+    await activity.log(
+        session,
+        actor=admin,
+        action=activity.USER_UPDATE,
+        entity_type="user",
+        entity_id=user.id,
+        entity_title=user.email,
+        detail=changes,
+    )
     return UserRead.model_validate(user)
 
 

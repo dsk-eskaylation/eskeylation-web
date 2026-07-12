@@ -12,6 +12,7 @@ from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
 from app.models.media import ContentMedia, Media
 from app.schemas.admin import ContentCreate, ContentMediaIn, ContentUpdate
+from app.services import moderation
 from app.services.sanitize import sanitize_body, sanitize_summary, validate_embeds
 from app.services.slug import unique_slug
 
@@ -79,6 +80,8 @@ async def create_content(
     session: AsyncSession, data: ContentCreate, author_id: int
 ) -> Content:
     validate_embeds(data.body)
+    # Chặn từ ngữ không phù hợp trong mô tả + body (kiểm duyệt)
+    await moderation.assert_clean(session, summary=data.summary, body=data.body)
     content = Content(
         type=data.type,
         title=data.title,
@@ -107,6 +110,12 @@ async def update_content(
     session: AsyncSession, content: Content, data: ContentUpdate
 ) -> Content:
     fields = data.model_dump(exclude_unset=True)
+    # Chặn từ ngữ không phù hợp trong các trường được sửa (kiểm duyệt)
+    await moderation.assert_clean(
+        session,
+        summary=fields.get("summary") if "summary" in fields else None,
+        body=fields.get("body") if "body" in fields else None,
+    )
     if "title" in fields:
         content.title = fields["title"]
     if "summary" in fields:

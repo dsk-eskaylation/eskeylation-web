@@ -4,6 +4,7 @@ import {
   AdminApiError,
   adminApi,
   type AdminUser,
+  type BannedWord,
   type ContentAdmin,
   type ContentMediaIn,
   type ContentStatus,
@@ -12,6 +13,9 @@ import {
 } from '../api/admin'
 import { logout as apiLogout } from '../api/auth'
 import { Modal } from '../components/Modal'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { useToast } from '../components/Toast'
+import { Dashboard } from './Dashboard'
 import './Cms.css'
 
 const ROLES: { value: UserRole; label: string }[] = [
@@ -28,6 +32,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
 
 const TYPES: { value: ContentType; label: string }[] = [
   { value: 'music', label: 'Nhạc' },
+  { value: 'video', label: 'Video' },
   { value: 'gallery', label: 'Ảnh' },
   { value: 'community', label: 'Cộng đồng' },
   { value: 'homepage', label: 'Trang chủ' },
@@ -66,22 +71,31 @@ function Editor({
 }: {
   initial: ContentAdmin | null // null = tạo mới
   onClose: () => void
-  onSaved: () => void
+  onSaved: (message?: string) => void
 }) {
+  const b = (initial?.body ?? {}) as Record<string, unknown>
+  const bstr = (k: string) => (typeof b[k] === 'string' ? (b[k] as string) : '')
+
   const [type, setType] = useState<ContentType>(initial?.type ?? 'music')
   const [title, setTitle] = useState(initial?.title ?? '')
   const [summary, setSummary] = useState(initial?.summary ?? '')
-  const [artist, setArtist] = useState(
-    typeof initial?.body.artist === 'string' ? initial.body.artist : '',
+  const [artist, setArtist] = useState(bstr('artist'))
+  const [category, setCategory] = useState(bstr('category'))
+  const [audioUrl, setAudioUrl] = useState(bstr('audio_url'))
+  const [embedUrl, setEmbedUrl] = useState(bstr('embed_url'))
+  const [author, setAuthor] = useState(bstr('author'))
+  // Trang chủ: giới thiệu, các dòng "bảo trì", và các nhóm credits (vai trò + tên)
+  const [intro, setIntro] = useState(bstr('intro'))
+  const [maintainText, setMaintainText] = useState(
+    Array.isArray(b.maintain) ? (b.maintain as string[]).join('\n') : '',
   )
-  const [category, setCategory] = useState(
-    typeof initial?.body.category === 'string' ? initial.body.category : '',
-  )
-  const [embedUrl, setEmbedUrl] = useState(
-    typeof initial?.body.embed_url === 'string' ? initial.body.embed_url : '',
-  )
-  const [bodyJson, setBodyJson] = useState(
-    JSON.stringify(initial?.body ?? {}, null, 2),
+  const [credits, setCredits] = useState<{ role: string; names: string }[]>(
+    Array.isArray(b.credits)
+      ? (b.credits as { role?: string; names?: string[] }[]).map((c) => ({
+          role: c.role ?? '',
+          names: Array.isArray(c.names) ? c.names.join(', ') : '',
+        }))
+      : [],
   )
   const [media, setMedia] = useState<EditorMedia[]>(
     (initial?.media ?? []).map((m) => ({
@@ -95,7 +109,9 @@ function Editor({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const isMusic = type === 'music'
+  // Cập nhật một nhóm credits của trang chủ
+  const setCredit = (i: number, patch: Partial<{ role: string; names: string }>) =>
+    setCredits((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)))
 
   const upload = async (files: FileList | null) => {
     if (!files?.length) return
@@ -135,19 +151,42 @@ function Editor({
     e.preventDefault()
     setError(null)
 
-    let body: Record<string, unknown>
-    if (isMusic) {
-      body = { ...(initial?.body ?? {}) }
-      body.artist = artist || undefined
-      body.category = category || undefined
-      body.embed_url = embedUrl || undefined
-    } else {
-      try {
-        body = JSON.parse(bodyJson || '{}')
-      } catch {
-        setError('Body không phải JSON hợp lệ')
-        return
-      }
+    // Dựng body từ các trường CỤ THỂ theo loại. Bắt đầu từ body cũ để KHÔNG
+    // mất các khoá không hiển thị trên form (vd 'sections' của trang chủ).
+    const body: Record<string, unknown> = { ...(initial?.body ?? {}) }
+    const set = (k: string, v: string) => {
+      if (v.trim()) body[k] = v.trim()
+      else delete body[k]
+    }
+    if (type === 'music') {
+      set('artist', artist)
+      set('category', category)
+      set('audio_url', audioUrl)
+      set('embed_url', embedUrl)
+    } else if (type === 'video') {
+      set('artist', artist)
+      set('embed_url', embedUrl)
+    } else if (type === 'gallery' || type === 'community') {
+      set('author', author)
+    } else if (type === 'homepage') {
+      set('intro', intro)
+      const lines = maintainText
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+      if (lines.length) body.maintain = lines
+      else delete body.maintain
+      const cr = credits
+        .map((c) => ({
+          role: c.role.trim(),
+          names: c.names
+            .split(',')
+            .map((n) => n.trim())
+            .filter(Boolean),
+        }))
+        .filter((c) => c.role || c.names.length)
+      if (cr.length) body.credits = cr
+      else delete body.credits
     }
 
     const payload = {
@@ -166,10 +205,11 @@ function Editor({
     try {
       if (initial) {
         await adminApi.update(initial.id, payload)
+        onSaved(`Đã cập nhật “${title}”`)
       } else {
         await adminApi.create({ ...payload, type })
+        onSaved(`Đã tạo “${title}”`)
       }
-      onSaved()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu thất bại')
     } finally {
@@ -220,7 +260,7 @@ function Editor({
           />
         </label>
 
-        {isMusic ? (
+        {type === 'music' && (
           <>
             <div className="cms-editor__row">
               <label className="cms-field">
@@ -234,10 +274,25 @@ function Editor({
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="LOVE RAP / GANGSTA / DISSIN' / AI"
                 />
+                <small className="cms-field__hint">
+                  Dùng để nhóm bài theo dòng nhạc ở trang Nghe nhạc.
+                </small>
               </label>
             </div>
             <label className="cms-field">
-              <span>Link video (YouTube/Vimeo)</span>
+              <span>Link nhạc streaming (mp3/m4a)</span>
+              <input
+                value={audioUrl}
+                onChange={(e) => setAudioUrl(e.target.value)}
+                placeholder="https://.../bai-hat.mp3"
+              />
+              <small className="cms-field__hint">
+                Có link này thì bài phát trực tuyến trong trình phát. Bỏ trống sẽ mở
+                link video bên dưới.
+              </small>
+            </label>
+            <label className="cms-field">
+              <span>Link video (YouTube/Vimeo) — tùy chọn</span>
               <input
                 value={embedUrl}
                 onChange={(e) => setEmbedUrl(e.target.value)}
@@ -245,17 +300,100 @@ function Editor({
               />
             </label>
           </>
-        ) : (
+        )}
+
+        {type === 'video' && (
+          <>
+            <label className="cms-field">
+              <span>Nghệ sĩ</span>
+              <input value={artist} onChange={(e) => setArtist(e.target.value)} />
+            </label>
+            <label className="cms-field">
+              <span>Link video (YouTube/Vimeo) — bắt buộc để phát</span>
+              <input
+                value={embedUrl}
+                onChange={(e) => setEmbedUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+              />
+            </label>
+          </>
+        )}
+
+        {(type === 'gallery' || type === 'community') && (
           <label className="cms-field">
-            <span>Body (JSON)</span>
-            <textarea
-              className="cms-field__json"
-              value={bodyJson}
-              onChange={(e) => setBodyJson(e.target.value)}
-              rows={8}
-              spellCheck={false}
-            />
+            <span>{type === 'gallery' ? 'Tác giả bộ ảnh' : 'Tên người đăng'}</span>
+            <input value={author} onChange={(e) => setAuthor(e.target.value)} />
+            <small className="cms-field__hint">
+              {type === 'gallery'
+                ? 'Hiện kèm ảnh khi người xem mở. Bỏ trống sẽ dùng tiêu đề.'
+                : 'Tên hiển thị của tác giả bài đăng. Bỏ trống sẽ dùng tiêu đề.'}
+            </small>
           </label>
+        )}
+
+        {type === 'homepage' && (
+          <>
+            <label className="cms-field">
+              <span>Giới thiệu (đoạn “ESKAYLATION là gì?”)</span>
+              <textarea
+                value={intro}
+                onChange={(e) => setIntro(e.target.value)}
+                rows={3}
+              />
+            </label>
+            <label className="cms-field">
+              <span>Mục “Maintain Website” — mỗi dòng một mục</span>
+              <textarea
+                value={maintainText}
+                onChange={(e) => setMaintainText(e.target.value)}
+                rows={3}
+                placeholder={'Quỹ: Forever Eskay\nNội dung CK: Fes'}
+              />
+            </label>
+            <div className="cms-field">
+              <span>Nhóm đóng góp (SHOUT OUT)</span>
+              <small className="cms-field__hint">
+                Mỗi nhóm gồm vai trò và danh sách tên (cách nhau bằng dấu phẩy).
+              </small>
+              <div className="cms-credits">
+                {credits.map((c, i) => (
+                  <div className="cms-credits__row" key={i}>
+                    <input
+                      className="cms-credits__role"
+                      value={c.role}
+                      onChange={(e) => setCredit(i, { role: e.target.value })}
+                      placeholder="Vai trò (VD: DESIGN)"
+                    />
+                    <input
+                      className="cms-credits__names"
+                      value={c.names}
+                      onChange={(e) => setCredit(i, { names: e.target.value })}
+                      placeholder="Tên 1, Tên 2, …"
+                    />
+                    <button
+                      type="button"
+                      className="cms-credits__del"
+                      onClick={() =>
+                        setCredits((prev) => prev.filter((_, idx) => idx !== i))
+                      }
+                      aria-label="Xoá nhóm"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="cms-pill"
+                  onClick={() =>
+                    setCredits((prev) => [...prev, { role: '', names: '' }])
+                  }
+                >
+                  + Thêm nhóm
+                </button>
+              </div>
+            </div>
+          </>
         )}
 
         <div className="cms-editor__media">
@@ -339,7 +477,7 @@ function NewUserForm({
   onSaved,
 }: {
   onClose: () => void
-  onSaved: () => void
+  onSaved: (message?: string) => void
 }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -357,7 +495,7 @@ function NewUserForm({
     setBusy(true)
     try {
       await adminApi.createUser({ email, password, role })
-      onSaved()
+      onSaved(`Đã thêm tài khoản ${email}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tạo tài khoản lỗi')
     } finally {
@@ -424,34 +562,37 @@ function NewUserForm({
 
 /** Panel quản lý tài khoản (chỉ admin): duyệt tài khoản chờ, đổi vai trò, thêm mới. */
 function UsersPanel({ meId }: { meId: number | null }) {
+  const { notify } = useToast()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  // Tài khoản đang chờ xác nhận khoá (mở ConfirmDialog thay window.confirm)
+  const [pendingLock, setPendingLock] = useState<AdminUser | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError(null)
     try {
       setUsers(await adminApi.listUsers())
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Tải danh sách tài khoản lỗi')
+      notify(err instanceof Error ? err.message : 'Tải danh sách tài khoản lỗi', {
+        tone: 'error',
+      })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [notify])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const act = async (fn: () => Promise<unknown>) => {
-    setError(null)
+  const act = async (fn: () => Promise<unknown>, success?: string) => {
     try {
       await fn()
       await load()
+      if (success) notify(success, { tone: 'success' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Thao tác lỗi')
+      notify(err instanceof Error ? err.message : 'Thao tác lỗi', { tone: 'error' })
     }
   }
 
@@ -477,7 +618,12 @@ function UsersPanel({ meId }: { meId: number | null }) {
           <button
             type="button"
             className="cms-pill cms-pill--publish"
-            onClick={() => void act(() => adminApi.updateUser(u.id, { is_active: true }))}
+            onClick={() =>
+              void act(
+                () => adminApi.updateUser(u.id, { is_active: true }),
+                `Đã duyệt ${u.email}`,
+              )
+            }
           >
             Duyệt
           </button>
@@ -489,7 +635,12 @@ function UsersPanel({ meId }: { meId: number | null }) {
               key={r.value}
               type="button"
               className="cms-pill"
-              onClick={() => void act(() => adminApi.updateUser(u.id, { role: r.value }))}
+              onClick={() =>
+                void act(
+                  () => adminApi.updateUser(u.id, { role: r.value }),
+                  `${u.email} → ${r.label}`,
+                )
+              }
               title={`Đổi thành ${r.label}`}
             >
               → {r.label}
@@ -499,10 +650,7 @@ function UsersPanel({ meId }: { meId: number | null }) {
           <button
             type="button"
             className="cms-pill cms-pill--danger"
-            onClick={() => {
-              if (window.confirm(`Khoá tài khoản ${u.email}?`))
-                void act(() => adminApi.updateUser(u.id, { is_active: false }))
-            }}
+            onClick={() => setPendingLock(u)}
           >
             Khoá
           </button>
@@ -527,13 +675,6 @@ function UsersPanel({ meId }: { meId: number | null }) {
         </button>
       </div>
 
-      {error && (
-        <p className="cms-error">
-          <span>*</span>
-          {error}
-        </p>
-      )}
-
       {loading ? (
         <p className="cms__status">Đang tải…</p>
       ) : (
@@ -552,27 +693,207 @@ function UsersPanel({ meId }: { meId: number | null }) {
       {creating && (
         <NewUserForm
           onClose={() => setCreating(false)}
-          onSaved={() => {
+          onSaved={(msg) => {
             setCreating(false)
             void load()
+            if (msg) notify(msg, { tone: 'success' })
           }}
+        />
+      )}
+
+      {pendingLock && (
+        <ConfirmDialog
+          title="Khoá tài khoản"
+          message={`Khoá ${pendingLock.email}? Người này sẽ không đăng nhập được cho tới khi được mở lại.`}
+          confirmLabel="Khoá"
+          onConfirm={async () => {
+            const u = pendingLock
+            setPendingLock(null)
+            await act(
+              () => adminApi.updateUser(u.id, { is_active: false }),
+              `Đã khoá ${u.email}`,
+            )
+          }}
+          onClose={() => setPendingLock(null)}
         />
       )}
     </>
   )
 }
 
+/** Panel Kiểm duyệt (chỉ admin): hàng đợi bài CHỜ DUYỆT (nháp) + quản lý TỪ CẤM. */
+function Moderation() {
+  const navigate = useNavigate()
+  const { notify } = useToast()
+  const [pending, setPending] = useState<ContentAdmin[]>([])
+  const [words, setWords] = useState<BannedWord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [newWord, setNewWord] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [page, w] = await Promise.all([
+        adminApi.list({ status: 'draft' }),
+        adminApi.bannedWords(),
+      ])
+      setPending(page.items)
+      setWords(w)
+    } catch (err) {
+      if (err instanceof AdminApiError && err.status === 401) {
+        navigate('/login', { replace: true })
+        return
+      }
+      notify(err instanceof Error ? err.message : 'Tải dữ liệu lỗi', { tone: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }, [navigate, notify])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const act = async (fn: () => Promise<unknown>, success?: string) => {
+    try {
+      await fn()
+      await load()
+      if (success) notify(success, { tone: 'success' })
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Thao tác lỗi', { tone: 'error' })
+    }
+  }
+
+  const addWord = async (e: FormEvent) => {
+    e.preventDefault()
+    const w = newWord.trim()
+    if (!w) return
+    await act(() => adminApi.addBannedWord(w), `Đã thêm từ cấm “${w}”`)
+    setNewWord('')
+  }
+
+  return (
+    <div className="cms-mod">
+      {/* Hàng đợi chờ duyệt (nội dung nháp — cần admin duyệt trước khi công khai) */}
+      <section>
+        <p className="cms__section-label">Chờ duyệt ({pending.length})</p>
+        <p className="cms-field__hint">
+          Bài do biên tập viên / tác giả tạo nằm ở dạng nháp cho tới khi admin duyệt.
+          Duyệt để đăng công khai, hoặc từ chối (chuyển lưu trữ).
+        </p>
+        {loading ? (
+          <p className="cms__status">Đang tải…</p>
+        ) : pending.length === 0 ? (
+          <p className="cms__status">Không có bài nào chờ duyệt.</p>
+        ) : (
+          <ul className="cms__list">
+            {pending.map((c) => (
+              <li key={c.id} className="cms__row page-enter">
+                <div className="cms__row-main">
+                  <span className={`cms-badge cms-badge--${c.status}`}>
+                    {STATUS_LABEL[c.status]}
+                  </span>
+                  <div className="cms__row-text">
+                    <span className="cms__row-title">{c.title}</span>
+                    <span className="cms__row-meta">
+                      {typeLabel(c.type)}
+                      {c.media.length > 0 && ` · ${c.media.length} media`} · tạo{' '}
+                      {fmtTime(c.created_at)}
+                      {c.author_email && ` · ${c.author_email}`}
+                    </span>
+                  </div>
+                </div>
+                <div className="cms__row-actions">
+                  <button
+                    type="button"
+                    className="cms-pill cms-pill--publish"
+                    onClick={() =>
+                      void act(
+                        () => adminApi.publish(c.id),
+                        `Đã duyệt & đăng “${c.title}”`,
+                      )
+                    }
+                  >
+                    Duyệt &amp; đăng
+                  </button>
+                  <button
+                    type="button"
+                    className="cms-pill"
+                    onClick={() =>
+                      void act(
+                        () => adminApi.archive(c.id),
+                        `Đã từ chối “${c.title}” (chuyển lưu trữ)`,
+                      )
+                    }
+                  >
+                    Từ chối
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Từ cấm — chặn khi lưu mô tả/nội dung bài & khi gửi bình luận */}
+      <section className="cms-mod__words">
+        <p className="cms__section-label">Từ cấm ({words.length})</p>
+        <p className="cms-field__hint">
+          Mô tả / nội dung bài viết và bình luận chứa các từ này sẽ bị chặn khi
+          lưu/gửi. So khớp không phân biệt hoa thường.
+        </p>
+        <form className="cms-mod__add" onSubmit={addWord}>
+          <input
+            value={newWord}
+            onChange={(e) => setNewWord(e.target.value)}
+            placeholder="Nhập từ cần cấm…"
+            maxLength={100}
+          />
+          <button type="submit" className="cms-pill cms-pill--new">
+            + Thêm
+          </button>
+        </form>
+        <div className="cms-mod__chips">
+          {words.length === 0 ? (
+            <span className="cms__status">Chưa có từ cấm nào.</span>
+          ) : (
+            words.map((w) => (
+              <span className="cms-chip" key={w.id}>
+                {w.word}
+                <button
+                  type="button"
+                  onClick={() =>
+                    void act(
+                      () => adminApi.removeBannedWord(w.id),
+                      `Đã xoá từ “${w.word}”`,
+                    )
+                  }
+                  aria-label={`Xoá từ ${w.word}`}
+                >
+                  ✕
+                </button>
+              </span>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
+  )
+}
+
 /** Trang CMS quản lý nội dung — list + filter + workflow + editor. */
 export function Cms() {
   const navigate = useNavigate()
+  const { notify } = useToast()
   const [me, setMe] = useState<AdminUser | null>(null)
-  const [view, setView] = useState<'content' | 'users'>('content')
+  const [view, setView] = useState<
+    'content' | 'users' | 'dashboard' | 'moderation'
+  >('content')
   const [type, setType] = useState<ContentType | null>(null)
   const [status, setStatus] = useState<ContentStatus | null>(null)
   const [items, setItems] = useState<ContentAdmin[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<ContentAdmin | null>(null)
   const [creating, setCreating] = useState(false)
 
@@ -590,7 +911,6 @@ export function Cms() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError(null)
     try {
       const page = await adminApi.list({
         type: type ?? undefined,
@@ -603,27 +923,48 @@ export function Cms() {
         navigate('/login', { replace: true })
         return
       }
-      setError(err instanceof Error ? err.message : 'Tải danh sách lỗi')
+      notify(err instanceof Error ? err.message : 'Tải danh sách lỗi', {
+        tone: 'error',
+      })
     } finally {
       setLoading(false)
     }
-  }, [type, status, navigate])
+  }, [type, status, navigate, notify])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const act = async (fn: () => Promise<unknown>) => {
-    setError(null)
+  /** Chạy một thao tác, reload danh sách, báo kết quả bằng toast.
+      opts.success: nội dung toast thành công. opts.undo: hàm hoàn tác (hiện nút). */
+  const act = async (
+    fn: () => Promise<unknown>,
+    opts?: { success?: string; undo?: () => Promise<unknown> },
+  ) => {
     try {
       await fn()
       await load()
+      if (opts?.success) {
+        notify(opts.success, {
+          tone: 'success',
+          action: opts.undo
+            ? {
+                label: 'Hoàn tác',
+                onClick: async () => {
+                  await opts.undo!()
+                  await load()
+                  notify('Đã hoàn tác', { tone: 'info' })
+                },
+              }
+            : undefined,
+        })
+      }
     } catch (err) {
       if (err instanceof AdminApiError && err.status === 401) {
         navigate('/login', { replace: true })
         return
       }
-      setError(err instanceof Error ? err.message : 'Thao tác lỗi')
+      notify(err instanceof Error ? err.message : 'Thao tác lỗi', { tone: 'error' })
     }
   }
 
@@ -639,7 +980,16 @@ export function Cms() {
           ESKAYLATION <em>CMS</em>
         </span>
         <div className="cms__topbar-actions">
-          {/* Chuyển view: Nội dung <-> Tài khoản (tab Tài khoản chỉ hiện cho admin) */}
+          {/* Tab Tổng quan/Tài khoản chỉ hiện cho admin; Nội dung cho mọi biên tập viên */}
+          {isAdmin && (
+            <button
+              type="button"
+              className={view === 'dashboard' ? 'cms-pill cms-pill--active' : 'cms-pill'}
+              onClick={() => setView('dashboard')}
+            >
+              Tổng quan
+            </button>
+          )}
           <button
             type="button"
             className={view === 'content' ? 'cms-pill cms-pill--active' : 'cms-pill'}
@@ -647,6 +997,17 @@ export function Cms() {
           >
             Nội dung
           </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className={
+                view === 'moderation' ? 'cms-pill cms-pill--active' : 'cms-pill'
+              }
+              onClick={() => setView('moderation')}
+            >
+              Kiểm duyệt
+            </button>
+          )}
           {isAdmin && (
             <button
               type="button"
@@ -665,7 +1026,11 @@ export function Cms() {
         </div>
       </header>
 
-      {view === 'users' && isAdmin ? (
+      {view === 'dashboard' && isAdmin ? (
+        <Dashboard />
+      ) : view === 'moderation' && isAdmin ? (
+        <Moderation />
+      ) : view === 'users' && isAdmin ? (
         <UsersPanel meId={me?.id ?? null} />
       ) : (
         <CmsContent
@@ -676,7 +1041,6 @@ export function Cms() {
           items={items}
           total={total}
           loading={loading}
-          error={error}
           act={act}
           onNew={() => setCreating(true)}
           onEdit={setEditing}
@@ -690,15 +1054,21 @@ export function Cms() {
             setCreating(false)
             setEditing(null)
           }}
-          onSaved={() => {
+          onSaved={(msg) => {
             setCreating(false)
             setEditing(null)
             void load()
+            if (msg) notify(msg, { tone: 'success' })
           }}
         />
       )}
     </div>
   )
+}
+
+interface ActOpts {
+  success?: string
+  undo?: () => Promise<unknown>
 }
 
 interface CmsContentProps {
@@ -709,8 +1079,7 @@ interface CmsContentProps {
   items: ContentAdmin[]
   total: number
   loading: boolean
-  error: string | null
-  act: (fn: () => Promise<unknown>) => Promise<void>
+  act: (fn: () => Promise<unknown>, opts?: ActOpts) => Promise<void>
   onNew: () => void
   onEdit: (c: ContentAdmin) => void
 }
@@ -724,11 +1093,12 @@ function CmsContent({
   items,
   total,
   loading,
-  error,
   act,
   onNew,
   onEdit,
 }: CmsContentProps) {
+  // Nội dung đang chờ xác nhận xoá (mở ConfirmDialog thay window.confirm)
+  const [pendingDelete, setPendingDelete] = useState<ContentAdmin | null>(null)
   return (
     <>
       <div className="cms__filters">
@@ -772,13 +1142,6 @@ function CmsContent({
         </button>
       </div>
 
-      {error && (
-        <p className="cms-error">
-          <span>*</span>
-          {error}
-        </p>
-      )}
-
       {loading ? (
         <p className="cms__status">Đang tải…</p>
       ) : items.length === 0 ? (
@@ -798,6 +1161,7 @@ function CmsContent({
                     <span className="cms__row-meta">
                       {typeLabel(c.type)} · /{c.slug} · sửa {fmtTime(c.updated_at)}
                       {c.media.length > 0 && ` · ${c.media.length} media`}
+                      {c.author_email && ` · ${c.author_email}`}
                     </span>
                   </div>
                 </div>
@@ -809,7 +1173,11 @@ function CmsContent({
                     <button
                       type="button"
                       className="cms-pill cms-pill--publish"
-                      onClick={() => void act(() => adminApi.publish(c.id))}
+                      onClick={() =>
+                        void act(() => adminApi.publish(c.id), {
+                          success: `Đã đăng “${c.title}”`,
+                        })
+                      }
                     >
                       Đăng
                     </button>
@@ -817,7 +1185,12 @@ function CmsContent({
                     <button
                       type="button"
                       className="cms-pill"
-                      onClick={() => void act(() => adminApi.unpublish(c.id))}
+                      onClick={() =>
+                        void act(() => adminApi.unpublish(c.id), {
+                          success: `Đã gỡ “${c.title}” về nháp`,
+                          undo: () => adminApi.publish(c.id),
+                        })
+                      }
                     >
                       Gỡ
                     </button>
@@ -826,7 +1199,16 @@ function CmsContent({
                     <button
                       type="button"
                       className="cms-pill"
-                      onClick={() => void act(() => adminApi.archive(c.id))}
+                      onClick={() =>
+                        void act(() => adminApi.archive(c.id), {
+                          success: `Đã lưu trữ “${c.title}”`,
+                          // Hoàn tác: trả về trạng thái trước đó
+                          undo: () =>
+                            c.status === 'published'
+                              ? adminApi.publish(c.id)
+                              : adminApi.unpublish(c.id),
+                        })
+                      }
                     >
                       Lưu trữ
                     </button>
@@ -834,17 +1216,18 @@ function CmsContent({
                   <button
                     type="button"
                     className="cms-pill"
-                    onClick={() => void act(() => adminApi.duplicate(c.id))}
+                    onClick={() =>
+                      void act(() => adminApi.duplicate(c.id), {
+                        success: `Đã nhân bản “${c.title}”`,
+                      })
+                    }
                   >
                     Nhân bản
                   </button>
                   <button
                     type="button"
                     className="cms-pill cms-pill--danger"
-                    onClick={() => {
-                      if (window.confirm(`Xoá "${c.title}"? Không hoàn tác được.`))
-                        void act(() => adminApi.remove(c.id))
-                    }}
+                    onClick={() => setPendingDelete(c)}
                   >
                     Xoá
                   </button>
@@ -853,6 +1236,22 @@ function CmsContent({
             ))}
           </ul>
         </>
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Xoá nội dung"
+          message={`Xoá “${pendingDelete.title}”? Thao tác này KHÔNG hoàn tác được.`}
+          confirmLabel="Xoá vĩnh viễn"
+          onConfirm={async () => {
+            const c = pendingDelete
+            setPendingDelete(null)
+            await act(() => adminApi.remove(c.id), {
+              success: `Đã xoá “${c.title}”`,
+            })
+          }}
+          onClose={() => setPendingDelete(null)}
+        />
       )}
     </>
   )

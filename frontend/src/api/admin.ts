@@ -4,7 +4,12 @@
 import { clearSessionCache, csrfHeaders } from './auth'
 import type { Page } from './types'
 
-export type ContentType = 'music' | 'gallery' | 'community' | 'homepage'
+export type ContentType =
+  | 'music'
+  | 'video'
+  | 'gallery'
+  | 'community'
+  | 'homepage'
 export type ContentStatus = 'draft' | 'published' | 'archived'
 export type UserRole = 'admin' | 'editor' | 'author'
 
@@ -38,6 +43,7 @@ export interface ContentAdmin {
   summary: string | null
   body: Record<string, unknown>
   author_id: number | null
+  author_email: string | null
   published_at: string | null
   created_at: string
   updated_at: string
@@ -62,6 +68,44 @@ export interface ContentPayload {
   summary?: string | null
   body?: Record<string, unknown>
   media?: ContentMediaIn[]
+}
+
+export interface DashboardStats {
+  content_total: number
+  content_by_status: Record<ContentStatus, number>
+  content_by_type: Record<ContentType, number>
+  published_last_7d: number
+  users_total: number
+  users_active: number
+  users_pending: number
+  users_by_role: Record<UserRole, number>
+  media_count: number
+  media_size: number
+  media_images: number
+  media_videos: number
+  comments_total: number
+  comments_last_24h: number
+  reactions_total: number
+  saved_total: number
+  live_connections: number
+  generated_at: string
+}
+
+export interface BannedWord {
+  id: number
+  word: string
+  created_at: string
+}
+
+export interface ActivityEntry {
+  id: number
+  actor_email: string | null
+  action: string
+  entity_type: string
+  entity_id: number | null
+  entity_title: string | null
+  detail: Record<string, unknown>
+  created_at: string
 }
 
 export class AdminApiError extends Error {
@@ -142,6 +186,17 @@ export const adminApi = {
     return request<MediaUploaded>('/admin/media', { method: 'POST', body: form })
   },
 
+  // ---- Dashboard (chỉ admin) ----
+  stats: () => request<DashboardStats>('/admin/stats'),
+
+  activity: (page = 1, pageSize = 20, action?: string) => {
+    const sp = new URLSearchParams()
+    sp.set('page', String(page))
+    sp.set('page_size', String(pageSize))
+    if (action) sp.set('action', action)
+    return request<Page<ActivityEntry>>(`/admin/activity?${sp}`)
+  },
+
   // Tài khoản đang đăng nhập (để biết vai trò)
   me: () => request<AdminUser>('/auth/me'),
 
@@ -153,4 +208,16 @@ export const adminApi = {
 
   createUser: (payload: { email: string; password: string; role?: UserRole }) =>
     request<AdminUser>('/admin/users', jsonInit('POST', payload)),
+
+  // ---- Kiểm duyệt (chỉ admin) ----
+  bannedWords: () => request<BannedWord[]>('/admin/moderation/banned-words'),
+
+  addBannedWord: (word: string) =>
+    request<BannedWord>('/admin/moderation/banned-words', jsonInit('POST', { word })),
+
+  removeBannedWord: (id: number) =>
+    request<void>(`/admin/moderation/banned-words/${id}`, { method: 'DELETE' }),
+
+  deleteComment: (id: number) =>
+    request<void>(`/admin/moderation/comments/${id}`, { method: 'DELETE' }),
 }

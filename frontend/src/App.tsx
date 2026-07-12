@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { PlayerProvider } from './player/PlayerContext'
+import { ToastProvider } from './components/Toast'
 import { Layout } from './components/Layout'
 import { RequireAuth } from './components/RequireAuth'
 import { Home } from './pages/Home'
@@ -17,6 +18,7 @@ import './App.css'
 export default function App() {
   return (
     <BrowserRouter>
+      <ToastProvider>
       <PlayerProvider>
       <Routes>
         {/* Trang public — có PillNav */}
@@ -43,6 +45,7 @@ export default function App() {
         />
       </Routes>
       </PlayerProvider>
+      </ToastProvider>
     </BrowserRouter>
   )
 }

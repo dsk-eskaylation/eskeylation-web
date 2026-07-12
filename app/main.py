@@ -13,6 +13,8 @@ from app.db import engine
 from app.dependencies import CSRF_COOKIE, SESSION_COOKIE
 from app.routers import (
     admin_content,
+    admin_moderation,
+    admin_stats,
     admin_users,
     auth,
     community,
@@ -132,7 +134,9 @@ app.include_router(community.router)
 app.include_router(lyrics.router)
 app.include_router(media.router)
 app.include_router(admin_content.router)
+app.include_router(admin_stats.router)
 app.include_router(admin_users.router)
+app.include_router(admin_moderation.router)
 
 # Phục vụ media cục bộ ở dev (production dùng Supabase Storage + CDN — Phase 9).
 _media_dir = Path(settings.media_root)

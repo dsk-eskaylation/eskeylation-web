@@ -13,7 +13,7 @@ from app.models.media import ContentMedia
 from app.models.user import User
 from app.schemas.admin import ContentAdminRead, ContentCreate, ContentUpdate
 from app.schemas.pagination import Page
-from app.services import content_admin
+from app.services import activity, content_admin
 
 router = APIRouter(prefix="/admin/content", tags=["cms"])
 
@@ -48,6 +48,15 @@ async def create_content(
     user: User = Depends(_editor),
 ) -> ContentAdminRead:
     content = await content_admin.create_content(session, data, user.id)
+    await activity.log(
+        session,
+        actor=user,
+        action=activity.CREATE,
+        entity_type="content",
+        entity_id=content.id,
+        entity_title=content.title,
+        detail={"type": content.type.value},
+    )
     return ContentAdminRead.from_model(content)
 
 
@@ -66,14 +75,36 @@ async def list_content(
         base = base.where(Content.status == content_status)
 
     total = await session.scalar(select(func.count()).select_from(base.subquery()))
-    rows = await session.scalars(
-        base.options(selectinload(Content.media_links).selectinload(ContentMedia.media))
-        .order_by(Content.updated_at.desc(), Content.id.desc())
-        .offset((pagination.page - 1) * pagination.page_size)
-        .limit(pagination.page_size)
-    )
+    rows = (
+        await session.scalars(
+            base.options(
+                selectinload(Content.media_links).selectinload(ContentMedia.media)
+            )
+            .order_by(Content.updated_at.desc(), Content.id.desc())
+            .offset((pagination.page - 1) * pagination.page_size)
+            .limit(pagination.page_size)
+        )
+    ).all()
+
+    # Nạp email tác giả trong MỘT query (tránh N+1) rồi map vào từng item
+    author_ids = {c.author_id for c in rows if c.author_id is not None}
+    emails: dict[int, str] = {}
+    if author_ids:
+        emails = dict(
+            (
+                await session.execute(
+                    select(User.id, User.email).where(User.id.in_(author_ids))
+                )
+            ).all()
+        )
+
+    items = []
+    for c in rows:
+        read = ContentAdminRead.from_model(c)
+        read.author_email = emails.get(c.author_id) if c.author_id else None
+        items.append(read)
     return Page.create(
-        items=[ContentAdminRead.from_model(c) for c in rows],
+        items=items,
         total=total or 0,
         page=pagination.page,
         page_size=pagination.page_size,
@@ -100,7 +131,24 @@ async def update_content(
 ) -> ContentAdminRead:
     content = await _load(content_id, session)
     _ensure_can_edit(content, user)
+    # Chụp giá trị CŨ trước khi sửa -> log được "cũ → mới" cho tiêu đề
+    old_title = content.title
     updated = await content_admin.update_content(session, content, data)
+    fields = sorted(data.model_dump(exclude_unset=True).keys())
+    # Ghi rõ trường nào được sửa + diff tiêu đề -> admin biết chính xác thay đổi gì
+    detail: dict = {"fields": fields}
+    if "title" in fields and old_title != updated.title:
+        detail["title_from"] = old_title
+        detail["title_to"] = updated.title
+    await activity.log(
+        session,
+        actor=user,
+        action=activity.UPDATE,
+        entity_type="content",
+        entity_id=updated.id,
+        entity_title=updated.title,
+        detail=detail,
+    )
     return ContentAdminRead.from_model(updated)
 
 
@@ -108,30 +156,58 @@ async def update_content(
 async def delete_content(
     content_id: int,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(_publisher),
+    user: User = Depends(_publisher),
 ) -> None:
     content = await _load(content_id, session)
+    # Chụp lại title/id/type TRƯỚC khi xóa để log còn đọc được
+    title, cid, ctype = content.title, content.id, content.type.value
     await content_admin.delete_content(session, content)
+    await activity.log(
+        session,
+        actor=user,
+        action=activity.DELETE,
+        entity_type="content",
+        entity_id=cid,
+        entity_title=title,
+        detail={"type": ctype},
+    )
 
 
 @router.post("/{content_id}/publish", response_model=ContentAdminRead)
 async def publish_content(
     content_id: int,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(_publisher),
+    user: User = Depends(_publisher),
 ) -> ContentAdminRead:
     content = await _load(content_id, session)
-    return ContentAdminRead.from_model(await content_admin.publish(session, content))
+    published = await content_admin.publish(session, content)
+    await activity.log(
+        session,
+        actor=user,
+        action=activity.PUBLISH,
+        entity_type="content",
+        entity_id=published.id,
+        entity_title=published.title,
+    )
+    return ContentAdminRead.from_model(published)
 
 
 @router.post("/{content_id}/unpublish", response_model=ContentAdminRead)
 async def unpublish_content(
     content_id: int,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(_publisher),
+    user: User = Depends(_publisher),
 ) -> ContentAdminRead:
     content = await _load(content_id, session)
     updated = await content_admin.set_status(session, content, ContentStatus.draft)
+    await activity.log(
+        session,
+        actor=user,
+        action=activity.UNPUBLISH,
+        entity_type="content",
+        entity_id=updated.id,
+        entity_title=updated.title,
+    )
     return ContentAdminRead.from_model(updated)
 
 
@@ -139,10 +215,18 @@ async def unpublish_content(
 async def archive_content(
     content_id: int,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(_publisher),
+    user: User = Depends(_publisher),
 ) -> ContentAdminRead:
     content = await _load(content_id, session)
     updated = await content_admin.set_status(session, content, ContentStatus.archived)
+    await activity.log(
+        session,
+        actor=user,
+        action=activity.ARCHIVE,
+        entity_type="content",
+        entity_id=updated.id,
+        entity_title=updated.title,
+    )
     return ContentAdminRead.from_model(updated)
 
 
@@ -159,4 +243,13 @@ async def duplicate_content(
     content = await _load(content_id, session)
     _ensure_can_edit(content, user)
     copy = await content_admin.duplicate(session, content, user.id)
+    await activity.log(
+        session,
+        actor=user,
+        action=activity.DUPLICATE,
+        entity_type="content",
+        entity_id=copy.id,
+        entity_title=copy.title,
+        detail={"from_id": content.id},
+    )
     return ContentAdminRead.from_model(copy)
