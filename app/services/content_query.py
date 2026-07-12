@@ -1,6 +1,6 @@
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
@@ -40,30 +40,51 @@ async def list_published(
 ) -> tuple[list[Content], int]:
     base = _apply_filters(_apply_search(_published(type_), q), filters)
 
-    total = await session.scalar(select(func.count()).select_from(base.subquery()))
-
-    stmt = base.options(
-        selectinload(Content.media_links).selectinload(ContentMedia.media)
-    )
     if q:
         rank = func.ts_rank(
             Content.search_vector, func.plainto_tsquery("simple", func.f_unaccent(q))
         )
-        stmt = stmt.order_by(rank.desc(), Content.published_at.desc())
+        order = (rank.desc(), Content.published_at.desc())
     else:
-        stmt = stmt.order_by(Content.published_at.desc(), Content.id.desc())
+        order = (Content.published_at.desc(), Content.id.desc())
 
-    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-    items = list((await session.scalars(stmt)).all())
-    return items, total or 0
+    # TỐI ƯU ĐỘ TRỄ (chi phí chính là round-trip mạng tới Supabase, không phải query):
+    # 1) Gộp ĐẾM TỔNG vào cùng query lấy dữ liệu bằng window `count(*) OVER()`
+    #    -> bớt một round-trip so với việc chạy COUNT riêng.
+    # 2) Nạp media trong MỘT round-trip: selectinload(media_links) + joinedload(media)
+    #    (media là quan hệ many-to-one nên JOIN không nhân dòng) thay vì hai
+    #    selectinload lồng nhau (hai round-trip).
+    stmt = (
+        base.add_columns(func.count().over().label("total"))
+        .options(selectinload(Content.media_links).joinedload(ContentMedia.media))
+        .order_by(*order)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = (await session.execute(stmt)).all()
+    items = [row[0] for row in rows]
+
+    if rows:
+        total = rows[0].total
+    elif page > 1:
+        # Trang vượt phạm vi (hiếm) -> window count không có dòng nào để lấy tổng,
+        # đếm lại để total vẫn đúng cho phân trang.
+        total = (
+            await session.scalar(select(func.count()).select_from(base.subquery()))
+        ) or 0
+    else:
+        total = 0
+    return items, total
 
 
 async def get_published_by_slug(
     session: AsyncSession, type_: ContentType, slug: str
 ) -> Content | None:
+    # Detail: nạp cả media trong MỘT round-trip bằng joinedload (một Content nên
+    # JOIN collection chỉ nhân theo số media của đúng bài đó -> .unique() gộp lại).
     stmt = (
         _published(type_)
         .where(Content.slug == slug)
-        .options(selectinload(Content.media_links).selectinload(ContentMedia.media))
+        .options(joinedload(Content.media_links).joinedload(ContentMedia.media))
     )
-    return await session.scalar(stmt)
+    return (await session.scalars(stmt)).unique().one_or_none()

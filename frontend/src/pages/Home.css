@@ -18,7 +18,9 @@
   left: 50%;
   transform: translateX(-50%);
   width: 100vw;
-  height: 100%;
+  /* Kéo dài thêm 40px (var(--space-10)) để phủ luôn padding-bottom của
+     .layout__main -> nền/orbs không bị hụt một dải ở đáy trang. */
+  height: calc(100% + var(--space-10));
   overflow: clip;
   pointer-events: none;
   z-index: -1;

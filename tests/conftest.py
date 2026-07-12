@@ -36,6 +36,18 @@ def _reset_ratelimit():
     yield
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _dispose_engine():
+    """Engine giờ POOL kết nối (tối ưu độ trễ prod). pytest-asyncio tạo event
+    loop MỚI cho mỗi test — kết nối pool của test trước gắn với loop đã đóng,
+    tái dùng sẽ nổ RuntimeError. Dispose pool ở teardown (chạy trong đúng loop
+    của test) để test sau bắt đầu với pool rỗng."""
+    yield
+    from app.db import engine
+
+    await engine.dispose()
+
+
 @pytest_asyncio.fixture
 async def client() -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
