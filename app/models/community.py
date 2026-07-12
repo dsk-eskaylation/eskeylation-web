@@ -71,6 +71,33 @@ class PostReaction(TimestampMixin, Base):
     )
 
 
+class CommentReaction(TimestampMixin, Base):
+    """Cảm xúc trên một BÌNH LUẬN (giống PostReaction nhưng gắn với comment)."""
+
+    __tablename__ = "comment_reactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    comment_id: Mapped[int] = mapped_column(
+        ForeignKey("comments.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    type: Mapped[ReactionType] = mapped_column(
+        Enum(ReactionType, native_enum=False, length=20)
+    )
+
+    __table_args__ = (
+        # Mỗi user chỉ 1 cảm xúc / bình luận (đổi loại = update)
+        UniqueConstraint(
+            "comment_id", "user_id", name="uq_comment_reaction_user_comment"
+        ),
+        CheckConstraint(
+            f"type IN ({_reaction_values()})", name="ck_comment_reactions_type"
+        ),
+    )
+
+
 class SavedPost(TimestampMixin, Base):
     __tablename__ = "saved_posts"
 

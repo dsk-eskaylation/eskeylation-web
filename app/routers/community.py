@@ -24,16 +24,18 @@ from app.dependencies import (
     get_current_user,
     get_current_user_optional,
 )
+from app.models.enums import ReactionType
 from app.models.user import User
 from app.schemas.community import (
     CommentIn,
     CommentOut,
+    CommentUpdate,
     InteractionOut,
     ReactionIn,
     ReactionSummary,
 )
 from app.schemas.pagination import Page
-from app.services import community, realtime
+from app.services import community, moderation, realtime
 from app.services.ratelimit import check_rate
 from app.services.sanitize import sanitize_summary
 
@@ -50,22 +52,48 @@ async def _ensure_post(session: AsyncSession, content_id: int) -> None:
         )
 
 
-def _comment_out(c) -> CommentOut:
+def _comment_out(
+    c,
+    *,
+    reactions: tuple[dict[str, int], int, ReactionType | None] | None = None,
+    is_mine: bool = False,
+) -> CommentOut:
+    counts, total, mine = reactions or ({}, 0, None)
     return CommentOut(
         id=c.id,
         content_id=c.content_id,
         body=c.body,
         author_name=community.author_name(c.user),
         created_at=c.created_at,
+        reactions=ReactionSummary(counts=counts, total=total, my_reaction=mine),
+        is_mine=is_mine,
     )
+
+
+async def _load_owned_comment(
+    session: AsyncSession, content_id: int, comment_id: int, user: User
+):
+    """Nạp bình luận và đảm bảo thuộc bài + thuộc user hiện tại (chống IDOR)."""
+    comment = await community.get_comment(session, comment_id)
+    if comment is None or comment.content_id != content_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bình luận"
+        )
+    if comment.user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chỉ thao tác được trên bình luận của mình",
+        )
+    return comment
 
 
 async def _summary(
     session: AsyncSession, content_id: int, user: User | None
 ) -> ReactionSummary:
-    counts = await community.reaction_counts(session, content_id)
-    mine = await community.my_reaction(session, content_id, user.id) if user else None
-    return ReactionSummary(counts=counts, total=sum(counts.values()), my_reaction=mine)
+    counts, total, mine = await community.reaction_summary(
+        session, content_id, user.id if user else None
+    )
+    return ReactionSummary(counts=counts, total=total, my_reaction=mine)
 
 
 # ---- Tổng quan ----
@@ -75,14 +103,22 @@ async def get_interactions(
     user: User | None = Depends(get_current_user_optional),
     session: AsyncSession = Depends(get_session),
 ) -> InteractionOut:
-    await _ensure_post(session, content_id)
+    # MỘT round-trip: tồn tại + cảm xúc + của tôi + số bình luận + đã lưu
+    data = await community.interaction_overview(
+        session, content_id, user.id if user else None
+    )
+    if data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy bài cộng đồng",
+        )
     return InteractionOut(
         content_id=content_id,
-        reactions=await _summary(session, content_id, user),
-        comment_count=await community.comment_count(session, content_id),
-        saved=(
-            await community.is_saved(session, content_id, user.id) if user else False
+        reactions=ReactionSummary(
+            counts=data["counts"], total=data["total"], my_reaction=data["mine"]
         ),
+        comment_count=data["comment_count"],
+        saved=data["saved"],
     )
 
 
@@ -91,14 +127,26 @@ async def get_interactions(
 async def list_comments(
     content_id: int,
     pagination: PaginationParams = Depends(),
+    user: User | None = Depends(get_current_user_optional),
     session: AsyncSession = Depends(get_session),
 ) -> Page[CommentOut]:
     await _ensure_post(session, content_id)
     items, total = await community.list_comments(
         session, content_id, page=pagination.page, page_size=pagination.page_size
     )
+    # Nạp gọn cảm xúc cho cả trang trong 2 query (tránh N+1)
+    reactions = await community.comment_reactions_bulk(
+        session, [c.id for c in items], user.id if user else None
+    )
     return Page.create(
-        items=[_comment_out(c) for c in items],
+        items=[
+            _comment_out(
+                c,
+                reactions=reactions.get(c.id),
+                is_mine=bool(user and c.user_id == user.id),
+            )
+            for c in items
+        ],
         total=total,
         page=pagination.page,
         page_size=pagination.page_size,
@@ -124,12 +172,108 @@ async def create_comment(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Nội dung bình luận trống",
         )
+    # Chặn bình luận chứa từ ngữ không phù hợp (kiểm duyệt)
+    await moderation.assert_clean(session, text=body)
     comment = await community.create_comment(session, content_id, user, body)
-    out = _comment_out(comment)
+    out = _comment_out(comment, is_mine=True)
+    # Broadcast bản KHÔNG kèm is_mine cho người khác (is_mine tính theo mỗi client)
     await realtime.publish(
-        content_id, {"kind": "comment", "comment": out.model_dump(mode="json")}
+        content_id,
+        {
+            "kind": "comment",
+            "comment": _comment_out(comment).model_dump(mode="json"),
+        },
     )
     return out
+
+
+@router.patch("/{content_id}/comments/{comment_id}", response_model=CommentOut)
+async def edit_comment(
+    content_id: int,
+    comment_id: int,
+    payload: CommentUpdate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> CommentOut:
+    await _ensure_post(session, content_id)
+    comment = await _load_owned_comment(session, content_id, comment_id, user)
+    body = sanitize_summary(payload.body) or ""
+    if not body.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Nội dung bình luận trống",
+        )
+    await moderation.assert_clean(session, text=body)
+    updated = await community.update_comment_body(session, comment, body)
+    reactions = await community.comment_reaction_summary(session, comment_id, user.id)
+    await realtime.publish(
+        content_id,
+        {
+            "kind": "comment_edit",
+            "comment": _comment_out(updated).model_dump(mode="json"),
+        },
+    )
+    return _comment_out(updated, reactions=reactions, is_mine=True)
+
+
+@router.delete(
+    "/{content_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def remove_comment(
+    content_id: int,
+    comment_id: int,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    await _ensure_post(session, content_id)
+    comment = await _load_owned_comment(session, content_id, comment_id, user)
+    await community.delete_comment(session, comment)
+    await realtime.publish(
+        content_id, {"kind": "comment_delete", "comment_id": comment_id}
+    )
+
+
+# ---- Cảm xúc trên BÌNH LUẬN ----
+@router.put(
+    "/{content_id}/comments/{comment_id}/reaction", response_model=ReactionSummary
+)
+async def react_comment(
+    content_id: int,
+    comment_id: int,
+    payload: ReactionIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ReactionSummary:
+    await _ensure_post(session, content_id)
+    comment = await community.get_comment(session, comment_id)
+    if comment is None or comment.content_id != content_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bình luận"
+        )
+    await check_rate(f"creact:{user.id}", limit=40, window_seconds=60)
+    await community.set_comment_reaction(session, comment_id, user.id, payload.type)
+    counts, total, mine = await community.comment_reaction_summary(
+        session, comment_id, user.id
+    )
+    return ReactionSummary(counts=counts, total=total, my_reaction=mine)
+
+
+@router.delete(
+    "/{content_id}/comments/{comment_id}/reaction", response_model=ReactionSummary
+)
+async def unreact_comment(
+    content_id: int,
+    comment_id: int,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ReactionSummary:
+    await _ensure_post(session, content_id)
+    await check_rate(f"creact:{user.id}", limit=40, window_seconds=60)
+    await community.remove_comment_reaction(session, comment_id, user.id)
+    counts, total, mine = await community.comment_reaction_summary(
+        session, comment_id, user.id
+    )
+    return ReactionSummary(counts=counts, total=total, my_reaction=mine)
 
 
 # ---- Cảm xúc ----

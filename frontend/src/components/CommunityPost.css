@@ -196,6 +196,25 @@
   z-index: 5;
   animation: picker-in var(--dur-fast) var(--ease-out) both;
 }
+/* Issue 1: "cầu nối" vô hình phủ khoảng trống 6px giữa bảng và nút, để rê chuột
+   sang bảng không bị coi là rời khỏi vùng hover -> bảng không đóng sớm. */
+.cpost__picker::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 10px;
+}
+/* Bảng cảm xúc thu nhỏ cho bình luận */
+.cpost__picker--compact {
+  padding: 4px 6px;
+  gap: 2px;
+}
+.cpost__picker--compact .cpost__picker-item {
+  width: 26px;
+  height: 26px;
+}
 @keyframes picker-in {
   from {
     opacity: 0;
@@ -236,6 +255,7 @@
 .cpost__comment {
   display: flex;
   gap: 10px;
+  align-items: flex-start;
 }
 .cpost__comment-avatar {
   width: 32px;
@@ -244,13 +264,29 @@
   background: linear-gradient(135deg, #2a2a2a, #121212);
   flex-shrink: 0;
 }
+.cpost__comment-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
 .cpost__comment-bubble {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 8px 14px;
   background: rgba(255, 255, 255, 0.04);
   border-radius: 16px;
+  max-width: 100%;
+}
+/* Issue 4: tên + thời gian nằm CÙNG HÀNG */
+.cpost__comment-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .cpost__comment-author {
   font-size: 13px;
@@ -266,6 +302,102 @@
 .cpost__comment-time {
   font-size: 11px;
   color: var(--color-text-muted);
+}
+/* Emoji cảm xúc thu nhỏ, nổi ở mép dưới bong bóng bình luận */
+.cpost__comment-reactions {
+  position: absolute;
+  right: 8px;
+  bottom: -10px;
+  display: inline-flex;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.96);
+  border: 0.5px solid var(--nav-border);
+  font-size: 11px;
+}
+.cpost__comment-reactions .cpost__stats-icon {
+  width: 13px;
+  height: 13px;
+}
+.cpost__comment-reactions .cpost__stats-count {
+  font-size: 11px;
+}
+
+/* Hàng thao tác dưới mỗi bình luận: cảm xúc + sửa + xoá */
+.cpost__comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 6px;
+}
+.cpost__comment-act {
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+.cpost__comment-act:hover {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.05);
+}
+.cpost__comment-act--danger:hover {
+  color: var(--color-error);
+}
+
+/* Trigger cảm xúc của bình luận (nhỏ gọn, chỉ chữ) */
+.ccmt__react-wrap {
+  position: relative;
+}
+.ccmt__react {
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+.ccmt__react:hover {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.05);
+}
+.ccmt__react--on {
+  color: var(--color-text-bright);
+}
+
+/* Form sửa bình luận inline */
+.cpost__edit {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+.cpost__edit .cpost__input {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.cpost__edit .cpost__send {
+  padding: 0 12px;
+  height: 30px;
+  font-size: 13px;
+}
+.cpost__edit-cancel {
+  padding: 0 10px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.cpost__edit-cancel:hover {
+  color: var(--color-text);
 }
 
 .cpost__form {

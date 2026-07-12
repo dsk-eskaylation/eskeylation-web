@@ -9,14 +9,14 @@ import {
   type InteractionOut,
   type ReactionKind,
 } from '../api/community'
+import { useToast } from './Toast'
+import { ReactionControl } from './ReactionControl'
 import {
   BookmarkIcon,
   CommentIcon,
   ReactionIcon,
   REACTION_COLOR,
-  REACTION_LABEL,
   REACTION_ORDER,
-  ThumbIcon,
 } from './reactionIcons'
 import './CommunityPost.css'
 
@@ -30,9 +30,37 @@ function fmtTime(iso: string) {
   return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} ${fmtDate(iso)}`
 }
 
+/** Emoji tóm tắt cảm xúc (top 3 loại) + tổng — dùng cho bài & bình luận. */
+function ReactionSummaryChips({
+  counts,
+  total,
+}: {
+  counts: Record<string, number>
+  total: number
+}) {
+  const top = REACTION_ORDER.filter((k) => counts[k] > 0)
+    .sort((a, b) => counts[b] - counts[a])
+    .slice(0, 3)
+  if (total <= 0) return null
+  return (
+    <span className="cpost__stats-emojis">
+      {top.map((k) => (
+        <span
+          key={k}
+          className="cpost__stats-icon"
+          style={{ color: REACTION_COLOR[k] }}
+        >
+          <ReactionIcon kind={k} />
+        </span>
+      ))}
+      <span className="cpost__stats-count">{total}</span>
+    </span>
+  )
+}
+
 /** Thẻ bài cộng đồng kiểu Facebook (giữ style Eskaylation):
-    header + caption + ảnh, thanh cảm xúc (6 loại, hover chọn), lưu bài,
-    và khu bình luận realtime (WebSocket) mở khi bấm "Bình luận". */
+    header + caption + ảnh, thanh cảm xúc (6 loại), lưu bài, và khu bình luận
+    realtime (WebSocket) — mỗi bình luận có cảm xúc riêng + sửa/xoá cho chủ nhân. */
 export function CommunityPost({
   content,
   loggedIn,
@@ -41,15 +69,17 @@ export function CommunityPost({
   loggedIn: boolean
 }) {
   const id = content.id
+  const { notify } = useToast()
   const author =
     typeof content.body.author === 'string' ? content.body.author : content.title
 
   const [inter, setInter] = useState<InteractionOut | null>(null)
-  const [pickerOpen, setPickerOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [comments, setComments] = useState<CommentOut[]>([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editDraft, setEditDraft] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -62,35 +92,73 @@ export function CommunityPost({
     }
   }, [id])
 
-  // Tải bình luận + mở WebSocket khi khu bình luận được mở
+  // Tải bình luận + mở WebSocket khi khu bình luận được mở.
+  // WS TỰ KẾT NỐI LẠI (backoff) khi rớt — server restart/reload sẽ giết mọi
+  // kết nối; không reconnect thì tab đang mở mất realtime vĩnh viễn (bug:
+  // "sửa comment không thấy realtime"). Khi nối lại thì refetch để bù event lỡ.
   useEffect(() => {
     if (!expanded) return
     let alive = true
-    community
-      .comments(id)
-      .then((page) => alive && setComments(page.items))
-      .catch(() => {})
+    let ws: WebSocket | null = null
+    let retry = 0
+    let retryTimer: number | undefined
 
-    const ws = new WebSocket(communityWsUrl(id))
-    ws.onmessage = (e) => {
-      if (!alive) return
-      let ev: CommunityEvent
-      try {
-        ev = JSON.parse(e.data)
-      } catch {
-        return
-      }
-      if (ev.kind === 'comment') appendComment(ev.comment)
-      else if (ev.kind === 'reaction')
-        setInter((cur) =>
-          cur
-            ? { ...cur, reactions: { ...cur.reactions, counts: ev.counts, total: ev.total } }
-            : cur,
-        )
+    const refetch = () => {
+      community
+        .comments(id)
+        .then((page) => alive && setComments(page.items))
+        .catch(() => {})
     }
+    refetch()
+
+    const connect = () => {
+      if (!alive) return
+      ws = new WebSocket(communityWsUrl(id))
+      ws.onopen = () => {
+        // Nối lại sau khi rớt -> đồng bộ lại dữ liệu đã lỡ trong lúc mất kết nối
+        if (retry > 0) refetch()
+        retry = 0
+      }
+      ws.onmessage = (e) => {
+        if (!alive) return
+        let ev: CommunityEvent
+        try {
+          ev = JSON.parse(e.data)
+        } catch {
+          return
+        }
+        if (ev.kind === 'comment') appendComment(ev.comment)
+        else if (ev.kind === 'comment_edit')
+          setComments((cur) =>
+            cur.map((c) => (c.id === ev.comment.id ? { ...c, body: ev.comment.body } : c)),
+          )
+        else if (ev.kind === 'comment_delete')
+          setComments((cur) => cur.filter((c) => c.id !== ev.comment_id))
+        else if (ev.kind === 'reaction')
+          setInter((cur) =>
+            cur
+              ? { ...cur, reactions: { ...cur.reactions, counts: ev.counts, total: ev.total } }
+              : cur,
+          )
+      }
+      ws.onclose = () => {
+        if (!alive) return
+        // Backoff 1s -> 2s -> 4s ... trần 15s; thử mãi (bài vẫn đang mở)
+        const delay = Math.min(1000 * 2 ** retry, 15_000)
+        retry += 1
+        retryTimer = window.setTimeout(connect, delay)
+      }
+    }
+    connect()
+
     return () => {
       alive = false
-      ws.close()
+      if (retryTimer) clearTimeout(retryTimer)
+      // gỡ onclose trước khi đóng để không kích hoạt reconnect
+      if (ws) {
+        ws.onclose = null
+        ws.close()
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, id])
@@ -102,26 +170,25 @@ export function CommunityPost({
     )
   }
 
-  async function pickReaction(kind: ReactionKind) {
-    setPickerOpen(false)
+  function patchComment(commentId: number, patch: Partial<CommentOut>) {
+    setComments((cur) => cur.map((c) => (c.id === commentId ? { ...c, ...patch } : c)))
+  }
+
+  // ---- Cảm xúc bài ----
+  async function postPick(kind: ReactionKind) {
     try {
-      const summary = await community.react(id, kind)
+      const summary =
+        inter?.reactions.my_reaction === kind
+          ? await community.unreact(id)
+          : await community.react(id, kind)
       setInter((cur) => (cur ? { ...cur, reactions: summary } : cur))
     } catch {
       /* bỏ qua */
     }
   }
-
-  async function toggleLike() {
+  async function postToggle() {
     if (!inter) return
-    try {
-      const summary = inter.reactions.my_reaction
-        ? await community.unreact(id)
-        : await community.react(id, 'like')
-      setInter((cur) => (cur ? { ...cur, reactions: summary } : cur))
-    } catch {
-      /* bỏ qua */
-    }
+    await (inter.reactions.my_reaction ? postPick(inter.reactions.my_reaction) : postPick('like'))
   }
 
   async function toggleSave() {
@@ -134,6 +201,7 @@ export function CommunityPost({
     }
   }
 
+  // ---- Bình luận: gửi / sửa / xoá / cảm xúc ----
   async function submitComment(e: FormEvent) {
     e.preventDefault()
     const body = draft.trim()
@@ -143,19 +211,61 @@ export function CommunityPost({
       const c = await community.addComment(id, body)
       appendComment(c)
       setDraft('')
-    } catch {
-      /* bỏ qua */
+    } catch (err) {
+      // Hiện cảnh báo (vd bị chặn vì chứa từ cấm) thay vì im lặng
+      notify(err instanceof Error ? err.message : 'Không gửi được bình luận', {
+        tone: 'error',
+      })
     } finally {
       setSending(false)
+    }
+  }
+
+  async function saveEdit(c: CommentOut) {
+    const body = editDraft.trim()
+    if (!body) return
+    try {
+      const updated = await community.editComment(id, c.id, body)
+      patchComment(c.id, { body: updated.body })
+      setEditingId(null)
+      setEditDraft('')
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Không sửa được bình luận', {
+        tone: 'error',
+      })
+    }
+  }
+
+  async function removeComment(c: CommentOut) {
+    if (!window.confirm('Xoá bình luận này?')) return
+    try {
+      await community.deleteComment(id, c.id)
+      setComments((cur) => cur.filter((x) => x.id !== c.id))
+      setInter((cur) =>
+        cur ? { ...cur, comment_count: Math.max(0, cur.comment_count - 1) } : cur,
+      )
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Không xoá được bình luận', {
+        tone: 'error',
+      })
+    }
+  }
+
+  async function commentReact(c: CommentOut, kind: ReactionKind) {
+    try {
+      const summary =
+        c.reactions.my_reaction === kind
+          ? await community.unreactComment(id, c.id)
+          : await community.reactComment(id, c.id, kind)
+      patchComment(c.id, { reactions: summary })
+    } catch {
+      /* bỏ qua */
     }
   }
 
   const counts = inter?.reactions.counts ?? {}
   const total = inter?.reactions.total ?? 0
   const mine = inter?.reactions.my_reaction ?? null
-  const topKinds = REACTION_ORDER.filter((k) => counts[k] > 0)
-    .sort((a, b) => counts[b] - counts[a])
-    .slice(0, 3)
   const media = content.media
 
   return (
@@ -192,18 +302,7 @@ export function CommunityPost({
       {/* Tổng quan reactions + số bình luận */}
       {(total > 0 || (inter?.comment_count ?? 0) > 0) && (
         <div className="cpost__stats">
-          <span className="cpost__stats-emojis">
-            {topKinds.map((k) => (
-              <span
-                key={k}
-                className="cpost__stats-icon"
-                style={{ color: REACTION_COLOR[k] }}
-              >
-                <ReactionIcon kind={k} />
-              </span>
-            ))}
-            {total > 0 && <span className="cpost__stats-count">{total}</span>}
-          </span>
+          <ReactionSummaryChips counts={counts} total={total} />
           {(inter?.comment_count ?? 0) > 0 && (
             <button
               type="button"
@@ -218,40 +317,13 @@ export function CommunityPost({
 
       {/* Thanh hành động */}
       <div className="cpost__actions">
-        <div
-          className="cpost__react-wrap"
-          onMouseEnter={() => loggedIn && setPickerOpen(true)}
-          onMouseLeave={() => setPickerOpen(false)}
-        >
-          <button
-            type="button"
-            className={mine ? 'cpost__act cpost__act--on' : 'cpost__act'}
-            onClick={toggleLike}
-            disabled={!loggedIn}
-            style={mine ? { color: REACTION_COLOR[mine] } : undefined}
-          >
-            <span className="cpost__act-icon">
-              {mine ? <ReactionIcon kind={mine} /> : <ThumbIcon />}
-            </span>
-            {mine ? REACTION_LABEL[mine] : 'Thích'}
-          </button>
-          {pickerOpen && (
-            <div className="cpost__picker">
-              {REACTION_ORDER.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  className="cpost__picker-item"
-                  title={REACTION_LABEL[k]}
-                  style={{ color: REACTION_COLOR[k] }}
-                  onClick={() => pickReaction(k)}
-                >
-                  <ReactionIcon kind={k} />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <ReactionControl
+          variant="post"
+          mine={mine}
+          disabled={!loggedIn}
+          onToggle={postToggle}
+          onPick={postPick}
+        />
 
         <button
           type="button"
@@ -286,10 +358,90 @@ export function CommunityPost({
           {comments.map((c) => (
             <div className="cpost__comment" key={c.id}>
               <span className="cpost__comment-avatar" aria-hidden="true" />
-              <div className="cpost__comment-bubble">
-                <span className="cpost__comment-author">{c.author_name}</span>
-                <span className="cpost__comment-body">{c.body}</span>
-                <time className="cpost__comment-time">{fmtTime(c.created_at)}</time>
+              <div className="cpost__comment-main">
+                <div className="cpost__comment-bubble">
+                  {/* Issue 4: thời gian nằm CẠNH tên người bình luận */}
+                  <div className="cpost__comment-head">
+                    <span className="cpost__comment-author">{c.author_name}</span>
+                    <time className="cpost__comment-time">{fmtTime(c.created_at)}</time>
+                  </div>
+                  {editingId === c.id ? (
+                    <form
+                      className="cpost__edit"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        void saveEdit(c)
+                      }}
+                    >
+                      <input
+                        className="cpost__input"
+                        value={editDraft}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        maxLength={2000}
+                        autoFocus
+                      />
+                      <button type="submit" className="cpost__send" disabled={!editDraft.trim()}>
+                        Lưu
+                      </button>
+                      <button
+                        type="button"
+                        className="cpost__edit-cancel"
+                        onClick={() => {
+                          setEditingId(null)
+                          setEditDraft('')
+                        }}
+                      >
+                        Huỷ
+                      </button>
+                    </form>
+                  ) : (
+                    <span className="cpost__comment-body">{c.body}</span>
+                  )}
+                  {c.reactions.total > 0 && (
+                    <span className="cpost__comment-reactions">
+                      <ReactionSummaryChips
+                        counts={c.reactions.counts}
+                        total={c.reactions.total}
+                      />
+                    </span>
+                  )}
+                </div>
+                {/* Hàng thao tác dưới mỗi bình luận */}
+                {editingId !== c.id && (
+                  <div className="cpost__comment-actions">
+                    {loggedIn && (
+                      <ReactionControl
+                        variant="comment"
+                        mine={c.reactions.my_reaction}
+                        onToggle={() =>
+                          void commentReact(c, c.reactions.my_reaction ?? 'like')
+                        }
+                        onPick={(k) => void commentReact(c, k)}
+                      />
+                    )}
+                    {c.is_mine && (
+                      <>
+                        <button
+                          type="button"
+                          className="cpost__comment-act"
+                          onClick={() => {
+                            setEditingId(c.id)
+                            setEditDraft(c.body)
+                          }}
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          type="button"
+                          className="cpost__comment-act cpost__comment-act--danger"
+                          onClick={() => void removeComment(c)}
+                        >
+                          Xoá
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}

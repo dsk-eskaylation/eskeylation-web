@@ -9,12 +9,8 @@ class CommentIn(BaseModel):
     body: str = Field(min_length=1, max_length=2000)
 
 
-class CommentOut(BaseModel):
-    id: int
-    content_id: int
-    body: str
-    author_name: str
-    created_at: datetime
+class CommentUpdate(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
 
 
 class ReactionIn(BaseModel):
@@ -27,6 +23,18 @@ class ReactionSummary(BaseModel):
     counts: dict[str, int] = {}
     total: int = 0
     my_reaction: ReactionType | None = None
+
+
+class CommentOut(BaseModel):
+    id: int
+    content_id: int
+    body: str
+    author_name: str
+    created_at: datetime
+    # Cảm xúc trên bình luận + cờ cho biết đây có phải bình luận của user hiện tại
+    # (để UI hiện nút Sửa/Xoá).
+    reactions: ReactionSummary = ReactionSummary()
+    is_mine: bool = False
 
 
 class InteractionOut(BaseModel):
