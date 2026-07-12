@@ -37,21 +37,40 @@ MUSIC = [
 ]
 
 VIDEO = [
-    ("MV Ngồi Rap Trên Đồi", "DSK", "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-     "Video âm nhạc chính thức."),
-    ("Hậu Trường Phòng Thu", "DSK", "https://youtu.be/e-ORhEE9VVg",
-     "Behind the scenes buổi thu âm."),
-    ("Live Session Acoustic", "DSK", "https://www.youtube.com/watch?v=3JZ_D3ELwOQ",
-     "Bản live mộc tại studio."),
+    (
+        "MV Ngồi Rap Trên Đồi",
+        "DSK",
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "Video âm nhạc chính thức.",
+    ),
+    (
+        "Hậu Trường Phòng Thu",
+        "DSK",
+        "https://youtu.be/e-ORhEE9VVg",
+        "Behind the scenes buổi thu âm.",
+    ),
+    (
+        "Live Session Acoustic",
+        "DSK",
+        "https://www.youtube.com/watch?v=3JZ_D3ELwOQ",
+        "Bản live mộc tại studio.",
+    ),
 ]
 
 COMMUNITY = [
-    ("Chào cộng đồng Eskaylation!",
-     "Ra mắt không gian cộng đồng — nơi mọi người bàn luận về nhạc, thả cảm xúc và bình luận realtime."),
-    ("Bạn thích thể loại nào nhất?",
-     "Life rap, love rap, dissin' hay thể nghiệm? Bình luận bên dưới nhé!"),
-    ("Ekip đang chuẩn bị dự án mới",
-     "Sắp có nhiều bản phát hành trong thời gian tới. Lưu bài để không bỏ lỡ!"),
+    (
+        "Chào cộng đồng Eskaylation!",
+        "Ra mắt không gian cộng đồng — nơi mọi người bàn luận về nhạc, "
+        "thả cảm xúc và bình luận realtime.",
+    ),
+    (
+        "Bạn thích thể loại nào nhất?",
+        "Life rap, love rap, dissin' hay thể nghiệm? Bình luận bên dưới nhé!",
+    ),
+    (
+        "Ekip đang chuẩn bị dự án mới",
+        "Sắp có nhiều bản phát hành trong thời gian tới. Lưu bài để không bỏ lỡ!",
+    ),
 ]
 
 

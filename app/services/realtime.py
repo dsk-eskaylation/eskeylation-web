@@ -10,6 +10,7 @@ hub cục bộ -> vẫn realtime trong phạm vi một tiến trình. Không bao
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 
@@ -58,10 +59,9 @@ def unregister(content_id: int, q: asyncio.Queue[str]) -> None:
 
 def _fanout_local(content_id: int, data: str) -> None:
     for q in _hub.get(content_id, ()):
-        try:
+        # client chậm (queue đầy) -> bỏ sự kiện, không chặn
+        with contextlib.suppress(asyncio.QueueFull):
             q.put_nowait(data)
-        except asyncio.QueueFull:
-            pass  # client chậm -> bỏ sự kiện, không chặn
 
 
 async def publish(content_id: int, event: dict) -> None:
@@ -98,12 +98,12 @@ async def _listener() -> None:
         raise
     except Exception:
         _redis_alive = False
-        logger.warning("Realtime: Redis không sẵn sàng — chạy hub cục bộ (1 tiến trình)")
+        logger.warning(
+            "Realtime: Redis không sẵn sàng — chạy hub cục bộ (1 tiến trình)"
+        )
     finally:
-        try:
+        with contextlib.suppress(Exception):
             await pubsub.aclose()
-        except Exception:
-            pass
 
 
 async def start() -> None:
@@ -117,15 +117,11 @@ async def stop() -> None:
     global _listener_task, _redis, _redis_alive
     if _listener_task is not None:
         _listener_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await _listener_task
-        except asyncio.CancelledError:
-            pass
         _listener_task = None
     if _redis is not None:
-        try:
+        with contextlib.suppress(Exception):
             await _redis.aclose()
-        except Exception:
-            pass
         _redis = None
     _redis_alive = False

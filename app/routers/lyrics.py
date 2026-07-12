@@ -55,8 +55,6 @@ async def submit_lyrics(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Nội dung lời trống",
         )
-    session.add(
-        LyricSuggestion(content_id=content_id, user_id=user.id, body=body)
-    )
+    session.add(LyricSuggestion(content_id=content_id, user_id=user.id, body=body))
     await session.commit()
     return LyricAck(message="Cảm ơn đóng góp! Lời sẽ hiển thị sau khi được duyệt.")

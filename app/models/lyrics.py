@@ -31,6 +31,4 @@ class LyricSuggestion(TimestampMixin, Base):
 
     user: Mapped["User | None"] = relationship(lazy="joined")
 
-    __table_args__ = (
-        Index("ix_lyric_suggestions_content", "content_id", "status"),
-    )
+    __table_args__ = (Index("ix_lyric_suggestions_content", "content_id", "status"),)

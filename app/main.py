@@ -38,6 +38,7 @@ if settings.jwt_secret == "change-me-in-production":
         raise RuntimeError("JWT_SECRET chưa được đặt — không được chạy prod!")
     logger.warning("JWT_SECRET đang là giá trị mặc định — chỉ chấp nhận ở dev.")
 
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Bật task lắng nghe Redis pub/sub cho realtime cộng đồng

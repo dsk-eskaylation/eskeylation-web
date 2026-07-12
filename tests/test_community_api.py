@@ -14,7 +14,9 @@ pytestmark = pytest.mark.integration
 
 async def token_for(client: AsyncClient, make_user, role: UserRole = UserRole.author):
     user = await make_user(password="pw", role=role)
-    r = await client.post("/auth/login", data={"username": user.email, "password": "pw"})
+    r = await client.post(
+        "/auth/login", data={"username": user.email, "password": "pw"}
+    )
     return user, r.json()["access_token"]
 
 
@@ -93,7 +95,9 @@ async def test_tuong_tac_bai_khong_phai_community_404(client, make_user, make_co
     _, token = await token_for(client, make_user)
     music = await make_content(type_=ContentType.music, title="Nhạc")
     r = await client.put(
-        f"/api/community/{music.id}/reaction", json={"type": "like"}, headers=auth(token)
+        f"/api/community/{music.id}/reaction",
+        json={"type": "like"},
+        headers=auth(token),
     )
     assert r.status_code == 404
 

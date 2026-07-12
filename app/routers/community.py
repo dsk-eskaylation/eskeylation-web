@@ -19,7 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import SessionLocal, get_session
-from app.dependencies import PaginationParams, get_current_user, get_current_user_optional
+from app.dependencies import (
+    PaginationParams,
+    get_current_user,
+    get_current_user_optional,
+)
 from app.models.user import User
 from app.schemas.community import (
     CommentIn,
@@ -60,12 +64,8 @@ async def _summary(
     session: AsyncSession, content_id: int, user: User | None
 ) -> ReactionSummary:
     counts = await community.reaction_counts(session, content_id)
-    mine = (
-        await community.my_reaction(session, content_id, user.id) if user else None
-    )
-    return ReactionSummary(
-        counts=counts, total=sum(counts.values()), my_reaction=mine
-    )
+    mine = await community.my_reaction(session, content_id, user.id) if user else None
+    return ReactionSummary(counts=counts, total=sum(counts.values()), my_reaction=mine)
 
 
 # ---- Tổng quan ----

@@ -66,9 +66,7 @@ async def comment_count(session: AsyncSession, content_id: int) -> int:
 
 
 # ---- Cảm xúc ----
-async def reaction_counts(
-    session: AsyncSession, content_id: int
-) -> dict[str, int]:
+async def reaction_counts(session: AsyncSession, content_id: int) -> dict[str, int]:
     rows = await session.execute(
         select(PostReaction.type, func.count())
         .where(PostReaction.content_id == content_id)
@@ -100,15 +98,11 @@ async def set_reaction(
     if existing:
         existing.type = type_
     else:
-        session.add(
-            PostReaction(content_id=content_id, user_id=user_id, type=type_)
-        )
+        session.add(PostReaction(content_id=content_id, user_id=user_id, type=type_))
     await session.commit()
 
 
-async def remove_reaction(
-    session: AsyncSession, content_id: int, user_id: int
-) -> None:
+async def remove_reaction(session: AsyncSession, content_id: int, user_id: int) -> None:
     await session.execute(
         delete(PostReaction).where(
             PostReaction.content_id == content_id,
