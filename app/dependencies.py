@@ -60,6 +60,28 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_optional(
+    request: Request,
+    token: str | None = Depends(oauth2_scheme),
+    session: AsyncSession = Depends(get_session),
+) -> User | None:
+    """Như get_current_user nhưng KHÔNG ném lỗi khi thiếu/hỏng token —
+    dùng cho endpoint công khai muốn biết thêm trạng thái của user hiện tại
+    (vd cảm xúc/đã lưu của họ) mà vẫn cho khách xem."""
+    token = token or request.cookies.get(SESSION_COOKIE)
+    if not token:
+        return None
+    try:
+        payload = decode_token(token)
+        user_id = int(payload["sub"])
+    except (jwt.PyJWTError, KeyError, ValueError):
+        return None
+    user = await session.get(User, user_id)
+    if user is None or not user.is_active:
+        return None
+    return user
+
+
 def require_role(
     *roles: UserRole,
 ) -> Callable[..., Coroutine[Any, Any, User]]:

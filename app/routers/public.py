@@ -86,6 +86,25 @@ async def get_photo(
     return await _detail(session, ContentType.gallery, slug)
 
 
+@router.get("/video", response_model=Page[ContentOut])
+async def list_video(
+    pagination: PaginationParams = Depends(),
+    q: str | None = Query(None, description="Tìm theo từ khoá (không dấu)"),
+    category: str | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> Page[ContentOut]:
+    return await _list_page(
+        session, ContentType.video, pagination, q, {"category": category}
+    )
+
+
+@router.get("/video/{slug}", response_model=ContentOut)
+async def get_video(
+    slug: str, session: AsyncSession = Depends(get_session)
+) -> ContentOut:
+    return await _detail(session, ContentType.video, slug)
+
+
 @router.get("/community", response_model=Page[ContentOut])
 async def list_community(
     pagination: PaginationParams = Depends(),

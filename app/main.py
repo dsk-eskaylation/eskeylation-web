@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -10,7 +11,16 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.db import engine
 from app.dependencies import CSRF_COOKIE, SESSION_COOKIE
-from app.routers import admin_content, admin_users, auth, media, public
+from app.routers import (
+    admin_content,
+    admin_users,
+    auth,
+    community,
+    lyrics,
+    media,
+    public,
+)
+from app.services import realtime
 
 settings = get_settings()
 
@@ -28,10 +38,21 @@ if settings.jwt_secret == "change-me-in-production":
         raise RuntimeError("JWT_SECRET chưa được đặt — không được chạy prod!")
     logger.warning("JWT_SECRET đang là giá trị mặc định — chỉ chấp nhận ở dev.")
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Bật task lắng nghe Redis pub/sub cho realtime cộng đồng
+    await realtime.start()
+    try:
+        yield
+    finally:
+        await realtime.stop()
+
+
 app = FastAPI(
     title="Eskaylation API",
     version="0.1.0",
     description="API công khai và quản trị cho kho lưu trữ số DSK.",
+    lifespan=lifespan,
 )
 
 
@@ -64,7 +85,10 @@ async def csrf_guard(request, call_next):
     if (
         request.method in _MUTATING
         and (
-            request.url.path.startswith("/admin") or request.url.path == "/auth/logout"
+            request.url.path.startswith("/admin")
+            or request.url.path.startswith("/api/community")
+            or request.url.path.startswith("/api/music")
+            or request.url.path == "/auth/logout"
         )
         and "authorization" not in request.headers
         and SESSION_COOKIE in request.cookies
@@ -103,6 +127,8 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(public.router)
+app.include_router(community.router)
+app.include_router(lyrics.router)
 app.include_router(media.router)
 app.include_router(admin_content.router)
 app.include_router(admin_users.router)
