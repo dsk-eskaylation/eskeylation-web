@@ -7,15 +7,18 @@ import { SearchBar } from '../components/SearchBar'
 import { MusicCard } from '../components/MusicCard'
 import { VideoModal } from '../components/VideoModal'
 import { EmptyState } from '../components/EmptyState'
+import { usePlayer, audioUrl } from '../player/PlayerContext'
 import './MusicAll.css'
 
-const CATEGORIES = ['LIFE RAP', 'LOVE RAP', 'GANGSTA', "DISSIN'", 'AI']
+/* Gangsta đã gộp vào Dissin'; 'Thể Nghiệm' thay cho 'AI'. */
+const CATEGORIES = ['LIFE RAP', 'LOVE RAP', "DISSIN'", 'Thể Nghiệm']
 
 export function MusicAll() {
   const [q, setQ] = useState('')
   const debouncedQ = useDebounced(q) // tránh gọi API theo từng phím gõ
   const [category, setCategory] = useState<string | null>(null)
   const [selected, setSelected] = useState<ContentOut | null>(null)
+  const player = usePlayer()
   const state = useApi(
     () =>
       api.list('music', {
@@ -85,7 +88,12 @@ export function MusicAll() {
             key={item.id}
             style={{ animationDelay: `${(i % 9) * 60}ms` }}
           >
-            <MusicCard content={item} onClick={() => setSelected(item)} />
+            <MusicCard
+              content={item}
+              onClick={() =>
+                audioUrl(item) ? player.playQueue(items, i) : setSelected(item)
+              }
+            />
           </div>
         ))}
       </div>

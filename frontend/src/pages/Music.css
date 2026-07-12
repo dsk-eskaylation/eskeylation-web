@@ -1,18 +1,16 @@
-/* Nghe nhạc — bám Figma frame "Nghe nhạc" #1:373 (nội dung từ y=253) */
+/* Nghe nhạc — trải nghiệm phát trực tuyến, giữ token Eskaylation */
 .music {
-  padding-top: 253px;
+  padding-top: 200px;
   display: flex;
   flex-direction: column;
-  gap: 50px; /* Figma #1:535 gap 50 */
+  gap: 50px;
 }
 
-/* Topbar: thể loại thành dải tab ngang căn giữa, ngay trên sân khấu.
-   Giữ chữ Figma (Google Sans Flex 20) + gạch chân accent khi active/hover. */
+/* Topbar: thể loại dải tab ngang căn giữa */
 .music__topbar {
   display: flex;
   justify-content: center;
 }
-
 .music__categories {
   display: flex;
   flex-direction: row;
@@ -20,8 +18,6 @@
   justify-content: center;
   gap: clamp(24px, 4vw, 46px);
 }
-
-/* Mỗi tab: chữ trên, gạch chân dưới (hiện khi active/hover) */
 .music__cat {
   display: inline-flex;
   flex-direction: column;
@@ -30,7 +26,7 @@
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 20px; /* Figma style_39f63196 */
+  font-size: 20px;
   letter-spacing: 0.01em;
   color: var(--color-text-muted);
   opacity: 0.5;
@@ -38,7 +34,6 @@
     opacity 0.25s ease,
     color 0.25s ease;
 }
-
 .music__cat-line {
   width: 27px;
   height: 2px;
@@ -48,7 +43,6 @@
     opacity 0.25s ease,
     transform 0.25s var(--ease-out);
 }
-
 .music__cat:hover,
 .music__cat--active {
   opacity: 1;
@@ -60,49 +54,21 @@
   transform: scaleX(1);
 }
 
-/* ---- Sân khấu: tiêu đề | player | cột phải (Figma #1:553 gap 112) ---- */
+/* ---- Sân khấu: hero (cover lớn) | danh sách ---- */
 .music__stage {
   display: flex;
-  align-items: center;
-  gap: clamp(40px, 6vw, 112px);
-  transition: opacity 0.3s ease;
+  align-items: flex-start;
+  gap: clamp(40px, 6vw, 96px);
 }
 
-.music__head {
-  display: flex;
-  align-items: center;
-  gap: 62px; /* Figma EL-73697e65 gap 62 */
-  flex-shrink: 0;
-  animation: page-enter 0.45s var(--ease-out) both;
-}
-
-.music__title {
-  margin: 0;
-  font-family: var(--font-accent);
-  font-size: 22px; /* Figma style_bfd17b78 (Unbounded SemiBold 22) */
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--color-text);
-  white-space: nowrap;
-}
-
-.music__head-line,
-.music__side-line {
-  width: 46.5px;
-  height: 2px;
-  color: var(--color-border-strong);
-  flex-shrink: 0;
-}
-
-/* ---- Player (Figma #1:557: cột 678, ảnh 626x345, góc ngắm) ---- */
-.music__player-wrap {
+/* Hero */
+.music__hero {
   display: flex;
   flex-direction: column;
   gap: 12px;
   width: min(678px, 100%);
   flex: 1;
 }
-
 .music__brackets {
   display: flex;
   justify-content: space-between;
@@ -123,26 +89,20 @@
   transform: scale(-1, -1);
 }
 
-.music__player {
+.music__cover {
   position: relative;
   align-self: center;
-  width: 92.3%; /* 626/678 theo Figma */
+  width: 92.3%;
   aspect-ratio: 626 / 345;
-  padding: 0;
-  border: none;
-  background: var(--color-surface);
-  cursor: pointer;
+  border-radius: 4px;
   overflow: hidden;
+  background: var(--color-surface);
 }
-.music__player img {
+.music__cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   animation: player-fade 0.5s ease both;
-  transition: transform 0.6s var(--ease-out);
-}
-.music__player:hover img {
-  transform: scale(1.03);
 }
 @keyframes player-fade {
   from {
@@ -152,55 +112,92 @@
     opacity: 1;
   }
 }
-
-.music__player-empty {
+.music__cover-empty {
   display: block;
   width: 100%;
   height: 100%;
   background: linear-gradient(135deg, #141414, #0a0a0a);
 }
-
-.music__player-play {
+.music__cover-play {
   position: absolute;
-  inset: 0;
+  right: 20px;
+  bottom: 20px;
+  width: 60px;
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text);
-  opacity: 0;
-  background: rgba(0, 0, 0, 0.35);
-  transition: opacity 0.3s ease;
-}
-.music__player-play svg {
-  width: 56px;
-  height: 56px;
-  padding: 18px;
+  border: none;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.44);
-  transform: scale(0.85);
-  transition: transform 0.3s var(--ease-out);
+  background: var(--color-text-bright);
+  color: var(--color-bg);
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s ease, transform 0.3s var(--ease-out);
 }
-.music__player:hover .music__player-play {
+.music__cover:hover .music__cover-play,
+.music__cover-play:focus-visible {
   opacity: 1;
+  transform: translateY(0);
 }
-.music__player:hover .music__player-play svg {
-  transform: scale(1);
+.music__cover-play svg {
+  width: 26px;
+  height: 26px;
+}
+.music__cover-play:hover {
+  transform: translateY(0) scale(1.06);
 }
 
-/* ---- Cột phải (Figma #1:565: 287.5px, canh phải) ---- */
-.music__side {
+.music__hero-meta {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 20px;
-  width: 287.5px;
+  padding-top: 6px;
+  flex-wrap: wrap;
+}
+.music__hero-title {
+  margin: 0;
+  font-family: var(--font-accent);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-text-bright);
+}
+.music__hero-line {
+  width: 46.5px;
+  height: 2px;
+  color: var(--color-border-strong);
   flex-shrink: 0;
 }
+.music__hero-artist {
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
 
+/* ---- Danh sách bài ---- */
+.music__side {
+  width: 420px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.music__side-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.music__side-label {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
 .music__see-all {
-  padding: 0 28px; /* Figma EL-b03bedca */
-  font-size: 16px;
-  letter-spacing: 0.01em;
+  font-size: 14px;
   color: var(--color-text-muted);
   transition: color var(--dur-fast) ease, text-shadow var(--dur-fast) ease;
 }
@@ -209,66 +206,156 @@
   text-shadow: var(--glow-text);
 }
 
-.music__side-row {
-  display: flex;
-  align-items: center;
-  gap: 82px; /* Figma EL-d551d558 gap 82 */
-  align-self: stretch;
-}
-
-/* Playlist dọc (Figma #1:570: cột 159, gap 12, giữa nổi bật) */
-.music__playlist {
+.music__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 0 0; /* chừa mép cho thanh cuộn, hàng không dính scrollbar */
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  max-height: 460px;
+  overflow-y: auto;
+  overscroll-behavior: contain; /* không kéo cuộn cả trang khi lướt hết list */
+  /* Firefox: thanh mảnh, thumb mờ trên nền trong suốt */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 127, 127, 0.45) transparent;
+}
+/* WebKit/Chromium: thanh cuộn tuỳ biến hợp glass tối */
+.music__list::-webkit-scrollbar {
+  width: 8px;
+}
+.music__list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.music__list::-webkit-scrollbar-thumb {
+  background: rgba(128, 127, 127, 0.4);
+  border-radius: 999px;
+  /* viền trong suốt tạo khoảng đệm -> thumb trông mảnh, tách khỏi mép */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background var(--dur-fast) ease;
+}
+.music__list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text);
+  background-clip: padding-box;
+}
+.music__list::-webkit-scrollbar-thumb:active {
+  background: var(--color-text-bright);
+  background-clip: padding-box;
+}
+.music__row {
+  display: flex;
   align-items: center;
-  gap: 12px;
-  width: 159px;
-  margin-left: auto;
-}
-
-.music__thumb {
-  width: 136px;
-  height: 75px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-thumb);
-  overflow: hidden;
-  background: var(--color-surface);
-  cursor: pointer;
-  opacity: 0.55;
-  transition:
-    width 0.35s var(--ease-out),
-    height 0.35s var(--ease-out),
-    opacity 0.35s ease,
-    box-shadow 0.35s ease;
-}
-.music__thumb img {
+  gap: 14px;
   width: 100%;
-  height: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s ease;
+}
+.music__row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.music__row--active {
+  background: rgba(255, 255, 255, 0.07);
+}
+.music__row-idx {
+  width: 20px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+.music__row--active .music__row-idx {
+  color: var(--color-text-bright);
+}
+.music__row-cover {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 5px;
   object-fit: cover;
+  background: var(--color-surface);
 }
-.music__thumb:hover {
-  opacity: 0.85;
+.music__row-cover--empty {
+  background: linear-gradient(135deg, #141414, #0a0a0a);
 }
-.music__thumb--active {
-  width: 159px;
-  height: 88px;
-  opacity: 1;
-  border: 0.25px solid #848484; /* Figma #1:995 */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+.music__row-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.music__row-title {
+  font-size: 15px;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.music__row--active .music__row-title {
+  color: var(--color-text-bright);
+}
+.music__row-artist {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.music__row-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 999px;
+  padding: 2px 8px;
 }
 
-/* ---- iPad ngang ---- */
-@media (max-width: 1440px) {
-  .music__stage {
-    gap: clamp(32px, 4vw, 64px);
+/* Đồng hồ equalizer khi bài đang phát */
+.music__eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+.music__eq i {
+  width: 3px;
+  background: var(--color-text-bright);
+  animation: eq 0.9s ease-in-out infinite;
+}
+.music__eq i:nth-child(1) {
+  height: 6px;
+  animation-delay: -0.2s;
+}
+.music__eq i:nth-child(2) {
+  height: 12px;
+  animation-delay: -0.5s;
+}
+.music__eq i:nth-child(3) {
+  height: 8px;
+}
+@keyframes eq {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+  }
+  50% {
+    transform: scaleY(1);
   }
 }
 
 /* ---- iPad dọc ---- */
 @media (max-width: 1100px) {
   .music {
-    padding-top: 160px;
+    padding-top: 150px;
     gap: 40px;
   }
   .music__stage {
@@ -276,44 +363,31 @@
     align-items: stretch;
     gap: 32px;
   }
-  .music__head {
-    order: -1;
-  }
-  .music__player-wrap {
+  .music__hero {
     width: 100%;
   }
   .music__side {
     width: 100%;
-    align-items: stretch;
   }
-  .music__side-row {
-    gap: 24px;
+  .music__list {
+    max-height: none;
   }
-  .music__side-line {
-    display: none;
-  }
-  .music__playlist {
-    flex-direction: row;
-    justify-content: center;
-    flex-wrap: wrap;
-    width: 100%;
-    margin-left: 0;
-  }
-  .music__see-all {
-    align-self: flex-end;
+  /* Trên cảm ứng: nút phát hiện luôn (không có hover) */
+  .music__cover-play {
+    opacity: 1;
+    transform: none;
   }
 }
 
 /* ---- Mobile ---- */
 @media (max-width: 640px) {
   .music {
-    padding-top: 130px;
+    padding-top: 144px;
   }
-  /* Nhiều thể loại trên màn hẹp -> cho cuộn ngang, ẩn scrollbar */
   .music__categories {
     width: 100%;
     gap: 22px;
-    justify-content: flex-start; /* tránh cắt mép khi cuộn */
+    justify-content: flex-start;
     overflow-x: auto;
     padding-bottom: 6px;
     scrollbar-width: none;
@@ -324,20 +398,15 @@
   .music__cat {
     font-size: 16px;
     flex-shrink: 0;
+    padding: 6px 2px; /* vùng chạm rộng hơn cho cảm ứng */
   }
-  .music__title {
+  .music__hero-title {
     font-size: 18px;
-    white-space: normal;
   }
-  .music__head {
-    gap: 20px;
-  }
-  .music__thumb {
-    width: 104px;
-    height: 58px;
-  }
-  .music__thumb--active {
-    width: 122px;
-    height: 68px;
+  .music__cover-play {
+    width: 52px;
+    height: 52px;
+    right: 14px;
+    bottom: 14px;
   }
 }

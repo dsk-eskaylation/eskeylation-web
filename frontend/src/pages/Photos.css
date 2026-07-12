@@ -1,0 +1,254 @@
+/* Trang Ảnh — thư viện masonry, style tối Eskaylation.
+   Flex column cao tối thiểu 1 màn -> pager luôn bị đẩy xuống ĐÁY kể cả khi
+   trang ít ảnh (margin-top:auto), không lửng lơ giữa màn. */
+.photos {
+  padding-top: 150px;
+  min-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Masonry bằng CSS columns: số cột tự co theo bề rộng -> hợp mọi thiết bị */
+.photos__grid {
+  column-width: 260px;
+  column-gap: 16px;
+}
+
+.photos__item {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 0;
+  border: none;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  break-inside: avoid; /* không cắt ảnh giữa 2 cột */
+  animation: page-enter 0.5s var(--ease-out) both;
+}
+.photos__item img {
+  width: 100%;
+  height: auto;
+  display: block;
+  transition: transform 0.5s var(--ease-out), filter 0.5s ease;
+  filter: saturate(0.92) brightness(0.96);
+}
+.photos__item:hover img {
+  transform: scale(1.04);
+  filter: saturate(1.05) brightness(1);
+}
+
+/* Viền nét mảnh nổi lên khi hover (giữ motif tối giản của dự án) */
+.photos__frame {
+  position: absolute;
+  inset: 0;
+  border: 0.5px solid transparent;
+  border-radius: var(--radius-md);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  pointer-events: none;
+}
+.photos__item:hover .photos__frame {
+  border-color: var(--color-border-strong);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* Caption trượt lên từ đáy khi hover */
+.photos__cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20px 14px 12px;
+  font-size: 13px;
+  color: var(--color-text-bright);
+  text-align: left;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s ease, transform 0.3s var(--ease-out);
+}
+.photos__item:hover .photos__cap {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---- Lightbox ---- */
+.photos__viewer {
+  position: relative;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: min(92vw, 1200px);
+}
+.photos__viewer-img {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+.photos__viewer-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.photos__viewer-title {
+  font-size: 16px;
+  color: var(--color-text-bright);
+}
+.photos__viewer-sub {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nút chuyển ảnh trong lightbox */
+.photos__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid var(--nav-border);
+  border-radius: 50%;
+  background: rgba(6, 6, 6, 0.55);
+  color: var(--color-text-bright);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background var(--dur-fast) ease, transform var(--dur-fast) ease;
+}
+.photos__nav svg {
+  width: 24px;
+  height: 24px;
+}
+.photos__nav--prev {
+  left: -8px;
+}
+.photos__nav--next {
+  right: -8px;
+}
+.photos__nav:hover {
+  background: rgba(6, 6, 6, 0.85);
+}
+
+/* Điểm neo để cuộn mượt về đầu thư viện khi đổi trang (chừa header cố định) */
+.photos__anchor {
+  position: relative;
+  top: 0;
+  scroll-margin-top: 150px;
+}
+
+/* ---- Phân trang ---- */
+.photos__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto; /* đẩy xuống đáy khi trang ít ảnh */
+  padding-top: 44px;
+  animation: page-enter 0.4s var(--ease-out) both;
+}
+.photos__pager-num,
+.photos__pager-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 12px;
+  border: 0.5px solid var(--nav-border);
+  border-radius: var(--radius-pill);
+  background: var(--nav-bg);
+  color: var(--color-text-muted);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  backdrop-filter: blur(var(--nav-blur));
+  -webkit-backdrop-filter: blur(var(--nav-blur));
+  transition:
+    color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    text-shadow var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
+}
+.photos__pager-arrow {
+  width: 40px;
+  padding: 0;
+}
+.photos__pager-arrow svg {
+  width: 20px;
+  height: 20px;
+}
+.photos__pager-num:hover,
+.photos__pager-arrow:not(:disabled):hover {
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+  transform: translateY(-1px);
+}
+.photos__pager-num--active {
+  color: var(--color-text-bright);
+  border-color: var(--color-text);
+  text-shadow: var(--glow-text);
+}
+.photos__pager-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.photos__pager-gap {
+  color: var(--color-text-muted);
+  padding: 0 2px;
+  user-select: none;
+}
+
+/* ---- iPad ---- */
+@media (max-width: 1100px) {
+  .photos {
+    padding-top: 130px;
+  }
+  .photos__grid {
+    column-width: 220px;
+    column-gap: 14px;
+  }
+}
+
+/* ---- Mobile ---- */
+@media (max-width: 640px) {
+  .photos {
+    padding-top: 140px; /* chừa header mobile 2 hàng */
+  }
+  .photos__grid {
+    column-width: 150px; /* ~2 cột trên điện thoại */
+    column-gap: 10px;
+  }
+  .photos__item {
+    margin-bottom: 10px;
+  }
+  /* Cảm ứng: hiện caption luôn, không dựa hover */
+  .photos__cap {
+    opacity: 1;
+    transform: none;
+    font-size: 12px;
+    padding: 16px 10px 8px;
+  }
+  .photos__nav {
+    width: 42px;
+    height: 42px;
+  }
+  .photos__nav--prev {
+    left: 0;
+  }
+  .photos__nav--next {
+    right: 0;
+  }
+}

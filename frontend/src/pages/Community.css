@@ -1,0 +1,51 @@
+/* Trang Cộng đồng — feed dọc, cột hẹp căn giữa như mạng xã hội */
+.community {
+  padding-top: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.community__head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  justify-content: center;
+}
+.community__title {
+  margin: 0;
+  font-family: var(--font-accent);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-text-bright);
+}
+.community__line {
+  width: 60px;
+  height: 2px;
+  color: var(--color-border-strong);
+}
+
+.community__feed {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+@media (max-width: 1100px) {
+  .community {
+    padding-top: 130px;
+  }
+}
+@media (max-width: 640px) {
+  .community {
+    padding-top: 140px;
+    gap: 24px;
+  }
+  .community__title {
+    font-size: 24px;
+  }
+}

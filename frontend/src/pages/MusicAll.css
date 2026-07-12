@@ -107,7 +107,7 @@
 /* ---- Mobile ---- */
 @media (max-width: 640px) {
   .music-all {
-    padding-top: 110px;
+    padding-top: 140px;
     gap: 36px;
   }
   .music-all__head {

@@ -1,17 +1,21 @@
 .layout {
   min-height: 100vh;
+  min-height: 100dvh; /* dvh: đúng chiều cao khả kiến trên di động (thanh công cụ động) */
 }
 
-/* Figma: nav nổi ở y=50, giữa trang; icon tài khoản neo góc phải cùng hàng */
+/* Nav nổi ở y=50: grid 3 cột [brand | pill | auth] -> pill LUÔN căn giữa
+   giữa brand và nút tài khoản (hai cột biên rộng bằng nhau = 1fr). */
 .layout__nav {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 50;
-  display: flex;
-  justify-content: center;
-  padding-top: 50px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  column-gap: 16px;
+  padding: 50px 40px 0;
   pointer-events: none;
 }
 
@@ -19,12 +23,29 @@
   pointer-events: auto;
 }
 
-/* Icon neo góc phải, cao bằng dải PillNav + căn giữa dọc -> thẳng hàng với nav */
+/* Wordmark góc trái (Figma brand: 24/600, ls -0.05em) */
+.layout__brand {
+  justify-self: start;
+  font-family: var(--font-accent);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  color: var(--color-text);
+  white-space: nowrap;
+  transition: text-shadow var(--dur-fast) ease;
+}
+
+.layout__brand:hover {
+  text-shadow: var(--glow-text);
+}
+
+.pill-nav {
+  justify-self: center;
+}
+
+/* Nút tài khoản góc phải */
 .layout__auth {
-  position: absolute;
-  right: 40px;
-  top: 50px;
-  height: 78px; /* = chiều cao PillNav desktop */
+  justify-self: end;
   display: flex;
   align-items: center;
 }
@@ -35,10 +56,17 @@
   padding: 0 var(--page-pad) var(--space-10);
 }
 
+/* Chừa chỗ cho thanh phát cố định đáy khi đang phát nhạc */
+.layout--with-player .layout__main {
+  padding-bottom: calc(var(--space-10) + 96px);
+}
+
 @media (max-width: 1100px) {
-  .layout__auth {
-    right: 20px;
-    height: 70px; /* pill thu nhỏ (link 10x20, font 15) */
+  .layout__nav {
+    padding: 50px 20px 0;
+  }
+  .layout__brand {
+    font-size: 18px;
   }
 }
 
@@ -46,26 +74,37 @@
   .layout__nav {
     padding-top: 16px;
   }
-  .layout__auth {
-    top: 16px;
-  }
   .layout__main {
     padding-bottom: var(--space-8);
   }
 }
 
-/* Mobile: nav gần full-width -> icon xuống hàng riêng phía trên, canh phải */
+/* Mobile: chật cho 1 hàng -> tách 2 HÀNG bằng grid-areas:
+     Hàng 1: [ logo ESKAYLATION | nút tài khoản ]
+     Hàng 2: [ pill nav full-width, cuộn ngang       ]
+   Giữ được logo (không ẩn), pill và tài khoản không còn lệch/đè nhau. */
 @media (max-width: 720px) {
   .layout__nav {
-    flex-direction: column;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'brand auth'
+      'pill  pill';
     align-items: center;
-    gap: 10px;
-    padding-left: 16px;
-    padding-right: 16px;
+    row-gap: 12px;
+    column-gap: 10px;
+    padding: 14px 16px 0;
+  }
+  .layout__brand {
+    grid-area: brand;
+    justify-self: start;
+    font-size: 20px;
+  }
+  .pill-nav {
+    grid-area: pill;
+    justify-self: stretch;
   }
   .layout__auth {
-    position: static;
-    height: auto;
-    align-self: flex-end;
+    grid-area: auth;
+    justify-self: end;
   }
 }

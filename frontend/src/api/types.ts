@@ -1,4 +1,4 @@
-export type ContentType = 'music' | 'gallery' | 'community' | 'homepage'
+export type ContentType = 'music' | 'gallery' | 'community' | 'homepage' | 'video'
 
 export interface MediaOut {
   url: string

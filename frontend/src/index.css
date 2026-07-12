@@ -17,6 +17,15 @@ body,
 
 html {
   scroll-behavior: smooth;
+  /* Chặn tràn NGANG mà KHÔNG tạo scroll-container:
+     - overflow-x:hidden sẽ khiến overflow-y bị tính thành auto -> html/body thành
+       scroll-container. Chromium vẫn neo position:fixed vào viewport, nhưng Edge
+       và vài trình duyệt lại neo fixed vào scroll-container đó -> header cuộn theo.
+     - overflow-x:clip chỉ cắt phần tràn, KHÔNG tạo scroll-container, KHÔNG đổi
+       overflow-y -> viewport vẫn là nơi neo fixed ở MỌI trình duyệt.
+     Dòng hidden đứng trước làm fallback cho trình duyệt quá cũ chưa hỗ trợ clip. */
+  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -26,7 +35,6 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
 }
 
 a {

@@ -38,8 +38,8 @@ function buildQuery(params: ListParams): string {
 
 export const api = {
   homepage: () => getJson<ContentOut>('/api/homepage'),
-  list: (type: 'music' | 'photos' | 'community', params: ListParams = {}) =>
+  list: (type: 'music' | 'photos' | 'community' | 'video', params: ListParams = {}) =>
     getJson<Page<ContentOut>>(`/api/${type}${buildQuery(params)}`),
-  detail: (type: 'music' | 'photos' | 'community', slug: string) =>
+  detail: (type: 'music' | 'photos' | 'community' | 'video', slug: string) =>
     getJson<ContentOut>(`/api/${type}/${slug}`),
 }

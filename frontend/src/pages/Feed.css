@@ -106,6 +106,9 @@
 
 /* ---- Mobile (card 88vw, gap 24) ---- */
 @media (max-width: 640px) {
+  .feed {
+    padding-top: 140px; /* chừa cho header mobile 2 hàng */
+  }
   .feed__track {
     gap: 24px;
     margin-left: 6vw;
