@@ -1,7 +1,53 @@
 [project]
 name = "eskeylation-web"
 version = "0.1.0"
-description = "Add your description here"
+description = "Eskaylation — kho lưu trữ số cho cộng đồng DSK (FastAPI + Supabase)"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "alembic>=1.18.4",
+    "asyncpg>=0.31.0",
+    "bcrypt>=5.0.0",
+    "celery>=5.6.3",
+    "fastapi>=0.138.0",
+    "filetype>=1.2.0",
+    "pillow>=12.2.0",
+    "pydantic-settings>=2.14.2",
+    "pyjwt>=2.13.0",
+    "python-multipart>=0.0.32",
+    "python-slugify>=8.0.4",
+    "redis>=8.0.0",
+    "sqlalchemy[asyncio]>=2.0.51",
+    "uvicorn[standard]>=0.49.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.15.18",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "-ra"
+markers = [
+    "integration: test cần kết nối Supabase thật (qua .env)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore:.*HMAC key.*:UserWarning",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = ["B008"]  # FastAPI dùng Depends()/Query() làm default — hợp lệ
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B017", "S101"]
