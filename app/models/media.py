@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -41,3 +41,26 @@ class ContentMedia(Base):
 
     content: Mapped["Content"] = relationship(back_populates="media_links")
     media: Mapped["Media"] = relationship()
+
+    __table_args__ = (
+        # Một media chỉ gắn 1 lần vào 1 content (db-review C2)
+        UniqueConstraint(
+            "content_id", "media_id", name="uq_content_media_content_media"
+        ),
+        # Position không trùng trong 1 content; DEFERRABLE để reorder swap
+        # trong 1 transaction không vấp constraint giữa chừng (db-review M2)
+        UniqueConstraint(
+            "content_id",
+            "position",
+            name="uq_content_media_position",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        # Tối đa 1 primary mỗi content (db-review C1)
+        Index(
+            "uq_content_media_one_primary",
+            "content_id",
+            unique=True,
+            postgresql_where=text("is_primary"),
+        ),
+    )

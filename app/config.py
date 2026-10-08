@@ -20,8 +20,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
 
-    # Storage cục bộ cho dev (Phase 9 thay bằng Supabase Storage).
-    media_root: str = "media"
+    # Storage: "local" (dev) | "supabase" (prod, dùng Supabase Storage + CDN).
+    storage_backend: str = "local"
+    media_root: str = "media"  # dùng khi backend = local
+
+    # Supabase Storage (khi backend = supabase). Bucket nên đặt public để có CDN URL.
+    supabase_url: str = ""  # https://<project-ref>.supabase.co
+    supabase_service_key: str = ""  # service_role key
+    storage_bucket: str = "media"
 
     # Upload media — giới hạn size (byte) và MIME được phép.
     max_image_size: int = 10 * 1024 * 1024  # 10 MB
@@ -39,6 +45,39 @@ class Settings(BaseSettings):
 
     # Môi trường: "dev" | "prod" — ảnh hưởng log, hiển thị lỗi.
     environment: str = "dev"
+
+    # Bảo mật nội dung — tag/attribute HTML an toàn cho rich text (bleach).
+    allowed_html_tags: list[str] = [
+        "p",
+        "br",
+        "b",
+        "strong",
+        "i",
+        "em",
+        "u",
+        "s",
+        "ul",
+        "ol",
+        "li",
+        "a",
+        "blockquote",
+        "code",
+        "pre",
+        "h2",
+        "h3",
+        "h4",
+    ]
+    allowed_html_attributes: dict[str, list[str]] = {
+        "a": ["href", "title", "rel"],
+    }
+    # Host được phép cho embed video (chống SSRF / iframe lạ).
+    allowed_embed_hosts: list[str] = [
+        "youtube.com",
+        "www.youtube.com",
+        "youtu.be",
+        "vimeo.com",
+        "player.vimeo.com",
+    ]
 
 
 @lru_cache

@@ -1,0 +1,103 @@
+/* Modal — overlay Figma fill_f4392668 rgba(0,0,0,0.8) */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--color-overlay);
+  animation: modal-overlay-in 0.25s ease both;
+}
+
+@keyframes modal-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Khung panel (Figma EL-ef611fd5: #101010, r20, padding 20) */
+.modal__panel {
+  position: relative;
+  max-width: 1100px;
+  width: fit-content;
+  max-height: 90vh;
+  overflow: auto;
+  padding: 20px;
+  background: var(--color-surface);
+  border-radius: var(--radius-panel);
+  animation: modal-panel-in 0.32s var(--ease-out) both;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* Không khung — video "Khi đã chọn" (Figma #1:1675) */
+.modal__panel--bare {
+  max-width: min(1487px, calc(100vw - 2 * var(--page-pad)));
+  width: 100%;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal__close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), color var(--dur-fast) ease;
+}
+
+.modal__close:hover {
+  color: var(--color-text-bright);
+  transform: rotate(90deg);
+}
+
+.modal__close svg {
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 900px) {
+  .modal__panel--bare {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .modal {
+    padding: var(--space-3);
+  }
+  .modal__panel {
+    max-width: 100%;
+    max-height: 92vh;
+    padding: 16px;
+  }
+  .modal__close {
+    top: 14px;
+    right: 14px;
+  }
+}

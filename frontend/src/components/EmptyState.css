@@ -1,0 +1,42 @@
+/* EmptyState — Figma component 1:43: ảnh 200x200 + chữ 30 Light, gap 46 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 46px;
+  padding: 140px 0;
+  text-align: center;
+  animation: page-enter 0.5s var(--ease-out) both;
+}
+
+.empty-state__img {
+  width: 200px;
+  height: 200px;
+  object-fit: cover;
+}
+
+.empty-state__title {
+  margin: 0;
+  font-size: 30px; /* Figma style_763bd187 */
+  font-weight: 300;
+  color: var(--color-text-bright);
+}
+
+.empty-state__hint {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .empty-state {
+    gap: 28px;
+    padding: 90px 0;
+  }
+  .empty-state__img {
+    width: 140px;
+    height: 140px;
+  }
+  .empty-state__title {
+    font-size: 22px;
+  }
+}

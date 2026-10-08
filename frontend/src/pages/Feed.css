@@ -1,0 +1,120 @@
+/* Feed Ảnh/Cộng đồng — Figma #1:2669: nội dung giữa màn hình, hai bên blur */
+.feed {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  padding-top: 120px;
+}
+
+.feed__viewport {
+  width: 100vw;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+}
+
+/* Track trượt bằng translateX — mượt theo ease-out */
+.feed__track {
+  display: flex;
+  align-items: center;
+  gap: 146px; /* Figma #1:1846 gap 146 */
+  transition: transform 0.55s var(--ease-out);
+  /* căn bài đầu vào giữa viewport */
+  margin-left: calc(50vw - 268px);
+  margin-right: calc(50vw - 268px);
+}
+
+.feed__slide {
+  flex-shrink: 0;
+  width: 536px;
+  transition:
+    filter 0.45s ease,
+    opacity 0.45s ease,
+    transform 0.55s var(--ease-out);
+}
+
+.feed__slide--active {
+  filter: none;
+  opacity: 1;
+  transform: scale(1);
+  z-index: 1;
+}
+
+/* Hai bên (Figma EL-f49357b6: blur 2px, opacity 0.5) */
+.feed__slide--near {
+  filter: blur(2px);
+  opacity: 0.5;
+  transform: scale(0.96);
+  cursor: pointer;
+}
+
+.feed__slide--far {
+  filter: blur(3px);
+  opacity: 0.25;
+  transform: scale(0.94);
+}
+
+/* Chấm điều hướng */
+.feed__dots {
+  display: flex;
+  gap: 10px;
+}
+
+.feed__dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  opacity: 0.4;
+  cursor: pointer;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s var(--ease-out),
+    background 0.3s ease;
+}
+
+.feed__dot:hover {
+  opacity: 0.8;
+}
+
+.feed__dot--active {
+  opacity: 1;
+  background: var(--color-text);
+  transform: scale(1.4);
+}
+
+/* ---- iPad (đồng bộ slideMetrics trong Feed.tsx: card 460, gap 60) ---- */
+@media (max-width: 900px) {
+  .feed {
+    padding-top: 100px;
+    gap: 32px;
+  }
+  .feed__track {
+    gap: 60px;
+    margin-left: calc(50vw - 230px);
+    margin-right: calc(50vw - 230px);
+  }
+  .feed__slide {
+    width: 460px;
+  }
+}
+
+/* ---- Mobile (card 88vw, gap 24) ---- */
+@media (max-width: 640px) {
+  .feed__track {
+    gap: 24px;
+    margin-left: 6vw;
+    margin-right: 6vw;
+  }
+  .feed__slide {
+    width: 88vw;
+  }
+  .feed__slide--near {
+    filter: blur(1.5px);
+  }
+}

@@ -227,6 +227,154 @@ async def test_duplicate(client, make_user, make_media, track_content):
     assert copy["media"][0]["caption"] == "cap"
 
 
+# ---------- list (filter + pagination) ----------
+
+
+async def test_list_filter_type_va_status(client, make_user, make_media, track_content):
+    author = await token_for(client, make_user, UserRole.author)
+    editor = await token_for(client, make_user, UserRole.editor)
+    # 1 music draft, 1 gallery published (gallery cần media mới publish được)
+    music = await _create(
+        client, author, track_content, type="music", title="LM", body={"artist": "X"}
+    )
+    media = await make_media()
+    media_c = await _create(
+        client,
+        author,
+        track_content,
+        type="gallery",
+        title="LG",
+        media=[{"media_id": media.id}],
+    )
+    pub = await client.post(
+        f"/admin/content/{media_c['id']}/publish", headers=auth(editor)
+    )
+    assert pub.status_code == 200
+
+    # filter type=music → có music, không có gallery
+    r = await client.get(
+        "/admin/content",
+        params={"type": "music", "page_size": 100},
+        headers=auth(author),
+    )
+    assert r.status_code == 200
+    ids = [i["id"] for i in r.json()["items"]]
+    assert music["id"] in ids
+    assert media_c["id"] not in ids
+    assert all(i["type"] == "music" for i in r.json()["items"])
+
+    # filter content_status=published → có gallery đã publish, không có music draft
+    r2 = await client.get(
+        "/admin/content",
+        params={"content_status": "published", "page_size": 100},
+        headers=auth(author),
+    )
+    pub_ids = [i["id"] for i in r2.json()["items"]]
+    assert media_c["id"] in pub_ids
+    assert music["id"] not in pub_ids
+    assert all(i["status"] == "published" for i in r2.json()["items"])
+
+
+async def test_list_pagination(client, make_user, track_content):
+    author = await token_for(client, make_user, UserRole.author)
+    for i in range(3):
+        await _create(client, author, track_content, type="community", title=f"LP {i}")
+    r = await client.get(
+        "/admin/content",
+        params={"content_status": "draft", "page_size": 2, "page": 1},
+        headers=auth(author),
+    )
+    body = r.json()
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert len(body["items"]) == 2
+    assert body["total"] >= 3
+
+
+async def test_list_khong_auth_401(client):
+    assert (await client.get("/admin/content")).status_code == 401
+
+
+# ---------- get / update branches / 404 ----------
+
+
+async def test_get_content_va_404(client, make_user, track_content):
+    author = await token_for(client, make_user, UserRole.author)
+    c = await _create(
+        client, author, track_content, type="music", title="Lấy 1", body={"a": 1}
+    )
+    r = await client.get(f"/admin/content/{c['id']}", headers=auth(author))
+    assert r.status_code == 200
+    assert r.json()["id"] == c["id"]
+
+    r404 = await client.get("/admin/content/99999999", headers=auth(author))
+    assert r404.status_code == 404
+
+
+async def test_update_title_body_va_media(client, make_user, make_media, track_content):
+    author = await token_for(client, make_user, UserRole.author)
+    media = await make_media()
+    c = await _create(
+        client, author, track_content, type="gallery", title="Cũ", body={"k": "v"}
+    )
+    r = await client.patch(
+        f"/admin/content/{c['id']}",
+        json={
+            "title": "Mới",
+            "body": {"k2": "v2"},
+            "media": [{"media_id": media.id, "caption": "c"}],
+        },
+        headers=auth(author),
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["title"] == "Mới"
+    assert body["body"] == {"k2": "v2"}
+    assert len(body["media"]) == 1
+    assert body["media"][0]["media_id"] == media.id
+
+
+async def test_update_media_khong_ton_tai_422(client, make_user, track_content):
+    author = await token_for(client, make_user, UserRole.author)
+    c = await _create(client, author, track_content, type="gallery", title="UM")
+    r = await client.patch(
+        f"/admin/content/{c['id']}",
+        json={"media": [{"media_id": 99999999}]},
+        headers=auth(author),
+    )
+    assert r.status_code == 422
+
+
+async def test_update_404(client, make_user):
+    author = await token_for(client, make_user, UserRole.author)
+    r = await client.patch(
+        "/admin/content/99999999", json={"title": "x"}, headers=auth(author)
+    )
+    assert r.status_code == 404
+
+
+async def test_delete_404(client, make_user):
+    editor = await token_for(client, make_user, UserRole.editor)
+    r = await client.delete("/admin/content/99999999", headers=auth(editor))
+    assert r.status_code == 404
+
+
+async def test_publish_community_can_title_summary(client, make_user, track_content):
+    author = await token_for(client, make_user, UserRole.author)
+    editor = await token_for(client, make_user, UserRole.editor)
+    # community thiếu summary → 422
+    c = await _create(client, author, track_content, type="community", title="C")
+    r = await client.post(f"/admin/content/{c['id']}/publish", headers=auth(editor))
+    assert r.status_code == 422
+    # có summary → 200
+    await client.patch(
+        f"/admin/content/{c['id']}", json={"summary": "đủ"}, headers=auth(author)
+    )
+    r2 = await client.post(f"/admin/content/{c['id']}/publish", headers=auth(editor))
+    assert r2.status_code == 200
+    assert r2.json()["status"] == "published"
+
+
 # ---------- media link + public phản ánh ----------
 
 

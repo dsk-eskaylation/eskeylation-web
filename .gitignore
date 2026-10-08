@@ -56,9 +56,14 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# ---- Claude Code (chỉ dùng cục bộ, không push) ----
+# ---- Claude Code / agent tooling ----
+# CLAUDE.md: brain cục bộ, không push lên repo
 CLAUDE.md
+# Toàn bộ cấu hình Claude Code là đồ cục bộ, không đưa lên GitHub
 .claude/
+# Skill/agent tải về cục bộ
+.agents/
+skills-lock.json
 
 # ---- IDE / OS ----
 .idea/

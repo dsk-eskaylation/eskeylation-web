@@ -1,0 +1,141 @@
+/* Xem tất cả — Figma frame "Nghe nhạc/ Xem tất cả" #1:1167 (nội dung từ y=87) */
+.music-all {
+  padding-top: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 75px; /* Figma #1:1384 gap 75 */
+}
+
+.music-all__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+/* Quay về (Figma #1:1386: chevron + chữ 18 SemiBold) */
+.music-all__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.06em;
+  color: var(--color-text);
+  transition: text-shadow var(--dur-fast) ease, transform var(--dur-fast) ease;
+}
+.music-all__back svg {
+  width: 24px;
+  height: 24px;
+  transition: transform 0.25s var(--ease-out);
+}
+.music-all__back:hover {
+  text-shadow: var(--glow-text);
+}
+.music-all__back:hover svg {
+  transform: translateX(-4px);
+}
+
+/* Pills lọc (Figma #1:1389: gap 20; active glow, thường opacity 0.5) */
+.music-all__cats {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.music-all__cat {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.06em;
+  padding: 12px 20px;
+  border-radius: 22px;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+  box-shadow: var(--shadow-nav);
+  transition:
+    opacity 0.25s ease,
+    color 0.25s ease,
+    text-shadow 0.25s ease;
+}
+
+.music-all__cat:hover {
+  opacity: 0.8;
+  color: var(--color-text);
+}
+
+.music-all__cat--active {
+  opacity: 1;
+  color: var(--color-text);
+  text-shadow: var(--glow-text);
+}
+
+/* Grid 3 cột (Figma #1:1404: gap cột 40, hàng 30) */
+.music-all__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px 40px;
+}
+
+.music-all__cell {
+  animation: page-enter 0.5s var(--ease-out) both;
+}
+
+/* ---- iPad ---- */
+@media (max-width: 1100px) {
+  .music-all {
+    padding-top: 130px;
+    gap: 48px;
+  }
+  .music-all__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px 24px;
+  }
+  .music-all__cats {
+    gap: 8px;
+  }
+  .music-all__cat {
+    padding: 10px 14px;
+    font-size: 16px;
+  }
+}
+
+/* ---- Mobile ---- */
+@media (max-width: 640px) {
+  .music-all {
+    padding-top: 110px;
+    gap: 36px;
+  }
+  .music-all__head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .music-all__back {
+    align-self: flex-start;
+  }
+  /* Pills cuộn ngang, không xuống dòng */
+  .music-all__cats {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+  .music-all__cats::-webkit-scrollbar {
+    display: none;
+  }
+  .music-all__cat {
+    flex-shrink: 0;
+  }
+  .music-all__head .search-bar {
+    width: 100%;
+  }
+  .music-all__grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+}

@@ -11,6 +11,7 @@ from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
 from app.models.media import ContentMedia, Media
 from app.schemas.admin import ContentCreate, ContentMediaIn, ContentUpdate
+from app.services.sanitize import sanitize_body, sanitize_summary, validate_embeds
 from app.services.slug import unique_slug
 
 
@@ -23,9 +24,28 @@ async def get_with_media(session: AsyncSession, content_id: int) -> Content | No
     return await session.scalar(stmt)
 
 
+def _validate_media_in(media_in: list[ContentMediaIn]) -> None:
+    """Chặn input vi phạm constraint DB (trùng media, >1 primary) bằng 422
+    thay vì để IntegrityError nổ thành 500."""
+    ids = [m.media_id for m in media_in]
+    dup = sorted({i for i in ids if ids.count(i) > 1})
+    if dup:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Media gắn trùng trong 1 nội dung: {dup}",
+        )
+    primaries = sum(1 for m in media_in if m.is_primary)
+    if primaries > 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Chỉ được tối đa 1 media primary mỗi nội dung",
+        )
+
+
 async def _replace_media(
     session: AsyncSession, content: Content, media_in: list[ContentMediaIn]
 ) -> None:
+    _validate_media_in(media_in)
     if media_in:
         ids = [m.media_id for m in media_in]
         found = set(
@@ -40,13 +60,15 @@ async def _replace_media(
     await session.execute(
         delete(ContentMedia).where(ContentMedia.content_id == content.id)
     )
-    for m in media_in:
+    # Chuẩn hoá position về 0..n-1 theo thứ tự client yêu cầu — thỏa
+    # UNIQUE(content_id, position) mà vẫn giữ đúng ý đồ sắp xếp.
+    for pos, m in enumerate(sorted(media_in, key=lambda x: x.position)):
         session.add(
             ContentMedia(
                 content_id=content.id,
                 media_id=m.media_id,
                 caption=m.caption,
-                position=m.position,
+                position=pos,
                 is_primary=m.is_primary,
             )
         )
@@ -55,12 +77,13 @@ async def _replace_media(
 async def create_content(
     session: AsyncSession, data: ContentCreate, author_id: int
 ) -> Content:
+    validate_embeds(data.body)
     content = Content(
         type=data.type,
         title=data.title,
-        slug=await unique_slug(session, data.title),
-        summary=data.summary,
-        body=data.body,
+        slug=await unique_slug(session, data.title, data.type),
+        summary=sanitize_summary(data.summary),
+        body=sanitize_body(data.body),
         status=ContentStatus.draft,
         author_id=author_id,
     )
@@ -78,12 +101,15 @@ async def update_content(
     if "title" in fields:
         content.title = fields["title"]
     if "summary" in fields:
-        content.summary = fields["summary"]
+        content.summary = sanitize_summary(fields["summary"])
     if "body" in fields:
-        content.body = fields["body"]
+        validate_embeds(fields["body"])
+        content.body = sanitize_body(fields["body"])
     if "media" in fields:
         await _replace_media(session, content, data.media or [])
     await session.commit()
+    # expire_on_commit=False giữ media_links cũ trên object -> ép reload cho đúng
+    session.expire(content, ["media_links"])
     return await get_with_media(session, content.id)
 
 
@@ -124,6 +150,10 @@ async def publish(session: AsyncSession, content: Content) -> Content:
 async def set_status(
     session: AsyncSession, content: Content, new_status: ContentStatus
 ) -> Content:
+    # Chuyển sang published PHẢI qua publish() để validate + set published_at
+    # (lưới an toàn cho CHECK ck_contents_published_at — db-review M1).
+    if new_status == ContentStatus.published:
+        return await publish(session, content)
     content.status = new_status
     await session.commit()
     return await get_with_media(session, content.id)
@@ -133,7 +163,7 @@ async def duplicate(session: AsyncSession, content: Content, author_id: int) -> 
     copy = Content(
         type=content.type,
         title=f"{content.title} (copy)",
-        slug=await unique_slug(session, f"{content.title} copy"),
+        slug=await unique_slug(session, f"{content.title} copy", content.type),
         summary=content.summary,
         body=dict(content.body),
         status=ContentStatus.draft,

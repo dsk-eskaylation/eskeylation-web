@@ -1,0 +1,35 @@
+.layout {
+  min-height: 100vh;
+}
+
+/* Figma: nav nổi ở y=50, giữa trang */
+.layout__nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding-top: 50px;
+  pointer-events: none;
+}
+
+.layout__nav > * {
+  pointer-events: auto;
+}
+
+.layout__main {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 var(--page-pad) var(--space-10);
+}
+
+@media (max-width: 900px) {
+  .layout__nav {
+    padding-top: 16px;
+  }
+  .layout__main {
+    padding-bottom: var(--space-8);
+  }
+}

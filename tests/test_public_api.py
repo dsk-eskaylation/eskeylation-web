@@ -167,6 +167,51 @@ async def test_homepage_tra_noi_dung(client, make_content):
     assert data["slug"] == home.slug or data["type"] == "homepage"
 
 
+# ---------- community ----------
+
+
+async def test_community_list_chi_published(client, make_content):
+    pub = await make_content(
+        type_=ContentType.community,
+        title="Bài cộng đồng",
+        summary="tóm tắt",
+        status=ContentStatus.published,
+    )
+    draft = await make_content(
+        type_=ContentType.community,
+        status=ContentStatus.draft,
+        published=False,
+    )
+    r = await client.get("/api/community", params={"page_size": 100})
+    assert r.status_code == 200
+    slugs = [i["slug"] for i in r.json()["items"]]
+    assert pub.slug in slugs
+    assert draft.slug not in slugs
+
+
+async def test_community_detail_va_404(client, make_content):
+    c = await make_content(type_=ContentType.community, title="Chi tiết", summary="ok")
+    r = await client.get(f"/api/community/{c.slug}")
+    assert r.status_code == 200
+    assert r.json()["title"] == "Chi tiết"
+    assert "status" not in r.json()
+
+    r404 = await client.get(f"/api/community/{unique_slug('nope')}")
+    assert r404.status_code == 404
+
+
+async def test_community_type_isolation(client, make_content):
+    # Bài community không lọt sang route music
+    c = await make_content(type_=ContentType.community, summary="x")
+    music_slugs = [
+        i["slug"]
+        for i in (await client.get("/api/music", params={"page_size": 100})).json()[
+            "items"
+        ]
+    ]
+    assert c.slug not in music_slugs
+
+
 # ---------- media serialization ----------
 
 

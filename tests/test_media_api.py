@@ -83,6 +83,38 @@ async def test_upload_khong_tin_duoi_file(client, make_user):
     assert r.status_code == 415
 
 
+async def test_upload_file_rong_tra_400(client, make_user):
+    token = await _token(client, make_user)
+    r = await client.post(
+        "/admin/media",
+        files={"file": ("rong.png", b"", "image/png")},
+        headers=_auth(token),
+    )
+    assert r.status_code == 400
+
+
+def mp4_bytes() -> bytes:
+    # Box ftyp tối thiểu để filetype.guess nhận diện là video/mp4.
+    return b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" + b"\x00" * 16
+
+
+async def test_upload_video_mp4(client, make_user, track_media):
+    token = await _token(client, make_user)
+    r = await client.post(
+        "/admin/media",
+        files={"file": ("clip.mp4", mp4_bytes(), "video/mp4")},
+        headers=_auth(token),
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    track_media.append(body["id"])
+    assert body["mime_type"] == "video/mp4"
+    # video chưa lấy dimensions/duration ở bước này
+    assert body["width"] is None
+    assert body["height"] is None
+    assert body["url"].endswith(".mp4")
+
+
 async def test_upload_anh_hong_tra_400(client, make_user):
     # Magic bytes PNG hợp lệ nhưng nội dung hỏng → Pillow từ chối → 400
     token = await _token(client, make_user)
@@ -128,9 +160,31 @@ async def test_list_chua_media_vua_upload(client, make_user, track_media):
     assert mid in [m["id"] for m in r.json()["items"]]
 
 
+async def test_get_media_theo_id(client, make_user, track_media):
+    token = await _token(client, make_user)
+    up = await client.post(
+        "/admin/media",
+        files={"file": ("g.png", png_bytes((16, 9)), "image/png")},
+        headers=_auth(token),
+    )
+    mid = up.json()["id"]
+    track_media.append(mid)
+    r = await client.get(f"/admin/media/{mid}", headers=_auth(token))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["id"] == mid
+    assert body["width"] == 16 and body["height"] == 9
+
+
 async def test_get_media_khong_ton_tai_404(client, make_user):
     token = await _token(client, make_user)
     r = await client.get("/admin/media/99999999", headers=_auth(token))
+    assert r.status_code == 404
+
+
+async def test_delete_media_khong_ton_tai_404(client, make_user):
+    token = await _token(client, make_user)
+    r = await client.delete("/admin/media/99999999", headers=_auth(token))
     assert r.status_code == 404
 
 

@@ -93,6 +93,16 @@ async def test_me_token_sai_401(aclient):
     assert r.status_code == 401
 
 
+async def test_me_user_bi_khoa_sau_khi_co_token_401(aclient, make_user, db):
+    # Có token hợp lệ, nhưng user bị vô hiệu hoá sau đó → get_current_user chặn 401
+    user = await make_user(password="pw")
+    token = (await _login(aclient, user.email, "pw")).json()["access_token"]
+    user.is_active = False
+    await db.commit()
+    r = await aclient.get("/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401
+
+
 # ---------- RBAC ----------
 
 

@@ -1,0 +1,67 @@
+/* Design tokens Eskaylation — trích trực tiếp từ Figma "Eskaylation bàn giao DEV". */
+:root {
+  /* Nền & bề mặt */
+  --color-bg: #060606;
+  --color-surface: #101010;
+  --color-overlay: rgba(0, 0, 0, 0.8);
+
+  /* Chữ (Figma: chính #C9C8C8, nhấn #FFFFFF, phụ #807F7F) */
+  --color-text: #c9c8c8;
+  --color-text-bright: #ffffff;
+  --color-text-muted: #807f7f;
+  --color-error: #af0a0a;
+
+  /* Viền & nét */
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-border-strong: #807f7f;
+
+  /* Pill nav (glass) */
+  --nav-bg: rgba(6, 6, 6, 0.2);
+  --nav-border: #807f7f;
+  --nav-blur: 18.8px;
+  --shadow-nav: 0 4px 4px rgba(0, 0, 0, 0.25);
+
+  /* Glow chữ active (Figma effect_403e3a09) */
+  --glow-text: 0 0 20.3px rgba(239, 239, 239, 0.83);
+
+  /* Bo góc */
+  --radius-pill: 104px;
+  --radius-panel: 20px;
+  --radius-md: 12px;
+  --radius-thumb: 7px;
+
+  /* Khoảng cách */
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Layout */
+  --page-max: 1728px;
+  --page-pad: 120px;
+
+  /* Font (Figma: Google Sans Flex chính, Unbounded accent, Inter nav) */
+  --font-sans: 'Google Sans Flex', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-accent: 'Unbounded', var(--font-sans);
+  --font-nav: 'Inter', var(--font-sans);
+
+  /* Chuyển động */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 0.2s;
+  --dur-med: 0.4s;
+}
+
+/* Responsive lề trang: desktop 120 -> iPad 64 -> mobile 20 */
+@media (max-width: 1280px) {
+  :root {
+    --page-pad: 64px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --page-pad: 20px;
+  }
+}
