@@ -31,6 +31,7 @@ def _auth(token: str) -> dict:
 
 # ---------- auth ----------
 
+
 async def test_upload_khong_auth_tra_401(client):
     r = await client.post(
         "/admin/media", files={"file": ("a.png", png_bytes(), "image/png")}
@@ -39,6 +40,7 @@ async def test_upload_khong_auth_tra_401(client):
 
 
 # ---------- upload hợp lệ ----------
+
 
 async def test_upload_anh_hop_le(client, make_user, track_media):
     token = await _token(client, make_user)
@@ -58,6 +60,7 @@ async def test_upload_anh_hop_le(client, make_user, track_media):
 
 
 # ---------- validate ----------
+
 
 async def test_upload_dinh_dang_khong_ho_tro_tra_415(client, make_user):
     token = await _token(client, make_user)
@@ -106,6 +109,7 @@ async def test_upload_vuot_size_tra_413(client, make_user, monkeypatch):
 
 
 # ---------- list / get / delete ----------
+
 
 async def test_list_chua_media_vua_upload(client, make_user, track_media):
     token = await _token(client, make_user)

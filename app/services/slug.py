@@ -19,9 +19,7 @@ async def unique_slug(
     return candidate
 
 
-async def _exists(
-    session: AsyncSession, slug: str, exclude_id: int | None
-) -> bool:
+async def _exists(session: AsyncSession, slug: str, exclude_id: int | None) -> bool:
     stmt = select(Content.id).where(Content.slug == slug)
     if exclude_id is not None:
         stmt = stmt.where(Content.id != exclude_id)

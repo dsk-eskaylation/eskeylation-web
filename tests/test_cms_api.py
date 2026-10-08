@@ -30,11 +30,16 @@ async def _create(client, token, track, **payload) -> dict:
 
 # ---------- create ----------
 
+
 async def test_create_sinh_slug_khong_dau_va_draft(client, make_user, track_content):
     token = await token_for(client, make_user, UserRole.author)
     data = await _create(
-        client, token, track_content,
-        type="music", title="Bản Nhạc Đầu", body={"artist": "DSK"},
+        client,
+        token,
+        track_content,
+        type="music",
+        title="Bản Nhạc Đầu",
+        body={"artist": "DSK"},
     )
     assert data["status"] == "draft"
     assert data["slug"].startswith("ban-nhac-dau")
@@ -62,13 +67,15 @@ async def test_create_voi_media_khong_ton_tai_422(client, make_user, track_conte
 
 # ---------- update ----------
 
+
 async def test_update_partial(client, make_user, track_content):
     token = await token_for(client, make_user, UserRole.author)
     c = await _create(
         client, token, track_content, type="music", title="Gốc", body={"a": 1}
     )
     r = await client.patch(
-        f"/admin/content/{c['id']}", json={"summary": "tóm tắt mới"},
+        f"/admin/content/{c['id']}",
+        json={"summary": "tóm tắt mới"},
         headers=auth(token),
     )
     assert r.status_code == 200
@@ -78,6 +85,7 @@ async def test_update_partial(client, make_user, track_content):
 
 
 # ---------- publish validation theo loại ----------
+
 
 async def test_publish_music_thieu_artist_422(client, make_user, track_content):
     author = await token_for(client, make_user, UserRole.author)
@@ -91,8 +99,12 @@ async def test_publish_music_co_artist_200(client, make_user, track_content):
     author = await token_for(client, make_user, UserRole.author)
     editor = await token_for(client, make_user, UserRole.editor)
     c = await _create(
-        client, author, track_content,
-        type="music", title="Có artist", body={"artist": "DSK"},
+        client,
+        author,
+        track_content,
+        type="music",
+        title="Có artist",
+        body={"artist": "DSK"},
     )
     r = await client.post(f"/admin/content/{c['id']}/publish", headers=auth(editor))
     assert r.status_code == 200
@@ -100,9 +112,7 @@ async def test_publish_music_co_artist_200(client, make_user, track_content):
     assert r.json()["published_at"] is not None
 
 
-async def test_publish_gallery_can_media(
-    client, make_user, make_media, track_content
-):
+async def test_publish_gallery_can_media(client, make_user, make_media, track_content):
     author = await token_for(client, make_user, UserRole.author)
     editor = await token_for(client, make_user, UserRole.editor)
     # chưa media -> 422
@@ -112,8 +122,12 @@ async def test_publish_gallery_can_media(
     # có media -> 200
     media = await make_media()
     c2 = await _create(
-        client, author, track_content,
-        type="gallery", title="G2", media=[{"media_id": media.id}],
+        client,
+        author,
+        track_content,
+        type="gallery",
+        title="G2",
+        media=[{"media_id": media.id}],
     )
     r2 = await client.post(f"/admin/content/{c2['id']}/publish", headers=auth(editor))
     assert r2.status_code == 200
@@ -127,8 +141,12 @@ async def test_publish_homepage_can_sections(client, make_user, track_content):
         await client.post(f"/admin/content/{c['id']}/publish", headers=auth(editor))
     ).status_code == 422
     c2 = await _create(
-        client, author, track_content,
-        type="homepage", title="H2", body={"sections": [{"kind": "hero"}]},
+        client,
+        author,
+        track_content,
+        type="homepage",
+        title="H2",
+        body={"sections": [{"kind": "hero"}]},
     )
     assert (
         await client.post(f"/admin/content/{c2['id']}/publish", headers=auth(editor))
@@ -137,11 +155,16 @@ async def test_publish_homepage_can_sections(client, make_user, track_content):
 
 # ---------- RBAC ----------
 
+
 async def test_author_khong_duoc_publish_403(client, make_user, track_content):
     author = await token_for(client, make_user, UserRole.author)
     c = await _create(
-        client, author, track_content,
-        type="music", title="A", body={"artist": "X"},
+        client,
+        author,
+        track_content,
+        type="music",
+        title="A",
+        body={"artist": "X"},
     )
     r = await client.post(f"/admin/content/{c['id']}/publish", headers=auth(author))
     assert r.status_code == 403
@@ -163,17 +186,20 @@ async def test_author_khong_duoc_xoa_403_editor_xoa_204(
 
 # ---------- workflow ----------
 
+
 async def test_unpublish_va_archive(client, make_user, track_content):
     author = await token_for(client, make_user, UserRole.author)
     editor = await token_for(client, make_user, UserRole.editor)
     c = await _create(
-        client, author, track_content,
-        type="music", title="WF", body={"artist": "X"},
+        client,
+        author,
+        track_content,
+        type="music",
+        title="WF",
+        body={"artist": "X"},
     )
     await client.post(f"/admin/content/{c['id']}/publish", headers=auth(editor))
-    r1 = await client.post(
-        f"/admin/content/{c['id']}/unpublish", headers=auth(editor)
-    )
+    r1 = await client.post(f"/admin/content/{c['id']}/unpublish", headers=auth(editor))
     assert r1.json()["status"] == "draft"
     r2 = await client.post(f"/admin/content/{c['id']}/archive", headers=auth(editor))
     assert r2.json()["status"] == "archived"
@@ -183,13 +209,14 @@ async def test_duplicate(client, make_user, make_media, track_content):
     author = await token_for(client, make_user, UserRole.author)
     media = await make_media()
     c = await _create(
-        client, author, track_content,
-        type="gallery", title="Bản gốc",
+        client,
+        author,
+        track_content,
+        type="gallery",
+        title="Bản gốc",
         media=[{"media_id": media.id, "caption": "cap"}],
     )
-    r = await client.post(
-        f"/admin/content/{c['id']}/duplicate", headers=auth(author)
-    )
+    r = await client.post(f"/admin/content/{c['id']}/duplicate", headers=auth(author))
     assert r.status_code == 201
     copy = r.json()
     track_content.append(copy["id"])
@@ -202,12 +229,16 @@ async def test_duplicate(client, make_user, make_media, track_content):
 
 # ---------- media link + public phản ánh ----------
 
+
 async def test_create_voi_media_link(client, make_user, make_media, track_content):
     token = await token_for(client, make_user, UserRole.author)
     media = await make_media(alt_text="anh")
     c = await _create(
-        client, token, track_content,
-        type="gallery", title="Có ảnh",
+        client,
+        token,
+        track_content,
+        type="gallery",
+        title="Có ảnh",
         media=[
             {
                 "media_id": media.id,
@@ -227,8 +258,12 @@ async def test_public_phan_anh_sau_publish(client, make_user, track_content):
     author = await token_for(client, make_user, UserRole.author)
     editor = await token_for(client, make_user, UserRole.editor)
     c = await _create(
-        client, author, track_content,
-        type="music", title="Public test", body={"artist": "DSK"},
+        client,
+        author,
+        track_content,
+        type="music",
+        title="Public test",
+        body={"artist": "DSK"},
     )
     slug = c["slug"]
     # chưa publish -> public 404

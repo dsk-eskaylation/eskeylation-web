@@ -50,9 +50,7 @@ async def create_media(
 ) -> Media:
     data = await file.read()
     if not data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="File rỗng"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File rỗng")
 
     # Xác định MIME từ NỘI DUNG (magic bytes), không tin đuôi file.
     kind = filetype.guess(data)

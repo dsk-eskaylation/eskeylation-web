@@ -57,9 +57,7 @@ async def list_content(
 
     total = await session.scalar(select(func.count()).select_from(base.subquery()))
     rows = await session.scalars(
-        base.options(
-            selectinload(Content.media_links).selectinload(ContentMedia.media)
-        )
+        base.options(selectinload(Content.media_links).selectinload(ContentMedia.media))
         .order_by(Content.updated_at.desc(), Content.id.desc())
         .offset((pagination.page - 1) * pagination.page_size)
         .limit(pagination.page_size)
@@ -131,9 +129,7 @@ async def archive_content(
     _: User = Depends(_publisher),
 ) -> ContentAdminRead:
     content = await _load(content_id, session)
-    updated = await content_admin.set_status(
-        session, content, ContentStatus.archived
-    )
+    updated = await content_admin.set_status(session, content, ContentStatus.archived)
     return ContentAdminRead.from_model(updated)
 
 
