@@ -52,9 +52,7 @@ async def get_stats(
         )
     ).all()
     type_rows = (
-        await session.execute(
-            select(Content.type, func.count()).group_by(Content.type)
-        )
+        await session.execute(select(Content.type, func.count()).group_by(Content.type))
     ).all()
     by_status = _fill(status_rows, ContentStatus)
     by_type = _fill(type_rows, ContentType)
