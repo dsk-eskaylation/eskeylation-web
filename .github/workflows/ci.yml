@@ -45,14 +45,24 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Pull, install, build and restart on server
-        shell: bash
+        shell: bash -l {0}
         working-directory: /home/eskaylation/eskeylation-web
         run: |
           set -eo pipefail
-          export PATH="$HOME/.local/bin:$PATH"
-          if [ -s "$HOME/.nvm/nvm.sh" ]; then
-            . "$HOME/.nvm/nvm.sh"
+          export PATH="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}:$HOME/.local/bin:$PATH"
+          if ! command -v fnm >/dev/null 2>&1; then
+            printf 'fnm not found for runner user %s. Add its install directory to PATH.\n' "$(id -un)" >&2
+            exit 1
           fi
+          fnm_env=$(fnm env --shell bash)
+          eval "$fnm_env"
+          fnm use default
+          for tool in git uv node npm pm2 curl; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              printf 'Missing %s in runner PATH (user=%s, HOME=%s).\n' "$tool" "$(id -un)" "$HOME" >&2
+              exit 1
+            fi
+          done
           test "$(git branch --show-current)" = main
           git pull --ff-only origin main
           uv sync --locked
