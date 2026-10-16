@@ -111,3 +111,19 @@ def test_restart_passes_configuration_as_environment_not_arguments(
     assert "ACTIONS_RUNTIME_TOKEN" not in kwargs["env"]
     assert "test-drive-credential" not in repr(args)
     assert kwargs["check"] is True
+
+
+def test_migration_uses_deployment_file_instead_of_stale_runner_database(
+    environment, monkeypatch
+):
+    deploy.configure(environment)
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://old:wrong@invalid-host/db")
+    run = Mock()
+    monkeypatch.setattr(deploy.subprocess, "run", run)
+    deploy.migrate(environment)
+    args, kwargs = run.call_args
+    assert args[0][-4:] == ["-m", "alembic", "upgrade", "head"]
+    assert kwargs["env"]["DATABASE_URL"] == (
+        "postgresql+asyncpg://existing:password@db.example/test"
+    )
+    assert "existing:password" not in repr(args)

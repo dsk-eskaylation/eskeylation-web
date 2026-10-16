@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import get_origin
@@ -119,8 +120,7 @@ def configure(path: Path = Path(".env")) -> None:
         print("Đã cấu hình origin HTTPS cho đăng nhập và WebSocket.")
 
 
-def restart(path: Path = Path(".env")) -> None:
-    settings = settings_from_env(path)
+def application_environment(settings: Settings) -> dict[str, str]:
     values = {
         name.upper(): json.dumps(value)
         if isinstance(value, list | dict)
@@ -135,6 +135,18 @@ def restart(path: Path = Path(".env")) -> None:
     }
     env.update(values)
     env["RUNNER_TRACKING_ID"] = ""
+    return env
+
+
+def migrate(path: Path = Path(".env")) -> None:
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        check=True,
+        env=application_environment(settings_from_env(path)),
+    )
+
+
+def restart(path: Path = Path(".env")) -> None:
     subprocess.run(
         [
             "pm2",
@@ -145,17 +157,19 @@ def restart(path: Path = Path(".env")) -> None:
             "--update-env",
         ],
         check=True,
-        env=env,
+        env=application_environment(settings_from_env(path)),
     )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["configure", "restart"])
+    parser.add_argument("action", choices=["configure", "migrate", "restart"])
     args = parser.parse_args()
     try:
         if args.action == "configure":
             configure()
+        elif args.action == "migrate":
+            migrate()
         else:
             restart()
     except ValidationError as error:

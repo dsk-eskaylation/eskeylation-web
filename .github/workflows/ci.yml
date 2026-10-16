@@ -159,10 +159,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$DEPLOY_SHA"
           uv sync --locked
           uv run --locked python -m scripts.deploy configure
-          uv run --locked python -m scripts.check_deploy
+          uv run --locked python -m scripts.check_deploy --database
           npm --prefix frontend ci
           npm --prefix frontend run build
-          uv run --locked alembic upgrade head
+          uv run --locked python -m scripts.deploy migrate
           uv run --locked python -m scripts.deploy restart
           curl --fail --silent --show-error \
             --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors \
