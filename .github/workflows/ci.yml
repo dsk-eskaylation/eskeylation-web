@@ -4,12 +4,49 @@ permissions:
   contents: read
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, develop]
   pull_request:
 
 jobs:
+  diagnostics:
+    name: Read deployment diagnostics
+    if: github.event_name == 'workflow_dispatch'
+    runs-on:
+      group: Default
+      labels: [self-hosted, linux, eskaylation]
+    timeout-minutes: 3
+    steps:
+      - name: Read PM2 status and sanitized error log
+        shell: bash -l {0}
+        working-directory: /home/eskaylation/eskeylation-web
+        run: |
+          set -eo pipefail
+          export PATH="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}:$HOME/.local/bin:$PATH"
+          eval "$(fnm env --shell bash)"
+          fnm use 22
+          .venv/bin/python - <<'PY'
+          import json, subprocess
+          from sqlalchemy.engine import make_url
+          from scripts.deploy import settings_from_env, application_environment
+          settings = settings_from_env()
+          env = application_environment(settings)
+          status = subprocess.run(['pm2', 'jlist'], capture_output=True, text=True, env=env, check=True)
+          for app in json.loads(status.stdout):
+              if app['name'] == 'eskeylation-api':
+                  data = app['pm2_env']
+                  print(json.dumps({key: data.get(key) for key in ['status', 'pm_exec_path', 'exec_interpreter', 'pm_cwd', 'exit_code', 'restart_time']}))
+          logs = subprocess.run(['pm2', 'logs', 'eskeylation-api', '--err', '--lines', '50', '--nostream'], capture_output=True, text=True, env=env, timeout=20)
+          output = logs.stdout + logs.stderr
+          for value in [settings.database_url, settings.jwt_secret, settings.google_drive_api_key, settings.supabase_service_key, make_url(settings.database_url).password]:
+              if value:
+                  output = output.replace(value, '[REDACTED]')
+          print(output)
+          PY
+
   backend:
+    if: github.event_name != 'workflow_dispatch'
     name: Backend — Lint & Unit tests
     runs-on: ubuntu-latest
     services:
@@ -61,6 +98,7 @@ jobs:
           uvx pip-audit -r requirements-ci.txt --disable-pip
 
   frontend:
+    if: github.event_name != 'workflow_dispatch'
     name: Frontend — Lint & Build
     runs-on: ubuntu-latest
     defaults:
