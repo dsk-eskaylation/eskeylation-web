@@ -125,6 +125,10 @@ async def update_content(
         content.body = sanitize_body(fields["body"])
     if "media" in fields:
         await _replace_media(session, content, data.media or [])
+    if content.status == ContentStatus.published:
+        await session.flush()
+        await session.refresh(content, ["media_links"])
+        validate_for_publish(content)
     await session.commit()
     # expire_on_commit=False giữ media_links cũ trên object -> ép reload cho đúng
     session.expire(content, ["media_links"])

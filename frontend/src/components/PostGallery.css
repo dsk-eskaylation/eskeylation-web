@@ -62,21 +62,24 @@
 /* Lưới ảnh 2 cột (Figma EL-1d3d7020: gap 12, r10) */
 .post-gallery__grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(220px, 259px));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
 .post-gallery__grid img {
   width: 100%;
-  aspect-ratio: 259 / 143;
-  object-fit: cover;
+  height: auto;
+  max-height: 75vh;
+  object-fit: contain;
   border-radius: 10px;
   animation: page-enter 0.4s var(--ease-out) both;
 }
 
-.post-gallery__grid iframe {
+.post-gallery__grid video {
   width: 100%;
-  min-height: 300px;
+  aspect-ratio: 16 / 9;
+  max-height: 75vh;
+  object-fit: contain;
   border: none;
   border-radius: 10px;
 }

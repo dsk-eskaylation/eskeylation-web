@@ -1,26 +1,47 @@
 name: Integration tests
 
-# Chạy thủ công (cần cấu hình secrets DATABASE_URL + JWT_SECRET cho repo).
+permissions:
+  contents: read
+
+# Test luôn dùng database cô lập; không nhận secrets production.
 on:
   workflow_dispatch:
 
 jobs:
   integration:
-    name: Integration tests (Supabase)
+    name: Integration tests (isolated PostgreSQL)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-test-password
+          POSTGRES_DB: eskaylation_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d eskaylation_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:ci-test-password@localhost:5432/eskaylation_test
+      JWT_SECRET: isolated-ci-test-secret-never-use-in-production
+      ENVIRONMENT: dev
+      STORAGE_BACKEND: local
+      PUBLIC_CONTENT_SOURCE: database
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup uv + Python
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked
+
+      - name: Apply migrations to isolated database
+        run: uv run --locked alembic upgrade head
 
       - name: Integration tests
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: uv run pytest -m integration
+        run: uv run --locked pytest -m integration

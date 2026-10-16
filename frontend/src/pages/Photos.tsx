@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
-import type { ContentOut } from '../api/types'
+import type { ContentOut, MediaOut } from '../api/types'
+import { MediaImage } from '../components/MediaImage'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
 import './Photos.css'
 
 interface Photo {
+  media: MediaOut
   url: string
-  previewUrl?: string | null
   alt: string
   caption: string | null
   postTitle: string
@@ -55,7 +56,7 @@ export function Photos() {
       items.flatMap((c) =>
         c.media.map((m) => ({
           url: m.url,
-          previewUrl: m.preview_url,
+          media: m,
           alt: m.alt_text ?? c.title,
           caption: m.caption,
           postTitle: c.title,
@@ -114,7 +115,7 @@ export function Photos() {
             onClick={() => setActive(start + i)}
             aria-label={p.caption ?? p.postTitle}
           >
-            {p.url ? <img src={p.url} alt={p.alt} loading="lazy" /> : <span>Xem ảnh</span>}
+            {p.url ? <MediaImage media={p.media} alt={p.alt} /> : <span>Xem ảnh</span>}
             <span className="photos__frame" aria-hidden="true" />
             {p.caption && <span className="photos__cap">{p.caption}</span>}
           </button>
@@ -184,16 +185,7 @@ export function Photos() {
                 </svg>
               </button>
             )}
-            {cur.previewUrl ? (
-              <iframe
-                className="photos__viewer-img photos__viewer-frame"
-                src={cur.previewUrl}
-                title={cur.alt}
-                allowFullScreen
-              />
-            ) : (
-              <img className="photos__viewer-img" src={cur.url} alt={cur.alt} />
-            )}
+            <MediaImage key={cur.url} className="photos__viewer-img" media={cur.media} original alt={cur.alt} loading="eager" />
             {active !== null && active < photos.length - 1 && (
               <button
                 type="button"

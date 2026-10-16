@@ -1,11 +1,27 @@
 import type { ContentOut, Page } from './types'
 
+const publicCache = new Map<string, { expires: number; value: Promise<unknown> }>()
+
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(path)
-  if (!res.ok) {
-    throw new ApiError(res.status, `Request lỗi ${res.status}: ${path}`)
-  }
-  return res.json() as Promise<T>
+  const cached = publicCache.get(path)
+  if (cached && cached.expires > Date.now()) return cached.value as Promise<T>
+  const value = (async () => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 20000)
+    try {
+      const res = await fetch(path, { credentials: 'omit', signal: controller.signal })
+      if (!res.ok) throw new ApiError(res.status, `Request lỗi ${res.status}: ${path}`)
+      return await res.json() as T
+    } catch (error) {
+      publicCache.delete(path)
+      throw error
+    } finally {
+      clearTimeout(timer)
+    }
+  })()
+  if (publicCache.size >= 64) publicCache.delete(publicCache.keys().next().value!)
+  publicCache.set(path, { expires: Date.now() + 15000, value })
+  return value
 }
 
 export class ApiError extends Error {
@@ -38,11 +54,12 @@ function buildQuery(params: ListParams): string {
 
 async function listAll(type: 'photos' | 'video'): Promise<Page<ContentOut>> {
   const first = await api.list(type, { pageSize: 60 })
-  const rest = await Promise.all(
-    Array.from({ length: Math.max(0, first.pages - 1) }, (_, i) =>
-      api.list(type, { pageSize: 60, page: i + 2 }),
-    ),
-  )
+  const rest: Page<ContentOut>[] = []
+  for (let page = 2; page <= first.pages; page += 3) {
+    rest.push(...await Promise.all(
+      Array.from({ length: Math.min(3, first.pages - page + 1) }, (_, i) => api.list(type, { pageSize: 60, page: page + i })),
+    ))
+  }
   return { ...first, items: first.items.concat(...rest.map((p) => p.items)) }
 }
 

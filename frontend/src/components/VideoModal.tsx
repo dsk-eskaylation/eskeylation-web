@@ -1,6 +1,7 @@
 import type { ContentOut } from '../api/types'
 import { Modal } from './Modal'
 import './VideoModal.css'
+import { usePlayer } from '../player/PlayerContext'
 
 /** Chuyển link youtube/vimeo sang dạng embed để nhúng iframe. */
 function toEmbedUrl(url: string): string | null {
@@ -23,26 +24,14 @@ function toEmbedUrl(url: string): string | null {
 }
 
 function Player({ content }: { content: ContentOut }) {
-  const driveMedia = content.media.find((m) => m.preview_url)
+  const music = usePlayer()
   const embed =
     typeof content.body.embed_url === 'string'
       ? toEmbedUrl(content.body.embed_url)
       : null
   const videoMedia = content.media.find((m) => m.mime_type.startsWith('video/'))
-  const images = content.media.filter((m) => m.mime_type.startsWith('image/'))
+  const images = content.media.filter((m) => m.url)
   const poster = images.find((m) => m.is_primary) ?? images[0]
-
-  if (driveMedia?.preview_url) {
-    return (
-      <iframe
-        className="video-modal__frame"
-        src={driveMedia.preview_url}
-        title={content.title}
-        allow="autoplay; fullscreen"
-        allowFullScreen
-      />
-    )
-  }
 
   if (embed) {
     return (
@@ -59,10 +48,13 @@ function Player({ content }: { content: ContentOut }) {
     return (
       <video
         className="video-modal__frame"
-        src={videoMedia.url}
+        src={videoMedia.stream_url || videoMedia.url}
         controls
         autoPlay
-        poster={poster?.url}
+        playsInline
+        preload="metadata"
+        onPlay={music.pause}
+        poster={poster?.url || undefined}
       />
     )
   }

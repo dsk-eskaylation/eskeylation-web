@@ -1,8 +1,10 @@
-"""Fixtures dùng chung cho test tích hợp (chạy thật trên Supabase qua .env).
+# ruff: noqa: E402
+"""Fixtures dùng chung cho database kiểm thử được cách ly tường minh.
 
 Mỗi factory tự dọn dữ liệu đã tạo sau test để DB không bị rác.
 """
 
+import os
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
@@ -11,7 +13,29 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# Guard trước khi import app: không lấy nhầm database/cloud production từ .env.
+_test_url = os.environ.get("DATABASE_URL", "")
+if not _test_url:
+    raise RuntimeError("Test cần DATABASE_URL database kiểm thử localhost tường minh.")
+_test_database = make_url(_test_url)
+if _test_database.host not in {"localhost", "127.0.0.1", "::1", "postgres"} or not any(
+    part in (_test_database.database or "").lower() for part in ("test", "audit")
+):
+    raise RuntimeError("Từ chối chạy test trên database ngoài môi trường kiểm thử.")
+os.environ.update(
+    {
+        "SUPABASE_URL": "",
+        "SUPABASE_SERVICE_KEY": "",
+        "GOOGLE_DRIVE_API_KEY": "",
+        "GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE": "",
+        "STORAGE_BACKEND": "local",
+        "ENVIRONMENT": "dev",
+        "JWT_SECRET": "isolated-test-only-secret-never-use-in-production",
+    }
+)
 
 from app.db import SessionLocal
 from app.main import app
@@ -54,6 +78,9 @@ async def _dispose_engine():
     from app.db import engine
 
     await engine.dispose()
+    from app.services import drive_http
+
+    await drive_http.close()
 
 
 @pytest_asyncio.fixture

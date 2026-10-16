@@ -50,8 +50,10 @@ def main() -> None:
     missing = []
     if settings.public_content_source != "drive":
         missing.append("PUBLIC_CONTENT_SOURCE=drive")
-    if not settings.google_drive_api_key:
-        missing.append("GOOGLE_DRIVE_API_KEY")
+    if not (
+        settings.google_drive_api_key or settings.google_drive_service_account_file
+    ):
+        missing.append("GOOGLE_DRIVE_API_KEY hoặc GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE")
     if not settings.google_drive_folder_id:
         missing.append("GOOGLE_DRIVE_FOLDER_ID")
     if (

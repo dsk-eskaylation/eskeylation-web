@@ -9,9 +9,8 @@ from app.models.enums import UserRole
 
 class UserCreate(BaseModel):
     email: EmailStr
-    # bcrypt chỉ dùng 72 byte đầu — giới hạn để không gây hiểu nhầm
-    password: str = Field(min_length=8, max_length=72)
-    role: UserRole = UserRole.author
+    password: str = Field(min_length=8, max_length=128)
+    role: UserRole = UserRole.member
 
 
 class UserUpdate(BaseModel):

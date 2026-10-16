@@ -2,6 +2,7 @@ import enum
 
 
 class UserRole(enum.StrEnum):
+    member = "member"
     admin = "admin"
     editor = "editor"
     author = "author"

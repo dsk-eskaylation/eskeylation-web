@@ -25,17 +25,19 @@ def row(file_id="file_123456789", **kwargs):
     }
 
 
-def test_file_uses_drive_preview_and_stable_safe_id():
+def test_file_uses_native_media_and_stable_opaque_id():
     item = file_to_content(row(resourceKey="key-1"), ["Nhạc & MV"])
     assert item.body == {
         "source": "google_drive",
         "artist": "DSK",
-        "drive_file_id": "file_123456789",
+        "audio_url": f"/api/library/{item.id}/stream",
     }
     assert item.published_at is None
-    assert item.media[0].preview_url == (
-        "https://drive.google.com/file/d/file_123456789/preview?resourcekey=key-1"
-    )
+    assert item.media[0].preview_url is None
+    assert item.media[0].stream_url == item.body["audio_url"]
+    assert "file_123456789" not in item.model_dump_json()
+    assert "key-1" not in item.model_dump_json()
+    assert item._drive["id"] == "file_123456789"
     assert -(2**53) < item.id < 0
     assert item.id == file_to_content(row(name="Đổi tên"), ["Nhạc & MV"]).id
     assert "supabase" not in item.model_dump_json()
@@ -44,7 +46,7 @@ def test_file_uses_drive_preview_and_stable_safe_id():
 def test_unknown_thumbnail_host_is_not_rendered():
     item = file_to_content(row(thumbnailLink="https://evil.test/a"), ["Nhạc & MV"])
     assert item.media[0].url == ""
-    assert item.media[0].preview_url.startswith("https://drive.google.com/")
+    assert item.media[0].preview_url is None
     assert file_to_content(row(mimeType="application/zip"), ["Nhạc & MV"]) is None
 
 
@@ -148,7 +150,7 @@ async def test_public_search_pagination_and_detail_without_database(
     assert (
         await client.get(f"/api/video/{video['items'][0]['slug']}")
     ).status_code == 200
-    assert "https://drive.google.com" in response.headers["content-security-policy"]
+    assert "drive.google.com" not in response.headers["content-security-policy"]
 
 
 async def test_drive_failure_does_not_fall_back_to_database(client, drive_source):
@@ -158,7 +160,7 @@ async def test_drive_failure_does_not_fall_back_to_database(client, drive_source
     assert "secret" not in response.text
 
 
-async def test_drive_readiness_does_not_connect_database(
+async def test_content_check_separate_from_full_database_readiness(
     client, drive_source, monkeypatch
 ):
     from app import main
@@ -169,9 +171,10 @@ async def test_drive_readiness_does_not_connect_database(
         raise AssertionError("Drive readiness must not connect to database")
 
     monkeypatch.setattr(main, "engine", SimpleNamespace(connect=forbidden_connect))
-    response = await client.get("/health/ready")
+    response = await client.get("/health/content")
     assert response.status_code == 200
     assert response.json() == {"status": "ready"}
+    assert (await client.get("/health/ready")).status_code == 503
 
 
 async def test_cache_failure_does_not_expose_credentials(monkeypatch):

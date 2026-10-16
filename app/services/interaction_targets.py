@@ -11,14 +11,12 @@ from app.services.drive_catalog import catalog
 
 
 async def drive_content(content_id: int, type_: ContentType) -> ContentOut | None:
-    return next(
-        (c for c in await catalog.items() if c.id == content_id and c.type == type_),
-        None,
-    )
+    content = await catalog.get(content_id)
+    return content if content is not None and content.type == type_ else None
 
 
 async def ensure_drive_target(session: AsyncSession, content: ContentOut) -> None:
-    file_id = content.body["drive_file_id"]
+    file_id = content._drive["id"]
     existing = await session.get(InteractionTarget, content.id)
     if existing is not None:
         if existing.drive_file_id != file_id:

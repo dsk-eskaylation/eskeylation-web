@@ -80,7 +80,7 @@ async def test_drive_reactions_comments_saves_and_lyrics_without_import(
     assert await db.scalar(select(func.count()).select_from(Content)) == before
     target = await db.get(InteractionTarget, post.id)
     assert target.content_id is None
-    assert target.drive_file_id == post.body["drive_file_id"]
+    assert target.drive_file_id == post._drive["id"]
 
     # File bị gỡ khỏi thư mục công khai thì tương tác cũng không được truy cập.
     items.return_value = [music]

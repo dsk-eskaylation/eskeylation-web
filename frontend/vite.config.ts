@@ -3,7 +3,13 @@ import react from '@vitejs/plugin-react'
 
 // Proxy API + media về backend FastAPI (dev). Backend chạy ở cổng 8000.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), {
+    name: 'production-csp',
+    transformIndexHtml(html, context) {
+      // Vite HMR có script inline; CSP chặt chỉ dành cho bản build production.
+      return context.server ? html.replace(/\s*<meta http-equiv="Content-Security-Policy"[^>]*\/>/, '') : html
+    },
+  }],
   server: {
     proxy: {
       // ws: true -> proxy cả WebSocket cộng đồng (/api/community/{id}/ws)

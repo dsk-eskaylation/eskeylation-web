@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { login } from '../api/auth'
+import { getSession, login } from '../api/auth'
 import './Login.css'
 
 /** Trang đăng nhập CMS — theo design language Figma "bàn giao DEV":
@@ -18,7 +18,8 @@ export function Login() {
     setBusy(true)
     try {
       await login(email, password)
-      navigate('/cms', { replace: true })
+      const user = await getSession()
+      navigate(user?.role === 'member' ? '/community' : '/cms', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đăng nhập thất bại')
     } finally {
@@ -34,7 +35,7 @@ export function Login() {
         <Link to="/" className="login__brand">
           ESKAYLATION
         </Link>
-        <p className="login__sub">Khu vực quản trị nội dung</p>
+        <p className="login__sub">Đăng nhập Eskaylation</p>
 
         <label className="login__field">
           <span className="login__label">Email</span>

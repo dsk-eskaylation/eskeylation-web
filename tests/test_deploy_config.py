@@ -1,5 +1,6 @@
 """Cấu hình deploy giữ bí mật và các giá trị hiện có trên server."""
 
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -15,6 +16,8 @@ def environment(tmp_path, monkeypatch):
         "DEPLOY_PUBLIC_SITE_URL",
         "DEPLOY_GOOGLE_DRIVE_FOLDER_ID",
         "DEPLOY_DATABASE_URL",
+        "DEPLOY_GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON",
+        "GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE",
         "GOOGLE_DRIVE_API_KEY",
         "JWT_SECRET",
     ):
@@ -50,7 +53,6 @@ def test_configure_preserves_database_and_backs_up_old_environment(
         current.database_url == "postgresql+asyncpg://existing:password@db.example/test"
     )
     assert current.cors_origins == [
-        "https://existing.example",
         "https://production.example",
     ]
     backups = list(
@@ -71,6 +73,42 @@ def test_existing_strong_jwt_is_preserved(environment):
     )
     deploy.configure(environment)
     assert deploy.settings_from_env(environment).jwt_secret == original
+
+
+def test_private_drive_credential_is_server_only(environment, monkeypatch, capsys):
+    account = {
+        "type": "service_account",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "client_email": "reader@test-project.iam.gserviceaccount.com",
+        "private_key": "-----BEGIN PRIVATE KEY-----\nnot-a-real-key\n",
+    }
+    monkeypatch.delenv("DEPLOY_GOOGLE_DRIVE_API_KEY")
+    monkeypatch.setenv("DEPLOY_GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", json.dumps(account))
+    deploy.configure(environment)
+    settings = deploy.settings_from_env(environment)
+    from pathlib import Path
+
+    path = Path(settings.google_drive_service_account_file)
+    assert path.is_relative_to(environment.parent / ".local" / "credentials")
+    assert json.loads(path.read_text()) == account
+    assert account["private_key"] not in capsys.readouterr().out
+
+
+def test_private_drive_credential_rejects_external_token_host(environment, monkeypatch):
+    before = environment.read_bytes()
+    monkeypatch.setenv(
+        "DEPLOY_GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON",
+        json.dumps(
+            {
+                "type": "service_account",
+                "token_uri": "https://untrusted.example/token",
+            }
+        ),
+    )
+    with pytest.raises(ValueError):
+        deploy.configure(environment)
+    assert environment.read_bytes() == before
+    assert not (environment.parent / ".local" / "credentials").exists()
 
 
 def test_database_secret_updates_only_database_and_keeps_private_backup(

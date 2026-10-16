@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,7 +20,7 @@ class Settings(BaseSettings):
     # JWT
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60 * 12  # 12h — cân bằng UX/blast radius
+    access_token_expire_minutes: int = Field(default=60 * 12, ge=5, le=1440)
 
     # Storage: "local" (dev) | "supabase" (prod, dùng Supabase Storage + CDN).
     storage_backend: str = "local"
@@ -42,9 +43,17 @@ class Settings(BaseSettings):
     allowed_video_types: list[str] = ["video/mp4", "video/webm"]
     # Chỉ dùng phía server/CLI, không đưa vào frontend.
     google_drive_api_key: str = ""
+    google_drive_service_account_file: str = ""
     public_content_source: Literal["database", "drive"] = "database"
     google_drive_folder_id: str = "1lnfNK-1UMVLrydMHBntY33cLipf4MyFL"
-    drive_catalog_cache_seconds: int = 300
+    drive_catalog_cache_seconds: int = Field(default=300, ge=0, le=3600)
+    drive_image_cache_bytes: int = Field(
+        default=32 * 1024 * 1024, ge=0, le=128 * 1024 * 1024
+    )
+    drive_max_image_bytes: int = Field(
+        default=32 * 1024 * 1024, ge=1024, le=64 * 1024 * 1024
+    )
+    drive_stream_concurrency: int = Field(default=16, ge=1, le=64)
 
     # CORS — origin của frontend (React/Vite). Khai báo JSON list trong .env.
     cors_origins: list[str] = ["http://localhost:5173"]

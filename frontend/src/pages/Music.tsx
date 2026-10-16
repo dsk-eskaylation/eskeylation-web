@@ -63,6 +63,11 @@ export function Music() {
 
   return (
     <div className="music">
+      <header className="music__heading">
+        <p>ESKAYLATION AUDIO</p>
+        <h1>Thư viện âm nhạc</h1>
+        <span>{state.status === 'success' ? `${state.data.total} bài hát` : 'Đang tải thư viện…'}</span>
+      </header>
       {/* Thể loại trên cùng */}
       <div className="music__topbar">
         <div className="music__categories">
@@ -137,7 +142,7 @@ export function Music() {
           {/* Danh sách bài — hàng theo kiểu Spotify */}
           <aside className="music__side">
             <div className="music__side-head">
-              <span className="music__side-label">Danh sách phát</span>
+              <span className="music__side-label">Danh sách phát{state.status === 'success' ? ` · ${items.length}/${state.data.total}` : ''}</span>
               <Link to="/music/all" className="music__see-all" title="Xem tất cả và tìm kiếm">
                 Xem tất cả
               </Link>
@@ -151,6 +156,8 @@ export function Music() {
                       type="button"
                       className={active ? 'music__row music__row--active' : 'music__row'}
                       onClick={() => activate(c)}
+                      aria-label={`${active && player.isPlaying ? 'Tạm dừng' : 'Phát'} ${c.title}`}
+                      aria-pressed={active && player.isPlaying}
                     >
                       <span className="music__row-idx" aria-hidden="true">
                         {active && player.isPlaying ? (

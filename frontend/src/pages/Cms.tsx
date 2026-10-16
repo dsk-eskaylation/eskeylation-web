@@ -22,12 +22,14 @@ import { Dashboard } from './Dashboard'
 import './Cms.css'
 
 const ROLES: { value: UserRole; label: string }[] = [
+  { value: 'member', label: 'Thành viên' },
   { value: 'admin', label: 'Quản trị' },
   { value: 'editor', label: 'Biên tập' },
   { value: 'author', label: 'Tác giả' },
 ]
 
 const ROLE_LABEL: Record<UserRole, string> = {
+  member: 'Thành viên',
   admin: 'Quản trị',
   editor: 'Biên tập',
   author: 'Tác giả',
@@ -495,7 +497,7 @@ function NewUserForm({
 }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<UserRole>('author')
+  const [role, setRole] = useState<UserRole>('member')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 

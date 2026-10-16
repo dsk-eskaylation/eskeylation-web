@@ -188,14 +188,16 @@
 /* ---- Lưới video (dùng ở trang Xem tất cả) ---- */
 .video-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 32px 30px;
 }
 .video-grid__cell {
+  min-width: 0;
   animation: page-enter 0.5s var(--ease-out) both;
 }
 
 .video-card {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -209,12 +211,16 @@
 }
 .video-card__thumb {
   position: relative;
+  width: 100%;
+  flex: none;
   aspect-ratio: 16 / 9;
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--color-surface);
 }
 .video-card__thumb img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -301,6 +307,8 @@
 }
 
 .video-card__meta {
+  min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -308,7 +316,12 @@
 .video-card__title {
   font-size: 16px;
   color: var(--color-text);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.4;
+  height: 2.8em;
+  overflow-wrap: anywhere;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -324,7 +337,7 @@
     gap: 32px;
   }
   .video-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 24px;
   }
   .video-strip__cell {
@@ -353,7 +366,7 @@
     flex-basis: 78vw;
   }
   .video-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
   }
 }

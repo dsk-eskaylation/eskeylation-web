@@ -22,6 +22,8 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.51",
     "uvicorn[standard]>=0.49.0",
     "anyio >= 4.14.2",
+    "argon2-cffi>=25.1.0",
+    "google-auth[requests]>=2.40.0",
 ]
 
 [dependency-groups]
@@ -37,7 +39,7 @@ dev = [
 asyncio_mode = "auto"
 addopts = "-ra"
 markers = [
-    "integration: test cần kết nối Supabase thật (qua .env)",
+    "integration: test cần PostgreSQL cô lập localhost, không dùng cloud production",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { usePlayer, artistOf, coverUrl } from '../player/PlayerContext'
+import { usePlayer, usePlayerProgress, artistOf, coverUrl } from '../player/PlayerContext'
 import { submitLyrics } from '../api/music'
 import type { ContentOut } from '../api/types'
 import './PlayerBar.css'
@@ -170,11 +170,12 @@ function DevicePanel() {
     lời bài hát, hàng chờ, thiết bị phát. Phát nền nhờ <audio> ở PlayerProvider. */
 export function PlayerBar() {
   const p = usePlayer()
+  const { currentTime, duration } = usePlayerProgress()
   const [panel, setPanel] = useState<Panel>(null)
   if (!p.current) return null
 
   const cover = coverUrl(p.current)
-  const pct = p.duration ? (p.currentTime / p.duration) * 100 : 0
+  const pct = duration ? (currentTime / duration) * 100 : 0
   const togglePanel = (name: Panel) => setPanel((cur) => (cur === name ? null : name))
 
   return (
@@ -198,6 +199,7 @@ export function PlayerBar() {
           <div className="player-bar__meta">
             <span className="player-bar__title">{p.current.title}</span>
             <span className="player-bar__artist">{artistOf(p.current)}</span>
+            {(p.busy || p.error) && <span className="player-bar__status" role="status">{p.error || 'Đang tải…'}</span>}
           </div>
         </div>
 
@@ -290,24 +292,28 @@ export function PlayerBar() {
           </div>
 
           <div className="player-bar__seek">
-            <span className="player-bar__time">{fmt(p.currentTime)}</span>
+            <span className="player-bar__time">{fmt(currentTime)}</span>
             <input
               type="range"
               className="player-bar__range"
               min={0}
-              max={p.duration || 0}
+              max={duration || 0}
               step={0.1}
-              value={p.currentTime}
+              value={Math.min(currentTime, duration || 0)}
               onChange={(e) => p.seek(Number(e.target.value))}
               style={{ '--pct': `${pct}%` } as CSSProperties}
               aria-label="Tua bài hát"
             />
-            <span className="player-bar__time">{fmt(p.duration)}</span>
+            <span className="player-bar__time">{fmt(duration)}</span>
           </div>
         </div>
 
         {/* Phải: lời, hàng chờ, thiết bị, đóng */}
         <div className="player-bar__right">
+          <label className="player-bar__volume">
+            <span aria-hidden="true">♪</span>
+            <input type="range" min="0" max="1" step="0.05" value={p.volume} onChange={(e) => p.setVolume(Number(e.target.value))} aria-label="Âm lượng" />
+          </label>
           <button
             type="button"
             className={panel === 'lyrics' ? 'pbtn pbtn--sm pbtn--on' : 'pbtn pbtn--sm'}

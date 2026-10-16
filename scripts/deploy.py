@@ -55,8 +55,26 @@ def configure(path: Path = Path(".env")) -> None:
         raise ValueError("Cần cấu hình trực tiếp file .env thường, không qua symlink")
     current = settings_from_env(path)
     key = os.environ.get("DEPLOY_GOOGLE_DRIVE_API_KEY") or current.google_drive_api_key
-    if not key:
-        raise ValueError("Chưa có GOOGLE_DRIVE_API_KEY cho deploy")
+    account_json = os.environ.get("DEPLOY_GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", "")
+    account = None
+    if account_json:
+        try:
+            account = json.loads(account_json)
+            if (
+                not isinstance(account, dict)
+                or account.get("type") != "service_account"
+                or account.get("token_uri") != "https://oauth2.googleapis.com/token"
+                or not account.get("client_email", "").endswith(".gserviceaccount.com")
+                or not account.get("private_key", "").startswith(
+                    "-----BEGIN PRIVATE KEY-----"
+                )
+            ):
+                raise ValueError
+        except (ValueError, AttributeError):
+            raise ValueError("Thông tin service account Drive không hợp lệ") from None
+    account_file = current.google_drive_service_account_file
+    if not (key or account or account_file):
+        raise ValueError("Cần API key hoặc service account chỉ đọc cho Drive")
     jwt = current.jwt_secret
     rotate_jwt = jwt == "change-me-in-production" or len(jwt) < 32
     if rotate_jwt:
@@ -86,8 +104,19 @@ def configure(path: Path = Path(".env")) -> None:
     site = os.environ.get("DEPLOY_PUBLIC_SITE_URL", "").strip()
     if site:
         origin = public_origin(site)
-        origins = list(dict.fromkeys([*current.cors_origins, origin]))
-        updates["CORS_ORIGINS"] = json.dumps(origins)
+        updates["CORS_ORIGINS"] = json.dumps([origin])
+
+    if account:
+        credential_dir = path.parent / ".local" / "credentials"
+        credential_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
+        if credential_dir.is_symlink():
+            raise ValueError("Thư mục credential không được dùng symlink")
+        # Versioned file: failed deploy leaves the previous credential usable.
+        credential_path = credential_dir / f"drive-{uuid4().hex}.json"
+        with credential_path.open("x", encoding="utf-8") as credential:
+            os.chmod(credential_path, 0o600)
+            json.dump(account, credential)
+        updates["GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE"] = str(credential_path.resolve())
 
     before = path.read_bytes() if path.exists() else b""
     text = before.decode("utf-8-sig")

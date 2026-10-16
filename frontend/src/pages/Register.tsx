@@ -84,6 +84,7 @@ export function Register() {
             placeholder="••••••••"
             autoComplete="new-password"
             minLength={8}
+            maxLength={128}
             required
           />
         </label>
@@ -97,6 +98,7 @@ export function Register() {
             placeholder="••••••••"
             autoComplete="new-password"
             minLength={8}
+            maxLength={128}
             required
           />
         </label>

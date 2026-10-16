@@ -25,7 +25,7 @@ async def test_register_tao_tai_khoan_cho_duyet(client, db, make_user):
         assert r.status_code == 201, r.text
         data = r.json()
         assert data["is_active"] is False  # chờ duyệt
-        assert data["role"] == "author"
+        assert data["role"] == "member"
         assert "password" not in data and "hashed_password" not in data
 
         # Chưa duyệt -> login bị chặn 403 (tài khoản khoá)
@@ -54,7 +54,7 @@ async def test_register_tao_tai_khoan_cho_duyet(client, db, make_user):
 
 
 async def test_register_khong_the_tu_chon_role_admin(client, db):
-    # Client cố leo quyền bằng cách gửi role=admin -> server ép về author
+    # Client cố leo quyền bằng cách gửi role=admin -> server ép về member
     email = f"{unique_slug('esc')}@test.dev"
     try:
         r = await client.post(
@@ -62,9 +62,9 @@ async def test_register_khong_the_tu_chon_role_admin(client, db):
             json={"email": email, "password": "matkhau-8kytu", "role": "admin"},
         )
         assert r.status_code == 201
-        assert r.json()["role"] == "author"
+        assert r.json()["role"] == "member"
         role_in_db = await db.scalar(select(User.role).where(User.email == email))
-        assert role_in_db == UserRole.author
+        assert role_in_db == UserRole.member
     finally:
         await _cleanup(db, email)
 

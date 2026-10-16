@@ -1,5 +1,6 @@
 /* MusicCard — Figma EL-3ff63958 (cột gap 10, meta + khung 431x237 có góc ngắm) */
 .music-card {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -12,17 +13,20 @@
 }
 
 .music-card__meta {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
 .music-card__row {
+  min-width: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
 }
+.music-card__row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .music-card__row--title {
   font-size: 16px; /* Figma style_34bc643e / style_caae9f2c */
@@ -42,7 +46,7 @@
 .music-card__frame {
   position: relative;
   padding: 7px;
-  aspect-ratio: 445 / 251;
+  aspect-ratio: 1;
 }
 
 .music-card__corner {
@@ -99,8 +103,9 @@
   display: block;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #141414, #0a0a0a);
+  background: radial-gradient(circle at 25% 20%, #454346, #201f22 40%, #101012 85%);
 }
+.music-card__placeholder::after { content: '♪'; display: grid; place-items: center; height: 100%; font-size: 80px; color: #b9b6bd; }
 
 /* Nút play giữa (Figma EL-7f083d3a: nền rgba(0,0,0,.44) r40, tam giác 31px) */
 .music-card__play {

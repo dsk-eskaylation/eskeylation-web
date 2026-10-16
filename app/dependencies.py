@@ -1,13 +1,16 @@
 from collections.abc import Callable, Coroutine, Sequence
+from datetime import UTC, datetime
 from typing import Any
 
 import jwt
 from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models.enums import UserRole
+from app.models.session import UserSession
 from app.models.user import User
 from app.services.security import decode_token
 
@@ -39,23 +42,41 @@ _credentials_error = HTTPException(
 )
 
 
+async def _session_user(payload: dict, session: AsyncSession) -> User | None:
+    user_id = int(payload["sub"])
+    session_id = payload["jti"]
+    if not isinstance(session_id, str) or len(session_id) != 36:
+        return None
+    return await session.scalar(
+        select(User)
+        .join(UserSession, UserSession.user_id == User.id)
+        .where(
+            User.id == user_id,
+            User.is_active.is_(True),
+            UserSession.id == session_id,
+            UserSession.expires_at > datetime.now(UTC),
+        )
+    )
+
+
 async def get_current_user(
     request: Request,
     token: str | None = Depends(oauth2_scheme),
     session: AsyncSession = Depends(get_session),
 ) -> User:
     # Ưu tiên Authorization header (API client/test), fallback cookie httpOnly (SPA).
+    if "authorization" in request.headers and not token:
+        raise _credentials_error
     token = token or request.cookies.get(SESSION_COOKIE)
     if not token:
         raise _credentials_error
     try:
         payload = decode_token(token)
-        user_id = int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, ValueError) as exc:
+        user = await _session_user(payload, session)
+    except (jwt.PyJWTError, KeyError, ValueError, TypeError) as exc:
         raise _credentials_error from exc
 
-    user = await session.get(User, user_id)
-    if user is None or not user.is_active:
+    if user is None:
         raise _credentials_error
     return user
 
@@ -68,16 +89,17 @@ async def get_current_user_optional(
     """Như get_current_user nhưng KHÔNG ném lỗi khi thiếu/hỏng token —
     dùng cho endpoint công khai muốn biết thêm trạng thái của user hiện tại
     (vd cảm xúc/đã lưu của họ) mà vẫn cho khách xem."""
+    if "authorization" in request.headers and not token:
+        return None
     token = token or request.cookies.get(SESSION_COOKIE)
     if not token:
         return None
     try:
         payload = decode_token(token)
-        user_id = int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, ValueError):
+        user = await _session_user(payload, session)
+    except (jwt.PyJWTError, KeyError, ValueError, TypeError):
         return None
-    user = await session.get(User, user_id)
-    if user is None or not user.is_active:
+    if user is None:
         return None
     return user
 

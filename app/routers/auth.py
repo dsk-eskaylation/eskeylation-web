@@ -1,26 +1,36 @@
 import secrets
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
 from app.db import get_session
 from app.dependencies import CSRF_COOKIE, SESSION_COOKIE, get_current_user
 from app.models.enums import UserRole
+from app.models.session import UserSession
 from app.models.user import User
 from app.schemas.auth import Token
 from app.schemas.users import UserCreate, UserRead
 from app.services.ratelimit import check_rate
-from app.services.security import create_access_token, hash_password, verify_password
+from app.services.security import (
+    create_access_token,
+    decode_token,
+    hash_password,
+    verify_and_upgrade,
+)
 
 settings = get_settings()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Hash mồi cho email không tồn tại: luôn tốn 1 lần bcrypt như email đúng,
+# Hash mồi cho email không tồn tại: vẫn xác minh Argon2 như email đúng,
 # tránh dò user qua chênh lệch thời gian phản hồi (timing attack).
 _DUMMY_HASH = hash_password("dummy-timing-guard")
 
@@ -68,7 +78,8 @@ async def login(
     result = await session.execute(select(User).where(User.email == form.username))
     user = result.scalar_one_or_none()
     hashed = user.hashed_password if user else _DUMMY_HASH
-    if not verify_password(form.password, hashed) or user is None:
+    valid, upgraded = await run_in_threadpool(verify_and_upgrade, form.password, hashed)
+    if not valid or user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email hoặc mật khẩu không đúng",
@@ -77,16 +88,54 @@ async def login(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Tài khoản bị khoá"
         )
-    token = create_access_token(str(user.id))
+    if upgraded:
+        user.hashed_password = upgraded
+    session_id = str(uuid4())
+    now = datetime.now(UTC)
+    await session.execute(
+        delete(UserSession).where(
+            UserSession.user_id == user.id, UserSession.expires_at <= now
+        )
+    )
+    session.add(
+        UserSession(
+            id=session_id,
+            user_id=user.id,
+            expires_at=now + timedelta(minutes=settings.access_token_expire_minutes),
+        )
+    )
+    await session.commit()
+    token = create_access_token(str(user.id), session_id)
     _set_session_cookies(response, token)
     # Vẫn trả token trong body cho API client/tool dùng Authorization header.
     return Token(access_token=token)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response) -> None:
-    """Kết thúc phiên cookie. (JWT stateless — token header vẫn sống tới khi hết
-    hạn; cookie là đường dùng chính của SPA nên xoá cookie = đăng xuất.)"""
+async def logout(
+    request: Request,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Thu hồi đúng phiên hiện tại; các thiết bị khác vẫn đăng nhập."""
+    authorization = request.headers.get("authorization", "").split()
+    token = (
+        authorization[1]
+        if len(authorization) == 2 and authorization[0].lower() == "bearer"
+        else request.cookies.get(SESSION_COOKIE)
+    )
+    if token:
+        try:
+            payload = decode_token(token)
+            await session.execute(
+                delete(UserSession).where(
+                    UserSession.id == payload["jti"],
+                    UserSession.user_id == int(payload["sub"]),
+                )
+            )
+            await session.commit()
+        except (jwt.PyJWTError, KeyError, ValueError, TypeError):
+            pass
     response.delete_cookie(SESSION_COOKIE, path="/")
     response.delete_cookie(CSRF_COOKIE, path="/")
 
@@ -104,7 +153,7 @@ async def register(
     session: AsyncSession = Depends(get_session),
 ) -> UserRead:
     """Đăng ký công khai: tài khoản tạo ra ở trạng thái CHỜ DUYỆT
-    (is_active=False, role=author). Admin kích hoạt qua PATCH /admin/users/{id}.
+    (is_active=False, role=member). Admin kích hoạt qua PATCH /admin/users/{id}.
     Không cho tự chọn role — chống leo quyền."""
     ip = _client_ip(request)
     await check_rate(f"register:{ip}", limit=10, window_seconds=300)
@@ -116,8 +165,8 @@ async def register(
         )
     user = User(
         email=data.email,
-        hashed_password=hash_password(data.password),
-        role=UserRole.author,  # cố định — bỏ qua data.role nếu client gửi
+        hashed_password=await run_in_threadpool(hash_password, data.password),
+        role=UserRole.member,  # người dùng cộng đồng không có quyền biên tập
         is_active=False,  # chờ admin duyệt
     )
     session.add(user)

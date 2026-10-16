@@ -7,7 +7,7 @@
 export interface SessionUser {
   id: number
   email: string
-  role: 'admin' | 'editor' | 'author'
+  role: 'admin' | 'editor' | 'author' | 'member'
   is_active: boolean
 }
 
@@ -28,7 +28,10 @@ let sessionCache: Promise<SessionUser | null> | null = null
 
 export function getSession(): Promise<SessionUser | null> {
   sessionCache ??= fetch('/auth/me', { credentials: 'include' })
-    .then((res) => (res.ok ? (res.json() as Promise<SessionUser>) : null))
+    .then(async (res) => {
+      const body = await res.json().catch(() => null)
+      return res.ok ? body as SessionUser : null
+    })
     .catch(() => null)
   return sessionCache
 }
@@ -50,6 +53,7 @@ export async function login(email: string, password: string): Promise<void> {
     const data = await res.json().catch(() => null)
     throw new Error(data?.detail ?? `Đăng nhập lỗi ${res.status}`)
   }
+  await res.body?.cancel()
   clearSessionCache()
 }
 

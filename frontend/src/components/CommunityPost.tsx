@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import type { ContentOut } from '../api/types'
+import { MediaImage } from './MediaImage'
 import {
   community,
   communityWsUrl,
@@ -105,6 +106,19 @@ export function CommunityPost({
       .catch(() => {})
 
     const ws = new WebSocket(communityWsUrl(id))
+    // Keep comments current when the reverse proxy cannot upgrade WebSocket.
+    // Poll only the expanded thread, while visible, and without a live socket.
+    let refreshing = false
+    const poll = window.setInterval(() => {
+      if (!alive || refreshing || document.hidden || ws.readyState === WebSocket.OPEN) return
+      refreshing = true
+      void Promise.all([community.comments(id), community.interactions(id)])
+        .then(([page, summary]) => {
+          if (alive) { setComments(page.items); setInter(summary) }
+        })
+        .catch(() => {})
+        .finally(() => { refreshing = false })
+    }, 15000)
     ws.onmessage = (e) => {
       if (!alive) return
       let ev: CommunityEvent
@@ -138,6 +152,7 @@ export function CommunityPost({
     }
     return () => {
       alive = false
+      window.clearInterval(poll)
       ws.close()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,7 +289,7 @@ export function CommunityPost({
         >
           {media.slice(0, 4).map((m, i) => (
             <button type="button" className="cpost__cell" key={i} onClick={() => setViewingMedia(true)} aria-label={`Xem ${content.title}`}>
-              {m.url ? <img src={m.url} alt={m.alt_text ?? ''} loading="lazy" /> : <span>Xem tư liệu</span>}
+              {m.url ? <MediaImage media={m} alt={m.alt_text ?? content.title} sizes="(max-width: 640px) calc(100vw - 32px), 600px" /> : <span>Xem tư liệu</span>}
               {m.mime_type.startsWith('video/') && <span className="cpost__more">▶</span>}
               {i === 3 && media.length > 4 && (
                 <span className="cpost__more">+{media.length - 4}</span>

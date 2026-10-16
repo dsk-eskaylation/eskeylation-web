@@ -1,8 +1,11 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from time import perf_counter
+from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -11,6 +14,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.db import engine
 from app.dependencies import CSRF_COOKIE, SESSION_COOKIE
+from app.middleware import TextCompression
 from app.routers import (
     admin_content,
     admin_moderation,
@@ -18,11 +22,12 @@ from app.routers import (
     admin_users,
     auth,
     community,
+    drive_media,
     lyrics,
     media,
     public,
 )
-from app.services import realtime
+from app.services import drive_http, realtime
 from app.services.drive_catalog import catalog
 
 settings = get_settings()
@@ -36,7 +41,7 @@ logger = logging.getLogger("eskaylation")
 
 # Lưới an toàn: không cho chạy prod với secret mặc định.
 # is_prod fail-safe: mọi ENVIRONMENT khác "dev" đều bị coi là prod.
-if settings.jwt_secret == "change-me-in-production":
+if settings.jwt_secret == "change-me-in-production" or len(settings.jwt_secret) < 32:
     if settings.is_prod:
         raise RuntimeError("JWT_SECRET chưa được đặt — không được chạy prod!")
     logger.warning("JWT_SECRET đang là giá trị mặc định — chỉ chấp nhận ở dev.")
@@ -50,6 +55,7 @@ async def lifespan(_app: FastAPI):
         yield
     finally:
         await realtime.stop()
+        await drive_http.close()
 
 
 app = FastAPI(
@@ -57,6 +63,9 @@ app = FastAPI(
     version="0.1.0",
     description="API công khai và quản trị cho kho lưu trữ số DSK.",
     lifespan=lifespan,
+    docs_url=None if settings.is_prod else "/docs",
+    redoc_url=None if settings.is_prod else "/redoc",
+    openapi_url=None if settings.is_prod else "/openapi.json",
 )
 
 
@@ -69,11 +78,10 @@ _CSP = (
     "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' data: blob: https:; "
     "media-src 'self' https:; "
-    "frame-src https://www.youtube.com https://player.vimeo.com "
-    "https://drive.google.com; "
+    "frame-src https://www.youtube.com https://player.vimeo.com; "
     "connect-src 'self'; "
     "object-src 'none'; "
-    "base-uri 'self'; "
+    "base-uri 'self'; form-action 'self'; "
     "frame-ancestors 'self'"
 )
 
@@ -87,6 +95,19 @@ async def csrf_guard(request, call_next):
     /auth/logout mà xác thực bằng cookie (không có Authorization header) phải
     kèm X-CSRF-Token khớp cookie esk_csrf. Auth bằng header thì miễn — trình
     duyệt không tự gửi header cross-site được nên không dính CSRF."""
+    authorization = request.headers.get("authorization", "").split()
+    bearer_auth = len(authorization) == 2 and authorization[0].lower() == "bearer"
+    if request.method == "POST" and request.url.path in {
+        "/auth/login",
+        "/auth/register",
+    }:
+        origin = request.headers.get("origin")
+        if (origin and origin not in settings.cors_origins) or request.headers.get(
+            "sec-fetch-site"
+        ) == "cross-site":
+            return JSONResponse(
+                status_code=403, content={"detail": "Nguồn yêu cầu không được phép"}
+            )
     if (
         request.method in _MUTATING
         and (
@@ -95,7 +116,7 @@ async def csrf_guard(request, call_next):
             or request.url.path.startswith("/api/music")
             or request.url.path == "/auth/logout"
         )
-        and "authorization" not in request.headers
+        and not bearer_auth
         and SESSION_COOKIE in request.cookies
     ):
         csrf_cookie = request.cookies.get(CSRF_COOKIE)
@@ -110,11 +131,23 @@ async def csrf_guard(request, call_next):
 @app.middleware("http")
 async def security_headers(request, call_next):
     """Header bảo mật cho mọi response (CSP là lớp chặn XSS/exfiltration chính)."""
+    started = perf_counter()
+    request_id = uuid4().hex
+    request.state.request_id = request_id
     response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["Server-Timing"] = (
+        f"app;dur={(perf_counter() - started) * 1000:.1f}"
+    )
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Content-Security-Policy", _CSP)
+    response.headers.setdefault(
+        "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+    )
+    if request.url.path.startswith(("/auth", "/admin", "/api/community/")):
+        response.headers.setdefault("Cache-Control", "no-store")
     if settings.is_prod:
         response.headers.setdefault(
             "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
@@ -129,9 +162,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(TextCompression)
 
 app.include_router(auth.router)
 app.include_router(public.router)
+app.include_router(drive_media.router)
 app.include_router(community.router)
 app.include_router(lyrics.router)
 app.include_router(media.router)
@@ -154,7 +189,21 @@ async def health() -> dict[str, str]:
 
 @app.get("/health/ready", tags=["health"])
 async def readiness() -> dict[str, str]:
-    """Readiness theo nguồn nội dung đang cấu hình."""
+    """Ứng dụng chỉ ready khi DB tài khoản/tương tác và nguồn nội dung đều sẵn sàng."""
+    try:
+        async with asyncio.timeout(12):
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            if settings.public_content_source == "drive":
+                await catalog.items()
+    except Exception:
+        raise HTTPException(503, "Dịch vụ chưa sẵn sàng") from None
+    return {"status": "ready"}
+
+
+@app.get("/health/content", tags=["health"])
+async def content_readiness() -> dict[str, str]:
+    """Kiểm tra riêng nội dung; không coi đây là readiness của toàn hệ thống."""
     if settings.public_content_source == "drive":
         await catalog.items()
         return {"status": "ready"}
@@ -173,6 +222,18 @@ if _spa_dir.is_dir():  # pragma: no cover — chỉ tồn tại sau khi build SP
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str) -> FileResponse:
         """File tĩnh ở gốc dist (favicon...) hoặc index.html cho route SPA."""
+        if any(
+            part.startswith(".") for part in full_path.split("/")
+        ) or full_path.split("/", 1)[0] in {
+            "api",
+            "auth",
+            "admin",
+            "health",
+            "docs",
+            "redoc",
+            "openapi.json",
+        }:
+            raise HTTPException(404, "Không tìm thấy đường dẫn")
         file = (_spa_dir / full_path).resolve()
         # chống path traversal: chỉ serve file nằm TRONG dist
         if full_path and file.is_file() and file.is_relative_to(_spa_dir.resolve()):

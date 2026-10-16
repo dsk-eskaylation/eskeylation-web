@@ -1,12 +1,20 @@
 """Test storage abstraction: selection, LocalStorage roundtrip, Supabase (guarded)."""
 
+import os
+import uuid
+
 import pytest
 
 from app.config import get_settings
 from app.services.storage import LocalStorage, SupabaseStorage, get_storage
 
 _settings = get_settings()
-_supabase_configured = bool(_settings.supabase_url and _settings.supabase_service_key)
+_supabase_configured = bool(
+    os.environ.get("ALLOW_CLOUD_STORAGE_TESTS") == "1"
+    and os.environ.get("SUPABASE_TEST_URL")
+    and os.environ.get("SUPABASE_TEST_SERVICE_KEY")
+    and os.environ.get("SUPABASE_TEST_BUCKET", "").startswith("test-")
+)
 
 
 # ---------- selection (unit) ----------
@@ -53,11 +61,13 @@ def test_local_storage_roundtrip(tmp_path):
 )
 def test_supabase_storage_roundtrip():
     s = SupabaseStorage(
-        _settings.supabase_url,
-        _settings.supabase_service_key,
-        _settings.storage_bucket,
+        os.environ["SUPABASE_TEST_URL"],
+        os.environ["SUPABASE_TEST_SERVICE_KEY"],
+        os.environ["SUPABASE_TEST_BUCKET"],
     )
-    key = "pytest/roundtrip.txt"
-    s.save(key, b"hello-supabase")
-    assert s.read(key) == b"hello-supabase"
-    s.delete(key)
+    key = f"pytest/{uuid.uuid4().hex}/roundtrip.txt"
+    try:
+        s.save(key, b"hello-supabase")
+        assert s.read(key) == b"hello-supabase"
+    finally:
+        s.delete(key)

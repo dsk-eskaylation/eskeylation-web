@@ -1,5 +1,7 @@
 import type { ContentOut } from '../api/types'
 import './PostGallery.css'
+import { MediaImage } from './MediaImage'
+import { usePlayer } from '../player/PlayerContext'
 
 function fmtDate(iso: string | null) {
   if (!iso) return ''
@@ -11,6 +13,7 @@ function fmtDate(iso: string | null) {
     header avatar + tên + ngày + caption, lưới ảnh 2 cột bo góc 10.
     Dùng chung cho photos & community. */
 export function PostGallery({ content }: { content: ContentOut }) {
+  const player = usePlayer()
   const author =
     typeof content.body.author === 'string' ? content.body.author : content.title
   return (
@@ -31,16 +34,19 @@ export function PostGallery({ content }: { content: ContentOut }) {
 
       <div className="post-gallery__grid">
         {content.media.map((m, i) => (
-          m.preview_url ? (
-            <iframe
+          m.mime_type.startsWith('video/') ? (
+            <video
               key={i}
-              src={m.preview_url}
+              src={m.stream_url || m.url}
+              poster={m.stream_url ? m.url || undefined : undefined}
               title={m.alt_text ?? content.title}
-              allow="autoplay; fullscreen"
-              allowFullScreen
+              controls
+              playsInline
+              preload="none"
+              onPlay={player.pause}
             />
           ) : (
-            <img key={i} src={m.url} alt={m.alt_text ?? ''} loading="lazy" />
+            <MediaImage key={i} media={m} original alt={m.alt_text ?? content.title} />
           )
         ))}
       </div>

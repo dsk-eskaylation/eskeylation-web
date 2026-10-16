@@ -8,10 +8,12 @@ interface Props {
       'bare': không khung, nội dung nổi thẳng trên overlay (Figma video đã chọn). */
   variant?: 'panel' | 'bare'
   showClose?: boolean
+  label?: string
 }
 
 /** Modal shell dùng chung: overlay tối, Escape + click nền để đóng, animation vào. */
-export function Modal({ onClose, children, variant = 'panel', showClose = true }: Props) {
+export function Modal({ onClose, children, variant = 'panel', showClose = true, label = 'Nội dung' }: Props) {
+  const rootRef = useRef<HTMLDivElement>(null)
   // Giữ onClose trong ref để effect chỉ subscribe 1 lần,
   // không gỡ/gắn lại listener mỗi khi cha re-render tạo callback mới.
   const onCloseRef = useRef(onClose)
@@ -20,19 +22,36 @@ export function Modal({ onClose, children, variant = 'panel', showClose = true }
   }, [onClose])
 
   useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previousOverflow = document.body.style.overflow
+    const root = rootRef.current
+    const focusable = () => [...(root?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), video[controls], [tabindex="0"]',
+    ) ?? [])].filter((element) => element.getClientRects().length > 0)
+    ;(focusable()[0] ?? root)?.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current()
+      if (e.key === 'Escape') { e.preventDefault(); onCloseRef.current() }
+      if (e.key !== 'Tab') return
+      const elements = focusable()
+      const first = elements[0] ?? root
+      const last = elements[elements.length - 1] ?? root
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === root)) {
+        e.preventDefault(); last?.focus()
+      } else if (!e.shiftKey && (document.activeElement === last || document.activeElement === root)) {
+        e.preventDefault(); first?.focus()
+      }
     }
     window.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     return () => {
       window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
+      document.body.style.overflow = previousOverflow
+      if (previousFocus?.isConnected) previousFocus.focus()
     }
   }, [])
 
   return (
-    <div className="modal" onClick={onClose} role="dialog" aria-modal="true">
+    <div ref={rootRef} className="modal" onClick={onClose} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
       <div
         className={variant === 'bare' ? 'modal__panel modal__panel--bare' : 'modal__panel'}
         onClick={(e) => e.stopPropagation()}

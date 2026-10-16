@@ -81,14 +81,14 @@ export function AuthButtons() {
         <div className="auth-menu__panel" role="menu">
           {user ? (
             <>
-              <Link
+              {user.role !== 'member' && <Link
                 to="/cms"
                 role="menuitem"
                 className="auth-menu__item auth-menu__item--primary"
                 onClick={() => setOpen(false)}
               >
                 Trang quản trị
-              </Link>
+              </Link>}
               <button
                 type="button"
                 role="menuitem"

@@ -66,9 +66,11 @@ async def list_content(
     type: ContentType | None = None,
     content_status: ContentStatus | None = None,
     session: AsyncSession = Depends(get_session),
-    _: User = Depends(_editor),
+    user: User = Depends(_editor),
 ) -> Page[ContentAdminRead]:
     base = select(Content)
+    if user.role == UserRole.author:
+        base = base.where(Content.author_id == user.id)
     if type is not None:
         base = base.where(Content.type == type)
     if content_status is not None:
@@ -132,6 +134,14 @@ async def update_content(
     content = await _load(content_id, session)
     _ensure_can_edit(content, user)
     # Chụp giá trị CŨ trước khi sửa -> log được "cũ → mới" cho tiêu đề
+    if user.role == UserRole.author and content.status == ContentStatus.published:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Bài đã xuất bản cần biên tập viên chỉnh sửa; "
+                "hãy tạo bản sao để đề xuất."
+            ),
+        )
     old_title = content.title
     updated = await content_admin.update_content(session, content, data)
     fields = sorted(data.model_dump(exclude_unset=True).keys())

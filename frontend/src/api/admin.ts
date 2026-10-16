@@ -11,7 +11,7 @@ export type ContentType =
   | 'community'
   | 'homepage'
 export type ContentStatus = 'draft' | 'published' | 'archived'
-export type UserRole = 'admin' | 'editor' | 'author'
+export type UserRole = 'admin' | 'editor' | 'author' | 'member'
 
 export interface AdminUser {
   id: number

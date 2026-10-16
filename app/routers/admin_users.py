@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.db import get_session
 from app.dependencies import require_role
@@ -31,7 +32,7 @@ async def create_user(
         )
     user = User(
         email=data.email,
-        hashed_password=hash_password(data.password),
+        hashed_password=await run_in_threadpool(hash_password, data.password),
         role=data.role,
     )
     session.add(user)

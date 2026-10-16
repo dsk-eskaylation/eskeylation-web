@@ -32,10 +32,13 @@ interface PlayerState {
   index: number
   current: ContentOut | null
   isPlaying: boolean
+  busy: boolean
+  error: string | null
+  volume: number
+  setVolume: (value: number) => void
+  pause: () => void
   repeat: RepeatMode
   shuffle: boolean
-  currentTime: number
-  duration: number
   /** Phát một danh sách từ vị trí start (mặc định 0). */
   playQueue: (items: ContentOut[], startIndex?: number) => void
   toggle: () => void
@@ -56,6 +59,11 @@ interface PlayerState {
 }
 
 const PlayerCtx = createContext<PlayerState | null>(null)
+const ProgressCtx = createContext({ currentTime: 0, duration: 0 })
+
+export function usePlayerProgress() {
+  return useContext(ProgressCtx)
+}
 
 export function usePlayer(): PlayerState {
   const ctx = useContext(PlayerCtx)
@@ -68,6 +76,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<ContentOut[]>([])
   const [index, setIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [volume, updateVolume] = useState(0.8)
   const [repeat, setRepeat] = useState<RepeatMode>('off')
   const [shuffle, setShuffle] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -98,6 +109,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const startId = items[startIndex]?.id
     const mapped = Math.max(0, playable.findIndex((it) => it.id === startId))
     historyRef.current = []
+    setError(null)
     setQueue(playable)
     setIndex(mapped)
     setIsPlaying(true)
@@ -105,8 +117,32 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const toggle = useCallback(() => {
     if (!current) return
+    setError(null)
+    if (audioRef.current?.error) audioRef.current.load()
     setIsPlaying((p) => !p)
   }, [current])
+
+  const pause = useCallback(() => {
+    audioRef.current?.pause()
+    setIsPlaying(false)
+  }, [])
+
+  const setVolume = useCallback((value: number) => {
+    const nextVolume = Math.max(0, Math.min(1, value))
+    if (audioRef.current) audioRef.current.volume = nextVolume
+    updateVolume(nextVolume)
+  }, [])
+
+  const playAudio = useCallback((audio: HTMLAudioElement) => {
+    const source = audio.src
+    void audio.play().catch((failure: unknown) => {
+      if (failure instanceof DOMException && failure.name === 'AbortError') return
+      if (audio.src !== source) return
+      setIsPlaying(false)
+      setBusy(false)
+      setError('Chưa phát được bài hát. Nhấn Phát để thử lại.')
+    })
+  }, [])
 
   const next = useCallback(() => {
     const n = pickNextIndex()
@@ -138,8 +174,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const seek = useCallback((time: number) => {
     const audio = audioRef.current
-    if (audio) audio.currentTime = time
-    setCurrentTime(time)
+    if (!audio || !Number.isFinite(audio.duration)) return
+    const target = Math.max(0, Math.min(audio.duration, time))
+    audio.currentTime = target
+    setCurrentTime(target)
   }, [])
 
   const jumpTo = useCallback(
@@ -170,7 +208,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     [],
   )
   const stop = useCallback(() => {
+    audioRef.current?.pause()
     setIsPlaying(false)
+    setBusy(false)
+    setError(null)
     setQueue([])
     setIndex(0)
   }, [])
@@ -190,10 +231,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const url = audioUrl(current)
     if (!url) return
     audio.src = url
+    audio.volume = volume
     audio.load()
     setCurrentTime(0)
     setDuration(0)
-    if (isPlaying) void audio.play().catch(() => setIsPlaying(false))
+    if (isPlaying) playAudio(audio)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId])
 
@@ -201,9 +243,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !current) return
-    if (isPlaying) void audio.play().catch(() => setIsPlaying(false))
+    if (isPlaying) playAudio(audio)
     else audio.pause()
-  }, [isPlaying, current])
+  }, [isPlaying, current, playAudio])
 
   // Xử lý khi hết bài: repeat one lặp lại, còn lại chuyển tiếp
   const handleEnded = useCallback(() => {
@@ -211,12 +253,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const audio = audioRef.current
       if (audio) {
         audio.currentTime = 0
-        void audio.play().catch(() => setIsPlaying(false))
+        playAudio(audio)
       }
       return
     }
     next()
-  }, [repeat, next])
+  }, [repeat, next, playAudio])
 
   // MediaSession: metadata + điều khiển từ màn hình khoá / tai nghe (mobile/iPad)
   useEffect(() => {
@@ -234,7 +276,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       artist: artistOf(current),
       album: 'Eskaylation',
       artwork: cover
-        ? [{ src: cover, sizes: '512x512', type: 'image/jpeg' }]
+        ? [{ src: new URL(cover, location.origin).href }]
         : undefined,
     })
     navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true))
@@ -274,10 +316,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       index,
       current,
       isPlaying,
+      busy,
+      error,
+      volume,
+      setVolume,
+      pause,
       repeat,
       shuffle,
-      currentTime,
-      duration,
       playQueue,
       toggle,
       next,
@@ -292,7 +337,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       remoteAvailable,
     }),
     [
-      queue, index, current, isPlaying, repeat, shuffle, currentTime, duration,
+      queue, index, current, isPlaying, busy, error, volume, setVolume, pause, repeat, shuffle,
       playQueue, toggle, next, prev, seek, toggleShuffle, cycleRepeat, stop,
       jumpTo, removeFromQueue, promptRemote, remoteAvailable,
     ],
@@ -300,17 +345,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   return (
     <PlayerCtx.Provider value={value}>
+      <ProgressCtx.Provider value={{ currentTime, duration }}>
       {children}
       {/* Audio bền bỉ ở gốc app -> phát nền, không dừng khi đổi trang */}
       <audio
         ref={audioRef}
         preload="metadata"
         onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
+        onPause={(e) => { if (e.currentTarget.paused) setIsPlaying(false) }}
+        onLoadStart={() => setBusy(true)}
+        onWaiting={() => setBusy(true)}
+        onCanPlay={() => setBusy(false)}
+        onPlaying={() => { setBusy(false); setError(null) }}
+        onError={() => { setBusy(false); setIsPlaying(false); setError('Không tải được bài hát. Vui lòng thử lại.') }}
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+        onLoadedMetadata={(e) => setDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)}
         onEnded={handleEnded}
       />
+      </ProgressCtx.Provider>
     </PlayerCtx.Provider>
   )
 }

@@ -3,6 +3,9 @@ export type ContentType = 'music' | 'gallery' | 'community' | 'homepage' | 'vide
 export interface MediaOut {
   url: string
   preview_url?: string | null
+  stream_url?: string | null
+  original_url?: string | null
+  srcset?: string | null
   caption: string | null
   alt_text: string | null
   is_primary: boolean

@@ -41,7 +41,7 @@ def _image_dimensions(data: bytes) -> tuple[int, int]:
             img.verify()
         with Image.open(io.BytesIO(data)) as img:
             return img.size
-    except (UnidentifiedImageError, OSError) as exc:
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File ảnh hỏng hoặc không hợp lệ",
@@ -67,22 +67,23 @@ async def _read_capped(file: UploadFile, cap: int) -> bytes:
 async def create_media(
     session: AsyncSession, file: UploadFile, alt_text: str | None = None
 ) -> Media:
-    data = await _read_capped(
-        file, max(settings.max_image_size, settings.max_video_size)
-    )
-    if not data:
+    header = await file.read(261)
+    await file.seek(0)
+    if not header:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File rỗng")
 
     # Xác định MIME từ NỘI DUNG (magic bytes), không tin đuôi file.
-    kind = filetype.guess(data)
+    kind = filetype.guess(header)
     mime = kind.mime if kind else None
 
     if mime in settings.allowed_image_types:
+        data = await _read_capped(file, settings.max_image_size)
         _ensure_size(len(data), settings.max_image_size)
-        width, height = _image_dimensions(data)
+        width, height = await run_in_threadpool(_image_dimensions, data)
         duration = None
         ext = _IMAGE_EXT[mime]
     elif mime in settings.allowed_video_types:
+        data = await _read_capped(file, settings.max_video_size)
         _ensure_size(len(data), settings.max_video_size)
         # Dimensions/duration video cần ffprobe — bổ sung ở bước sau.
         width = height = duration = None

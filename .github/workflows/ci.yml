@@ -96,10 +96,10 @@ jobs:
       PUBLIC_CONTENT_SOURCE: database
       STORAGE_BACKEND: local
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup uv + Python
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           python-version: "3.13"
 
@@ -133,10 +133,10 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -155,6 +155,14 @@ jobs:
       # Chỉ fail khi có CVE mức high trở lên
       - name: npm audit
         run: npm audit --audit-level=high
+
+      - name: Save tested frontend build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 3
+          if-no-files-found: error
 
   deploy:
     name: Deploy application
@@ -194,16 +202,11 @@ jobs:
             exit 1
           fi
 
-      - name: Pull, install, build and restart on server
+      - name: Pull tested commit and install runtime dependencies
         shell: bash -l {0}
         working-directory: /home/eskaylation/eskeylation-web
         env:
           DEPLOY_SHA: ${{ github.sha }}
-          DEPLOY_GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
-          DEPLOY_JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          DEPLOY_DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DEPLOY_GOOGLE_DRIVE_FOLDER_ID: 1lnfNK-1UMVLrydMHBntY33cLipf4MyFL
-          DEPLOY_PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
         run: |
           set -eo pipefail
           export PATH="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}:$HOME/.local/bin:$PATH"
@@ -215,7 +218,7 @@ jobs:
           eval "$fnm_env"
           fnm install 22
           fnm use 22
-          for tool in git uv node npm pm2 curl; do
+          for tool in git uv node pm2 curl; do
             if ! command -v "$tool" >/dev/null 2>&1; then
               printf 'Missing %s in runner PATH (user=%s, HOME=%s).\n' "$tool" "$(id -un)" "$HOME" >&2
               exit 1
@@ -224,13 +227,37 @@ jobs:
           git fetch origin main
           git merge --ff-only "$DEPLOY_SHA"
           test "$(git rev-parse HEAD)" = "$DEPLOY_SHA"
-          uv sync --locked
-          uv run --locked python -m scripts.deploy configure
-          uv run --locked python -m scripts.check_deploy --database
-          npm --prefix frontend ci
-          npm --prefix frontend run build
-          uv run --locked python -m scripts.deploy migrate
-          uv run --locked python -m scripts.deploy restart
+          uv sync --locked --no-dev
+
+      - name: Download tested frontend build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: frontend-dist
+          path: ${{ runner.temp }}/eskaylation-frontend-${{ github.sha }}
+
+      - name: Configure, migrate and restart
+        shell: bash -l {0}
+        working-directory: /home/eskaylation/eskeylation-web
+        env:
+          FRONTEND_ARTIFACT: ${{ runner.temp }}/eskaylation-frontend-${{ github.sha }}
+          DEPLOY_GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
+          DEPLOY_GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
+          DEPLOY_JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DEPLOY_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DEPLOY_GOOGLE_DRIVE_FOLDER_ID: 1lnfNK-1UMVLrydMHBntY33cLipf4MyFL
+          DEPLOY_PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
+        run: |
+          set -eo pipefail
+          export PATH="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}:$HOME/.local/bin:$PATH"
+          eval "$(fnm env --shell bash)"
+          fnm use 22
+          uv run --no-sync python -m scripts.deploy configure
+          uv run --no-sync python -m scripts.check_deploy --database
+          uv run --no-sync python -m scripts.deploy migrate
+          test -s "$FRONTEND_ARTIFACT/index.html"
+          mkdir -p frontend/dist
+          cp -a "$FRONTEND_ARTIFACT/." frontend/dist/
+          uv run --no-sync python -m scripts.deploy restart
           curl --fail --silent --show-error \
             --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors \
             --max-time 5 http://127.0.0.1:8000/health/ready
