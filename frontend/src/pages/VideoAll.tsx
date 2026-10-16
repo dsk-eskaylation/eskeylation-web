@@ -36,7 +36,7 @@ export function VideoAll() {
           </svg>
           Quay về
         </Link>
-        <SearchBar value={q} onChange={(value) => { setQ(value); setPage(1) }} onClear={() => { setQ(''); setPage(1) }} />
+        <SearchBar value={q} placeholder="Tìm kiếm video" onChange={(value) => { setQ(value); setPage(1) }} onClear={() => { setQ(''); setPage(1) }} />
       </header>
 
       {state.status === 'success' && items.length === 0 && (

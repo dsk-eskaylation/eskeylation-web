@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import type { ContentOut } from '../api/types'
 import { MediaImage } from './MediaImage'
@@ -67,9 +67,11 @@ function ReactionSummaryChips({
 export function CommunityPost({
   content,
   loggedIn,
+  priority = false,
 }: {
   content: ContentOut
   loggedIn: boolean
+  priority?: boolean
 }) {
   const id = content.id
   const { notify } = useToast()
@@ -84,15 +86,26 @@ export function CommunityPost({
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editDraft, setEditDraft] = useState('')
   const [viewingMedia, setViewingMedia] = useState(false)
+  const articleRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     let alive = true
-    community
-      .interactions(id)
-      .then((d) => alive && setInter(d))
-      .catch(() => {})
+    const load = () => {
+      void community.interactions(id)
+        .then((d) => alive && setInter(d))
+        .catch(() => {})
+    }
+    const observer = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        observer?.disconnect()
+        load()
+      }
+    }, { rootMargin: '400px' })
+    if (observer && articleRef.current) observer.observe(articleRef.current)
+    else load()
     return () => {
       alive = false
+      observer?.disconnect()
     }
   }, [id])
 
@@ -268,7 +281,7 @@ export function CommunityPost({
   const media = content.media
 
   return (
-    <article className="cpost">
+    <article ref={articleRef} className="cpost">
       <header className="cpost__head">
         <span className="cpost__avatar" aria-hidden="true" />
         <div className="cpost__id">
@@ -289,7 +302,7 @@ export function CommunityPost({
         >
           {media.slice(0, 4).map((m, i) => (
             <button type="button" className="cpost__cell" key={i} onClick={() => setViewingMedia(true)} aria-label={`Xem ${content.title}`}>
-              {m.url ? <MediaImage media={m} alt={m.alt_text ?? content.title} sizes="(max-width: 640px) calc(100vw - 32px), 600px" /> : <span>Xem tư liệu</span>}
+              {m.url ? <MediaImage media={m} alt={m.alt_text ?? content.title} sizes="(max-width: 640px) calc(100vw - 32px), 600px" loading={priority && i === 0 ? 'eager' : 'lazy'} fetchPriority={priority && i === 0 ? 'high' : 'auto'} /> : <span>Xem tư liệu</span>}
               {m.mime_type.startsWith('video/') && <span className="cpost__more">▶</span>}
               {i === 3 && media.length > 4 && (
                 <span className="cpost__more">+{media.length - 4}</span>

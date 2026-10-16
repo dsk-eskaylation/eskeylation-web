@@ -31,8 +31,8 @@ export function Community() {
       )}
 
       <div className="community__feed">
-        {items.map((item) => (
-          <CommunityPost key={item.id} content={item} loggedIn={loggedIn} />
+        {items.map((item, index) => (
+          <CommunityPost key={item.id} content={item} loggedIn={loggedIn} priority={index === 0} />
         ))}
       </div>
       {state.status === 'success' && state.data.pages > 1 && (

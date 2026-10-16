@@ -40,7 +40,8 @@ export function SearchBar({
       </svg>
       <input
         className="search-bar__input"
-        type="text"
+        type="search"
+        aria-label={placeholder}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
