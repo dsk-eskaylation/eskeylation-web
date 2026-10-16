@@ -27,7 +27,7 @@ export function csrfHeaders(): Record<string, string> {
 let sessionCache: Promise<SessionUser | null> | null = null
 
 export function getSession(): Promise<SessionUser | null> {
-  sessionCache ??= fetch('/auth/me', { credentials: 'include' })
+  sessionCache ??= fetch('/auth/session', { credentials: 'include' })
     .then(async (res) => {
       const body = await res.json().catch(() => null)
       return res.ok ? body as SessionUser : null

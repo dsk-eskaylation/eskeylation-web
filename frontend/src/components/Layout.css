@@ -17,6 +17,9 @@
   column-gap: 16px;
   padding: 50px 40px 0;
   pointer-events: none;
+  isolation: isolate;
+  padding-bottom: 12px;
+  background: linear-gradient(#090909 0%, rgba(9, 9, 9, 0.9) 65%, transparent);
 }
 
 .layout__nav > * {
@@ -83,7 +86,7 @@
      Hàng 1: [ logo ESKAYLATION | nút tài khoản ]
      Hàng 2: [ pill nav full-width, cuộn ngang       ]
    Giữ được logo (không ẩn), pill và tài khoản không còn lệch/đè nhau. */
-@media (max-width: 720px) {
+@media (max-width: 1100px) {
   .layout__nav {
     grid-template-columns: 1fr auto;
     grid-template-areas:

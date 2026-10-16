@@ -223,10 +223,6 @@ export function Home() {
 
       {/* Maintain Website (Figma #1:363) */}
       <section className="home__maintain">
-        <header className="home__section-title">
-          <h2>Maintain</h2>
-          <p>Website</p>
-        </header>
         <div className="home__maintain-info">
           {maintain.map((line) => (
             <p key={line}>{line}</p>

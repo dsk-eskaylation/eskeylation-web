@@ -164,9 +164,60 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
+  browser:
+    if: github.event_name != 'workflow_dispatch'
+    name: Browser — Public & Admin flows
+    needs: [frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-browser-password
+          POSTGRES_DB: eskaylation_browser_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d eskaylation_browser_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:ci-browser-password@localhost:5432/eskaylation_browser_test
+      ENVIRONMENT: dev
+      JWT_SECRET: isolated-browser-test-secret-never-use-in-production
+      PUBLIC_CONTENT_SOURCE: database
+      STORAGE_BACKEND: local
+      SUPABASE_URL: ''
+      SUPABASE_SERVICE_KEY: ''
+      GOOGLE_DRIVE_API_KEY: ''
+      GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE: ''
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+      - name: Install test dependencies and browser
+        run: |
+          uv sync --locked
+          uv run --locked playwright install --with-deps chromium
+      - name: Exercise public and admin flows on isolated database
+        run: uv run --locked python -m scripts.browser_checks
+      - name: Save browser evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-evidence
+          path: .local/browser-checks/
+          retention-days: 3
+
   deploy:
     name: Deploy application
-    needs: [backend, frontend]
+    needs: [backend, frontend, browser]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on:
       group: Default

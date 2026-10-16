@@ -3,6 +3,8 @@
 import asyncio
 import hashlib
 import io
+import json
+import logging
 import re
 from collections import OrderedDict
 from time import monotonic
@@ -28,6 +30,30 @@ _image_slots = asyncio.Semaphore(4)
 _streams = asyncio.Semaphore(get_settings().drive_stream_concurrency)
 _RANGE = re.compile(r"bytes=(\d{0,18})-(\d{0,18})")
 _CONTENT_RANGE = re.compile(r"bytes \d+-\d+/\d+")
+logger = logging.getLogger(__name__)
+
+
+def _log_failure(
+    request: Request,
+    content_id: int,
+    started: float,
+    error: Exception,
+    upstream_status: int | None,
+    phase: str,
+) -> None:
+    logger.warning(
+        json.dumps(
+            {
+                "event": "media_upstream_failed",
+                "asset_id": content_id,
+                "request_id": getattr(request.state, "request_id", ""),
+                "upstream_status": upstream_status,
+                "error_type": type(error).__name__,
+                "duration_ms": round((monotonic() - started) * 1000),
+                "phase": phase,
+            }
+        )
+    )
 
 
 async def asset(content_id: int) -> ContentOut:
@@ -83,6 +109,7 @@ def _upstream_error(status: int) -> HTTPException:
 
 
 async def stream(content_id: int, request: Request, *, head: bool = False) -> Response:
+    started = monotonic()
     content = await asset(content_id)
     size = _size(content)
     tag = etag(content)
@@ -155,7 +182,15 @@ async def stream(content_id: int, request: Request, *, head: bool = False) -> Re
             if not _CONTENT_RANGE.fullmatch(content_range):
                 raise HTTPException(503, "Phản hồi dữ liệu không hợp lệ")
             headers["Content-Range"] = content_range
-    except (httpx.HTTPError, HTTPException):
+    except (httpx.HTTPError, HTTPException) as error:
+        _log_failure(
+            request,
+            content_id,
+            started,
+            error,
+            upstream.status_code if upstream is not None else None,
+            "headers",
+        )
         await cleanup()
         if upstream is not None and upstream.status_code not in (200, 206):
             raise
@@ -168,6 +203,11 @@ async def stream(content_id: int, request: Request, *, head: bool = False) -> Re
         try:
             async for chunk in upstream.aiter_raw(128 * 1024):
                 yield chunk
+        except httpx.HTTPError as error:
+            _log_failure(
+                request, content_id, started, error, upstream.status_code, "body"
+            )
+            raise
         finally:
             await cleanup()
 

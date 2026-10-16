@@ -10,13 +10,9 @@ import { EmptyState } from '../components/EmptyState'
 import { usePlayer, audioUrl } from '../player/PlayerContext'
 import './MusicAll.css'
 
-/* Gangsta đã gộp vào Dissin'; 'Thể Nghiệm' thay cho 'AI'. */
-const CATEGORIES = ['LIFE RAP', 'LOVE RAP', "DISSIN'", 'Thể Nghiệm']
-
 export function MusicAll() {
   const [q, setQ] = useState('')
   const debouncedQ = useDebounced(q) // tránh gọi API theo từng phím gõ
-  const [category, setCategory] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<ContentOut | null>(null)
   const player = usePlayer()
@@ -24,11 +20,10 @@ export function MusicAll() {
     () =>
       api.list('music', {
         q: debouncedQ || undefined,
-        category: category || undefined,
         pageSize: 60,
         page,
       }),
-    [debouncedQ, category, page],
+    [debouncedQ, page],
   )
   const items = state.status === 'success' ? state.data.items : []
 
@@ -47,40 +42,6 @@ export function MusicAll() {
           </svg>
           Quay về
         </Link>
-
-        <div className="music-all__cats">
-          <button
-            type="button"
-            className={
-              category === null
-                ? 'music-all__cat music-all__cat--active'
-                : 'music-all__cat'
-            }
-            onClick={() => {
-              setCategory(null)
-              setPage(1)
-            }}
-          >
-            Tất cả
-          </button>
-          {CATEGORIES.map((c) => (
-            <button
-              key={c}
-              type="button"
-              className={
-                category === c
-                  ? 'music-all__cat music-all__cat--active'
-                  : 'music-all__cat'
-              }
-              onClick={() => {
-                setCategory(category === c ? null : c)
-                setPage(1)
-              }}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
 
         <SearchBar
           value={q}
@@ -118,10 +79,16 @@ export function MusicAll() {
 
       {state.status === 'success' && state.data.pages > 1 ? (
         <nav className="music-all__pagination" aria-label="Phân trang nhạc">
-          <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
             Trang trước
           </button>
-          <span>Trang {page}/{state.data.pages}</span>
+          <span>
+            Trang {page}/{state.data.pages}
+          </span>
           <button
             type="button"
             disabled={page >= state.data.pages}
@@ -132,7 +99,9 @@ export function MusicAll() {
         </nav>
       ) : null}
 
-      {selected && <VideoModal content={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <VideoModal content={selected} onClose={() => setSelected(null)} />
+      )}
     </div>
   )
 }

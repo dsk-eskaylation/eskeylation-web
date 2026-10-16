@@ -115,7 +115,7 @@ async def test_head_etag_unknown_and_cross_site_do_not_fetch(
     ).status_code == 403
 
 
-async def test_timeout_releases_stream_slot(client, library, monkeypatch):
+async def test_timeout_releases_stream_slot(client, library, monkeypatch, caplog):
     def handler(request):
         raise httpx.ReadTimeout("private upstream detail", request=request)
 
@@ -124,6 +124,17 @@ async def test_timeout_releases_stream_slot(client, library, monkeypatch):
     assert response.status_code == 503
     assert "private" not in response.text
     assert drive_media._streams._value == 2
+    import json
+
+    records = [
+        json.loads(record.message)
+        for record in caplog.records
+        if record.name == "app.services.drive_media"
+    ]
+    assert records[0]["request_id"] == response.headers["x-request-id"]
+    assert records[0]["upstream_status"] is None
+    assert "private upstream detail" not in caplog.text
+    assert "private-test-key" not in caplog.text
 
 
 async def test_disconnected_client_closes_upstream_and_releases_slot(

@@ -1,4 +1,6 @@
 /* CMS — cùng ngôn ngữ thiết kế Figma: nền tối, pill, glow, viền 0.5px */
+.cms-pagination { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 24px 0; }
+.cms-pill:disabled { cursor: not-allowed; opacity: .45; }
 .cms {
   max-width: 1200px;
   margin: 0 auto;

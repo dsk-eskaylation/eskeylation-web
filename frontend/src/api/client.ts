@@ -52,7 +52,7 @@ function buildQuery(params: ListParams): string {
   return qs ? `?${qs}` : ''
 }
 
-async function listAll(type: 'photos' | 'video'): Promise<Page<ContentOut>> {
+async function listAll(type: 'photos' | 'video' | 'music'): Promise<Page<ContentOut>> {
   const first = await api.list(type, { pageSize: 60 })
   const rest: Page<ContentOut>[] = []
   for (let page = 2; page <= first.pages; page += 3) {

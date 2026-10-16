@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { Suspense, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { PillNav } from './PillNav'
 import { AuthButtons } from './AuthButtons'
 import { PlayerBar } from './PlayerBar'
@@ -14,19 +15,30 @@ export function Layout() {
   }, [location.pathname])
   return (
     <div className={hasPlayer ? 'layout layout--with-player' : 'layout'}>
-      <header className="layout__nav">
-        {/* Wordmark neo góc trái, đối xứng với nút tài khoản góc phải */}
-        <Link to="/" className="layout__brand">
-          ESKAYLATION
-        </Link>
-        <PillNav />
-        <div className="layout__auth">
-          <AuthButtons />
-        </div>
-      </header>
+      {createPortal(
+        <header className="layout__nav">
+          {/* Wordmark neo góc trái, đối xứng với nút tài khoản góc phải */}
+          <Link to="/" className="layout__brand">
+            ESKAYLATION
+          </Link>
+          <PillNav />
+          <div className="layout__auth">
+            <AuthButtons />
+          </div>
+        </header>,
+        document.body,
+      )}
       {/* key theo pathname -> mỗi lần đổi trang chạy lại animation vào trang */}
       <main className="layout__main page-enter" key={location.pathname}>
-        <Suspense fallback={<div className="route-loading" role="status">Đang tải…</div>}><Outlet /></Suspense>
+        <Suspense
+          fallback={
+            <div className="route-loading" role="status">
+              Đang tải…
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
       <PlayerBar />
     </div>

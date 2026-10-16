@@ -8,6 +8,7 @@
   justify-content: center;
   padding: var(--space-6);
   background: var(--color-overlay);
+  overscroll-behavior: contain;
   animation: modal-overlay-in 0.25s ease both;
 }
 
@@ -26,6 +27,7 @@
   max-width: 1100px;
   width: fit-content;
   max-height: 90vh;
+  max-height: 90dvh;
   overflow: auto;
   padding: 20px;
   background: var(--color-surface);
@@ -61,13 +63,14 @@
   top: 20px;
   right: 20px;
   z-index: 2;
-  width: 24px;
-  height: 24px;
-  padding: 0;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
   border: none;
   background: none;
   color: var(--color-text);
   cursor: pointer;
+  touch-action: manipulation;
   transition: transform var(--dur-fast) var(--ease-out), color var(--dur-fast) ease;
 }
 

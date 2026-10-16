@@ -14,6 +14,7 @@ body,
 }
 
 html {
+  scrollbar-gutter: stable;
   scroll-behavior: smooth;
   /* Chặn tràn NGANG mà KHÔNG tạo scroll-container:
      - overflow-x:hidden sẽ khiến overflow-y bị tính thành auto -> html/body thành

@@ -86,9 +86,46 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [remoteAvailable, setRemoteAvailable] = useState(false)
   // Lịch sử index để nút "trước" hoạt động đúng cả khi bật shuffle
   const historyRef = useRef<number[]>([])
+  const playAttempt = useRef(0)
 
   const current = queue[index] ?? null
   const currentId = current?.id ?? null
+
+  const playAudio = useCallback((audio: HTMLAudioElement) => {
+    const attempt = ++playAttempt.current
+    void audio.play().catch((failure: unknown) => {
+      if (attempt !== playAttempt.current) return
+      if (failure instanceof DOMException && failure.name === 'AbortError')
+        return
+      setIsPlaying(false)
+      setBusy(false)
+      setError(
+        navigator.onLine
+          ? 'Chưa phát được bài hát. Nhấn Phát để thử lại.'
+          : 'Mất kết nối mạng. Kết nối lại rồi nhấn Phát.',
+      )
+    })
+  }, [])
+
+  // Start inside the click gesture so browsers with strict autoplay rules allow it.
+  const startTrack = useCallback(
+    (track: ContentOut) => {
+      const audio = audioRef.current
+      const url = audioUrl(track)
+      if (!audio || !url) return
+      audio.volume = volume
+      setError(null)
+      if (audio.src !== new URL(url, location.href).href) {
+        audio.src = url
+        audio.load()
+        setCurrentTime(0)
+        setDuration(0)
+        setBusy(true)
+      }
+      playAudio(audio)
+    },
+    [playAudio, volume],
+  )
 
   const pickNextIndex = useCallback((): number | null => {
     if (queue.length === 0) return null
@@ -102,27 +139,43 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return repeat === 'all' ? 0 : null
   }, [queue.length, shuffle, index, repeat])
 
-  const playQueue = useCallback((items: ContentOut[], startIndex = 0) => {
-    const playable = items.filter((it) => audioUrl(it))
-    if (playable.length === 0) return
-    // Map startIndex (theo items gốc) sang vị trí trong danh sách playable
-    const startId = items[startIndex]?.id
-    const mapped = Math.max(0, playable.findIndex((it) => it.id === startId))
-    historyRef.current = []
-    setError(null)
-    setQueue(playable)
-    setIndex(mapped)
-    setIsPlaying(true)
-  }, [])
+  const playQueue = useCallback(
+    (items: ContentOut[], startIndex = 0) => {
+      const playable = items.filter((it) => audioUrl(it))
+      if (playable.length === 0) return
+      // Map startIndex (theo items gốc) sang vị trí trong danh sách playable
+      const startId = items[startIndex]?.id
+      const mapped = Math.max(
+        0,
+        playable.findIndex((it) => it.id === startId),
+      )
+      historyRef.current = []
+      setError(null)
+      setQueue(playable)
+      setIndex(mapped)
+      setIsPlaying(true)
+      startTrack(playable[mapped])
+    },
+    [startTrack],
+  )
 
   const toggle = useCallback(() => {
     if (!current) return
     setError(null)
-    if (audioRef.current?.error) audioRef.current.load()
-    setIsPlaying((p) => !p)
-  }, [current])
+    const audio = audioRef.current
+    if (!audio) return
+    if (!audio.paused && !audio.error) {
+      audio.pause()
+      setIsPlaying(false)
+    } else {
+      if (audio.error) audio.load()
+      startTrack(current)
+      setIsPlaying(true)
+    }
+  }, [current, startTrack])
 
   const pause = useCallback(() => {
+    playAttempt.current++
     audioRef.current?.pause()
     setIsPlaying(false)
   }, [])
@@ -131,17 +184,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const nextVolume = Math.max(0, Math.min(1, value))
     if (audioRef.current) audioRef.current.volume = nextVolume
     updateVolume(nextVolume)
-  }, [])
-
-  const playAudio = useCallback((audio: HTMLAudioElement) => {
-    const source = audio.src
-    void audio.play().catch((failure: unknown) => {
-      if (failure instanceof DOMException && failure.name === 'AbortError') return
-      if (audio.src !== source) return
-      setIsPlaying(false)
-      setBusy(false)
-      setError('Chưa phát được bài hát. Nhấn Phát để thử lại.')
-    })
   }, [])
 
   const next = useCallback(() => {
@@ -153,7 +195,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     historyRef.current.push(index)
     setIndex(n)
     setIsPlaying(true)
-  }, [pickNextIndex, index])
+    startTrack(queue[n])
+  }, [pickNextIndex, index, queue, startTrack])
 
   const prev = useCallback(() => {
     const audio = audioRef.current
@@ -166,11 +209,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const prevIdx = historyRef.current.pop() as number
       setIndex(prevIdx)
       setIsPlaying(true)
+      startTrack(queue[prevIdx])
       return
     }
-    setIndex((i) => (i > 0 ? i - 1 : repeat === 'all' ? queue.length - 1 : 0))
+    const n = index > 0 ? index - 1 : repeat === 'all' ? queue.length - 1 : 0
+    setIndex(n)
     setIsPlaying(true)
-  }, [shuffle, repeat, queue.length])
+    if (queue[n]) startTrack(queue[n])
+  }, [shuffle, repeat, queue, index, startTrack])
 
   const seek = useCallback((time: number) => {
     const audio = audioRef.current
@@ -186,8 +232,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       historyRef.current.push(index)
       setIndex(i)
       setIsPlaying(true)
+      startTrack(queue[i])
     },
-    [queue.length, index],
+    [queue, index, startTrack],
   )
 
   const removeFromQueue = useCallback((i: number) => {
@@ -208,6 +255,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     [],
   )
   const stop = useCallback(() => {
+    playAttempt.current++
     audioRef.current?.pause()
     setIsPlaying(false)
     setBusy(false)
@@ -230,12 +278,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
     const url = audioUrl(current)
     if (!url) return
+    if (audio.src === new URL(url, location.href).href) return
     audio.src = url
     audio.volume = volume
     audio.load()
     setCurrentTime(0)
     setDuration(0)
-    if (isPlaying) playAudio(audio)
+    if (isPlaying && audio.paused) playAudio(audio)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId])
 
@@ -265,7 +314,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!('mediaSession' in navigator)) return
     if (!current) {
       navigator.mediaSession.metadata = null
-      for (const action of ['play', 'pause', 'previoustrack', 'nexttrack', 'seekto'] as const) {
+      for (const action of [
+        'play',
+        'pause',
+        'previoustrack',
+        'nexttrack',
+        'seekto',
+      ] as const) {
         navigator.mediaSession.setActionHandler(action, null)
       }
       return
@@ -306,7 +361,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {})
     return () => {
-      if (watchId !== null) void remote.cancelWatchAvailability(watchId).catch(() => {})
+      if (watchId !== null)
+        void remote.cancelWatchAvailability(watchId).catch(() => {})
     }
   }, [])
 
@@ -337,31 +393,66 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       remoteAvailable,
     }),
     [
-      queue, index, current, isPlaying, busy, error, volume, setVolume, pause, repeat, shuffle,
-      playQueue, toggle, next, prev, seek, toggleShuffle, cycleRepeat, stop,
-      jumpTo, removeFromQueue, promptRemote, remoteAvailable,
+      queue,
+      index,
+      current,
+      isPlaying,
+      busy,
+      error,
+      volume,
+      setVolume,
+      pause,
+      repeat,
+      shuffle,
+      playQueue,
+      toggle,
+      next,
+      prev,
+      seek,
+      toggleShuffle,
+      cycleRepeat,
+      stop,
+      jumpTo,
+      removeFromQueue,
+      promptRemote,
+      remoteAvailable,
     ],
   )
 
   return (
     <PlayerCtx.Provider value={value}>
       <ProgressCtx.Provider value={{ currentTime, duration }}>
-      {children}
-      {/* Audio bền bỉ ở gốc app -> phát nền, không dừng khi đổi trang */}
-      <audio
-        ref={audioRef}
-        preload="metadata"
-        onPlay={() => setIsPlaying(true)}
-        onPause={(e) => { if (e.currentTarget.paused) setIsPlaying(false) }}
-        onLoadStart={() => setBusy(true)}
-        onWaiting={() => setBusy(true)}
-        onCanPlay={() => setBusy(false)}
-        onPlaying={() => { setBusy(false); setError(null) }}
-        onError={() => { setBusy(false); setIsPlaying(false); setError('Không tải được bài hát. Vui lòng thử lại.') }}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)}
-        onEnded={handleEnded}
-      />
+        {children}
+        {/* Audio bền bỉ ở gốc app -> phát nền, không dừng khi đổi trang */}
+        <audio
+          ref={audioRef}
+          preload="metadata"
+          onPlay={() => setIsPlaying(true)}
+          onPause={(e) => {
+            if (e.currentTarget.paused) setIsPlaying(false)
+          }}
+          onLoadStart={() => setBusy(true)}
+          onWaiting={() => setBusy(true)}
+          onCanPlay={() => setBusy(false)}
+          onPlaying={() => {
+            setBusy(false)
+            setError(null)
+          }}
+          onError={() => {
+            setBusy(false)
+            setIsPlaying(false)
+            setError('Không tải được bài hát. Vui lòng thử lại.')
+          }}
+          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          onLoadedMetadata={(e) =>
+            setDuration(
+              Number.isFinite(e.currentTarget.duration)
+                ? e.currentTarget.duration
+                : 0,
+            )
+          }
+          onEnded={handleEnded}
+        />
       </ProgressCtx.Provider>
     </PlayerCtx.Provider>
   )

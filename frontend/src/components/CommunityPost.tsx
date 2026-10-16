@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import type { ContentOut } from '../api/types'
-import { MediaImage } from './MediaImage'
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
+import type { ContentOut } from "../api/types";
+import { MediaImage } from "./MediaImage";
 import {
   community,
   communityWsUrl,
@@ -9,28 +9,28 @@ import {
   type CommunityEvent,
   type InteractionOut,
   type ReactionKind,
-} from '../api/community'
-import { useToast } from './Toast'
-import { PostGallery } from './PostGallery'
-import { Modal } from './Modal'
-import { ReactionControl } from './ReactionControl'
+} from "../api/community";
+import { useToast } from "./Toast";
+import { PostGallery } from "./PostGallery";
+import { Modal } from "./Modal";
+import { ReactionControl } from "./ReactionControl";
 import {
   BookmarkIcon,
   CommentIcon,
   ReactionIcon,
   REACTION_COLOR,
   REACTION_ORDER,
-} from './reactionIcons'
-import './CommunityPost.css'
+} from "./reactionIcons";
+import "./CommunityPost.css";
 
 function fmtDate(iso: string | null) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
 }
 function fmtTime(iso: string) {
-  const d = new Date(iso)
-  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} ${fmtDate(iso)}`
+  const d = new Date(iso);
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")} ${fmtDate(iso)}`;
 }
 
 /** Emoji tóm tắt cảm xúc (top 3 loại) + tổng — dùng cho bài & bình luận. */
@@ -38,13 +38,13 @@ function ReactionSummaryChips({
   counts,
   total,
 }: {
-  counts: Record<string, number>
-  total: number
+  counts: Record<string, number>;
+  total: number;
 }) {
   const top = REACTION_ORDER.filter((k) => counts[k] > 0)
     .sort((a, b) => counts[b] - counts[a])
-    .slice(0, 3)
-  if (total <= 0) return null
+    .slice(0, 3);
+  if (total <= 0) return null;
   return (
     <span className="cpost__stats-emojis">
       {top.map((k) => (
@@ -58,7 +58,7 @@ function ReactionSummaryChips({
       ))}
       <span className="cpost__stats-count">{total}</span>
     </span>
-  )
+  );
 }
 
 /** Thẻ bài cộng đồng kiểu Facebook (giữ style Eskaylation):
@@ -69,79 +69,108 @@ export function CommunityPost({
   loggedIn,
   priority = false,
 }: {
-  content: ContentOut
-  loggedIn: boolean
-  priority?: boolean
+  content: ContentOut;
+  loggedIn: boolean;
+  priority?: boolean;
 }) {
-  const id = content.id
-  const { notify } = useToast()
+  const id = content.id;
+  const { notify } = useToast();
   const author =
-    typeof content.body.author === 'string' ? content.body.author : content.title
+    typeof content.body.author === "string"
+      ? content.body.author
+      : content.title;
 
-  const [inter, setInter] = useState<InteractionOut | null>(null)
-  const [expanded, setExpanded] = useState(false)
-  const [comments, setComments] = useState<CommentOut[]>([])
-  const [draft, setDraft] = useState('')
-  const [sending, setSending] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [editDraft, setEditDraft] = useState('')
-  const [viewingMedia, setViewingMedia] = useState(false)
-  const articleRef = useRef<HTMLElement>(null)
+  const [inter, setInter] = useState<InteractionOut | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [comments, setComments] = useState<CommentOut[]>([]);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [viewingMedia, setViewingMedia] = useState(false);
+  const articleRef = useRef<HTMLElement>(null);
+  const seenComments = useRef(new Set<number>());
+  const removedComments = useRef(new Set<number>());
 
   useEffect(() => {
-    let alive = true
+    let alive = true;
     const load = () => {
-      void community.interactions(id)
+      void community
+        .interactions(id)
         .then((d) => alive && setInter(d))
-        .catch(() => {})
-    }
-    const observer = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        observer?.disconnect()
-        load()
-      }
-    }, { rootMargin: '400px' })
-    if (observer && articleRef.current) observer.observe(articleRef.current)
-    else load()
+        .catch(() => {});
+    };
+    const observer =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(
+            (entries) => {
+              if (entries.some((entry) => entry.isIntersecting)) {
+                observer?.disconnect();
+                load();
+              }
+            },
+            { rootMargin: "400px" },
+          );
+    if (observer && articleRef.current) observer.observe(articleRef.current);
+    else load();
     return () => {
-      alive = false
-      observer?.disconnect()
-    }
-  }, [id])
+      alive = false;
+      observer?.disconnect();
+    };
+  }, [id]);
 
   // Tải bình luận + mở WebSocket khi khu bình luận được mở
   useEffect(() => {
-    if (!expanded) return
-    let alive = true
+    if (!expanded) return;
+    let alive = true;
     community
       .comments(id)
-      .then((page) => alive && setComments(page.items))
-      .catch(() => {})
+      .then((page) => {
+        if (!alive) return;
+        seenComments.current = new Set(page.items.map((comment) => comment.id));
+        setComments(page.items);
+      })
+      .catch(() => {});
 
-    const ws = new WebSocket(communityWsUrl(id))
+    const ws = new WebSocket(communityWsUrl(id));
     // Keep comments current when the reverse proxy cannot upgrade WebSocket.
     // Poll only the expanded thread, while visible, and without a live socket.
-    let refreshing = false
+    let refreshing = false;
     const poll = window.setInterval(() => {
-      if (!alive || refreshing || document.hidden || ws.readyState === WebSocket.OPEN) return
-      refreshing = true
+      if (
+        !alive ||
+        refreshing ||
+        document.hidden ||
+        ws.readyState === WebSocket.OPEN
+      )
+        return;
+      refreshing = true;
       void Promise.all([community.comments(id), community.interactions(id)])
         .then(([page, summary]) => {
-          if (alive) { setComments(page.items); setInter(summary) }
+          if (alive) {
+            seenComments.current = new Set(
+              page.items.map((comment) => comment.id),
+            );
+            setComments(page.items);
+            setInter(summary);
+          }
         })
         .catch(() => {})
-        .finally(() => { refreshing = false })
-    }, 15000)
+        .finally(() => {
+          refreshing = false;
+        });
+    }, 15000);
     ws.onmessage = (e) => {
-      if (!alive) return
-      let ev: CommunityEvent
+      if (!alive) return;
+      let ev: CommunityEvent;
       try {
-        ev = JSON.parse(e.data)
+        ev = JSON.parse(e.data);
       } catch {
-        return
+        return;
       }
-      if (ev.kind === 'comment') appendComment(ev.comment)
-      else if (ev.kind === 'comment_edit')
+      if (ev.kind === "comment") appendComment(ev.comment);
+      else if (ev.kind === "comment_edit")
         setComments((cur) =>
           cur.map((c) =>
             c.id === ev.comment.id
@@ -153,33 +182,60 @@ export function CommunityPost({
                 }
               : c,
           ),
-        )
-      else if (ev.kind === 'comment_delete')
-        setComments((cur) => cur.filter((c) => c.id !== ev.comment_id))
-      else if (ev.kind === 'reaction')
+        );
+      else if (ev.kind === "comment_delete")
+        removeCommentLocally(ev.comment_id);
+      else if (ev.kind === "reaction")
         setInter((cur) =>
           cur
-            ? { ...cur, reactions: { ...cur.reactions, counts: ev.counts, total: ev.total } }
+            ? {
+                ...cur,
+                reactions: {
+                  ...cur.reactions,
+                  counts: ev.counts,
+                  total: ev.total,
+                },
+              }
             : cur,
-        )
-    }
+        );
+    };
     return () => {
-      alive = false
-      window.clearInterval(poll)
-      ws.close()
-    }
+      alive = false;
+      window.clearInterval(poll);
+      ws.close();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, id])
+  }, [expanded, id]);
 
   function appendComment(c: CommentOut) {
-    setComments((cur) => (cur.some((x) => x.id === c.id) ? cur : [...cur, c]))
+    if (removedComments.current.has(c.id)) return;
+    if (seenComments.current.has(c.id)) {
+      // The socket can arrive before our POST response with is_mine=true.
+      if (c.is_mine)
+        setComments((cur) => cur.map((item) => (item.id === c.id ? c : item)));
+      return;
+    }
+    seenComments.current.add(c.id);
+    setComments((cur) => [...cur, c]);
     setInter((cur) =>
       cur ? { ...cur, comment_count: cur.comment_count + 1 } : cur,
-    )
+    );
+  }
+
+  function removeCommentLocally(commentId: number) {
+    if (removedComments.current.has(commentId)) return;
+    removedComments.current.add(commentId);
+    seenComments.current.delete(commentId);
+    setComments((cur) => cur.filter((comment) => comment.id !== commentId));
+    setInter((cur) =>
+      cur ? { ...cur, comment_count: Math.max(0, cur.comment_count - 1) } : cur,
+    );
   }
 
   function patchComment(commentId: number, patch: Partial<CommentOut>) {
-    setComments((cur) => cur.map((c) => (c.id === commentId ? { ...c, ...patch } : c)))
+    setComments((cur) =>
+      cur.map((c) => (c.id === commentId ? { ...c, ...patch } : c)),
+    );
   }
 
   // ---- Cảm xúc bài ----
@@ -188,22 +244,26 @@ export function CommunityPost({
       const summary =
         inter?.reactions.my_reaction === kind
           ? await community.unreact(id)
-          : await community.react(id, kind)
-      setInter((cur) => (cur ? { ...cur, reactions: summary } : cur))
+          : await community.react(id, kind);
+      setInter((cur) => (cur ? { ...cur, reactions: summary } : cur));
     } catch {
       /* bỏ qua */
     }
   }
   async function postToggle() {
-    if (!inter) return
-    await (inter.reactions.my_reaction ? postPick(inter.reactions.my_reaction) : postPick('like'))
+    if (!inter) return;
+    await (inter.reactions.my_reaction
+      ? postPick(inter.reactions.my_reaction)
+      : postPick("like"));
   }
 
   async function toggleSave() {
-    if (!inter) return
+    if (!inter) return;
     try {
-      const res = inter.saved ? await community.unsave(id) : await community.save(id)
-      setInter((cur) => (cur ? { ...cur, saved: res.saved } : cur))
+      const res = inter.saved
+        ? await community.unsave(id)
+        : await community.save(id);
+      setInter((cur) => (cur ? { ...cur, saved: res.saved } : cur));
     } catch {
       /* bỏ qua */
     }
@@ -211,55 +271,52 @@ export function CommunityPost({
 
   // ---- Bình luận: gửi / sửa / xoá / cảm xúc ----
   async function submitComment(e: FormEvent) {
-    e.preventDefault()
-    const body = draft.trim()
-    if (!body || sending) return
-    setSending(true)
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body || sending) return;
+    setSending(true);
     try {
-      const c = await community.addComment(id, body)
-      appendComment(c)
-      setDraft('')
+      const c = await community.addComment(id, body);
+      appendComment(c);
+      setDraft("");
     } catch (err) {
       // Hiện cảnh báo (vd bị chặn vì chứa từ cấm) thay vì im lặng
-      notify(err instanceof Error ? err.message : 'Không gửi được bình luận', {
-        tone: 'error',
-      })
+      notify(err instanceof Error ? err.message : "Không gửi được bình luận", {
+        tone: "error",
+      });
     } finally {
-      setSending(false)
+      setSending(false);
     }
   }
 
   async function saveEdit(c: CommentOut) {
-    const body = editDraft.trim()
-    if (!body) return
+    const body = editDraft.trim();
+    if (!body) return;
     try {
-      const updated = await community.editComment(id, c.id, body)
+      const updated = await community.editComment(id, c.id, body);
       patchComment(c.id, {
         body: updated.body,
         updated_at: updated.updated_at,
         edited: updated.edited,
-      })
-      setEditingId(null)
-      setEditDraft('')
+      });
+      setEditingId(null);
+      setEditDraft("");
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Không sửa được bình luận', {
-        tone: 'error',
-      })
+      notify(err instanceof Error ? err.message : "Không sửa được bình luận", {
+        tone: "error",
+      });
     }
   }
 
   async function removeComment(c: CommentOut) {
-    if (!window.confirm('Xoá bình luận này?')) return
+    if (!window.confirm("Xoá bình luận này?")) return;
     try {
-      await community.deleteComment(id, c.id)
-      setComments((cur) => cur.filter((x) => x.id !== c.id))
-      setInter((cur) =>
-        cur ? { ...cur, comment_count: Math.max(0, cur.comment_count - 1) } : cur,
-      )
+      await community.deleteComment(id, c.id);
+      removeCommentLocally(c.id);
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Không xoá được bình luận', {
-        tone: 'error',
-      })
+      notify(err instanceof Error ? err.message : "Không xoá được bình luận", {
+        tone: "error",
+      });
     }
   }
 
@@ -268,17 +325,17 @@ export function CommunityPost({
       const summary =
         c.reactions.my_reaction === kind
           ? await community.unreactComment(id, c.id)
-          : await community.reactComment(id, c.id, kind)
-      patchComment(c.id, { reactions: summary })
+          : await community.reactComment(id, c.id, kind);
+      patchComment(c.id, { reactions: summary });
     } catch {
       /* bỏ qua */
     }
   }
 
-  const counts = inter?.reactions.counts ?? {}
-  const total = inter?.reactions.total ?? 0
-  const mine = inter?.reactions.my_reaction ?? null
-  const media = content.media
+  const counts = inter?.reactions.counts ?? {};
+  const total = inter?.reactions.total ?? 0;
+  const mine = inter?.reactions.my_reaction ?? null;
+  const media = content.media;
 
   return (
     <article ref={articleRef} className="cpost">
@@ -301,9 +358,27 @@ export function CommunityPost({
           className={`cpost__media cpost__media--n${Math.min(media.length, 4)}`}
         >
           {media.slice(0, 4).map((m, i) => (
-            <button type="button" className="cpost__cell" key={i} onClick={() => setViewingMedia(true)} aria-label={`Xem ${content.title}`}>
-              {m.url ? <MediaImage media={m} alt={m.alt_text ?? content.title} sizes="(max-width: 640px) calc(100vw - 32px), 600px" loading={priority && i === 0 ? 'eager' : 'lazy'} fetchPriority={priority && i === 0 ? 'high' : 'auto'} /> : <span>Xem tư liệu</span>}
-              {m.mime_type.startsWith('video/') && <span className="cpost__more">▶</span>}
+            <button
+              type="button"
+              className="cpost__cell"
+              key={i}
+              onClick={() => setViewingMedia(true)}
+              aria-label={`Xem ${content.title}`}
+            >
+              {m.url ? (
+                <MediaImage
+                  media={m}
+                  alt={m.alt_text ?? content.title}
+                  sizes="(max-width: 640px) calc(100vw - 32px), 600px"
+                  loading={priority && i === 0 ? "eager" : "lazy"}
+                  fetchPriority={priority && i === 0 ? "high" : "auto"}
+                />
+              ) : (
+                <span>Xem tư liệu</span>
+              )}
+              {m.mime_type.startsWith("video/") && (
+                <span className="cpost__more">▶</span>
+              )}
               {i === 3 && media.length > 4 && (
                 <span className="cpost__more">+{media.length - 4}</span>
               )}
@@ -312,7 +387,11 @@ export function CommunityPost({
         </div>
       )}
 
-      {viewingMedia && <Modal onClose={() => setViewingMedia(false)} showClose><PostGallery content={content} /></Modal>}
+      {viewingMedia && (
+        <Modal onClose={() => setViewingMedia(false)} showClose>
+          <PostGallery content={content} />
+        </Modal>
+      )}
 
       {/* Tổng quan reactions + số bình luận */}
       {(total > 0 || (inter?.comment_count ?? 0) > 0) && (
@@ -353,14 +432,14 @@ export function CommunityPost({
 
         <button
           type="button"
-          className={inter?.saved ? 'cpost__act cpost__act--on' : 'cpost__act'}
+          className={inter?.saved ? "cpost__act cpost__act--on" : "cpost__act"}
           onClick={toggleSave}
           disabled={!loggedIn}
         >
           <span className="cpost__act-icon">
             <BookmarkIcon filled={inter?.saved} />
           </span>
-          {inter?.saved ? 'Đã lưu' : 'Lưu'}
+          {inter?.saved ? "Đã lưu" : "Lưu"}
         </button>
       </div>
 
@@ -368,7 +447,9 @@ export function CommunityPost({
       {expanded && (
         <div className="cpost__comments">
           {comments.length === 0 && (
-            <p className="cpost__comments-empty">Chưa có bình luận. Hãy là người đầu tiên!</p>
+            <p className="cpost__comments-empty">
+              Chưa có bình luận. Hãy là người đầu tiên!
+            </p>
           )}
           {comments.map((c) => (
             <div className="cpost__comment" key={c.id}>
@@ -377,18 +458,20 @@ export function CommunityPost({
                 <div className="cpost__comment-bubble">
                   {/* Issue 4: thời gian nằm CẠNH tên người bình luận */}
                   <div className="cpost__comment-head">
-                    <span className="cpost__comment-author">{c.author_name}</span>
+                    <span className="cpost__comment-author">
+                      {c.author_name}
+                    </span>
                     <time className="cpost__comment-time">
                       {fmtTime(c.edited ? c.updated_at : c.created_at)}
-                      {c.edited && ' (đã sửa)'}
+                      {c.edited && " (đã sửa)"}
                     </time>
                   </div>
                   {editingId === c.id ? (
                     <form
                       className="cpost__edit"
                       onSubmit={(e) => {
-                        e.preventDefault()
-                        void saveEdit(c)
+                        e.preventDefault();
+                        void saveEdit(c);
                       }}
                     >
                       <input
@@ -398,15 +481,19 @@ export function CommunityPost({
                         maxLength={2000}
                         autoFocus
                       />
-                      <button type="submit" className="cpost__send" disabled={!editDraft.trim()}>
+                      <button
+                        type="submit"
+                        className="cpost__send"
+                        disabled={!editDraft.trim()}
+                      >
                         Lưu
                       </button>
                       <button
                         type="button"
                         className="cpost__edit-cancel"
                         onClick={() => {
-                          setEditingId(null)
-                          setEditDraft('')
+                          setEditingId(null);
+                          setEditDraft("");
                         }}
                       >
                         Huỷ
@@ -432,7 +519,10 @@ export function CommunityPost({
                         variant="comment"
                         mine={c.reactions.my_reaction}
                         onToggle={() =>
-                          void commentReact(c, c.reactions.my_reaction ?? 'like')
+                          void commentReact(
+                            c,
+                            c.reactions.my_reaction ?? "like",
+                          )
                         }
                         onPick={(k) => void commentReact(c, k)}
                       />
@@ -443,8 +533,8 @@ export function CommunityPost({
                           type="button"
                           className="cpost__comment-act"
                           onClick={() => {
-                            setEditingId(c.id)
-                            setEditDraft(c.body)
+                            setEditingId(c.id);
+                            setEditDraft(c.body);
                           }}
                         >
                           Sửa
@@ -489,5 +579,5 @@ export function CommunityPost({
         </div>
       )}
     </article>
-  )
+  );
 }

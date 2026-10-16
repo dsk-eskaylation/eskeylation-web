@@ -12,7 +12,7 @@ from app.models.enums import UserRole
 from app.models.moderation import BannedWord
 from app.models.user import User
 from app.schemas.moderation import BannedWordIn, BannedWordOut
-from app.services import activity, moderation
+from app.services import activity, moderation, realtime
 
 router = APIRouter(prefix="/admin/moderation", tags=["moderation"])
 
@@ -102,6 +102,7 @@ async def delete_comment(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bình luận"
         )
     snippet = (comment.body or "")[:80]
+    content_id = comment.content_id
     await session.delete(comment)
     await session.commit()
     await activity.log(
@@ -111,4 +112,7 @@ async def delete_comment(
         entity_type="comment",
         entity_id=comment_id,
         entity_title=snippet,
+    )
+    await realtime.publish(
+        content_id, {"kind": "comment_delete", "comment_id": comment_id}
     )

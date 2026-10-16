@@ -1,5 +1,6 @@
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 from uuid import uuid4
 
 import jwt
@@ -12,7 +13,12 @@ from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
 from app.db import get_session
-from app.dependencies import CSRF_COOKIE, SESSION_COOKIE, get_current_user
+from app.dependencies import (
+    CSRF_COOKIE,
+    SESSION_COOKIE,
+    get_current_user,
+    get_current_user_optional,
+)
 from app.models.enums import UserRole
 from app.models.session import UserSession
 from app.models.user import User
@@ -144,6 +150,14 @@ async def logout(
 async def me(user: User = Depends(get_current_user)) -> UserRead:
     """Thông tin tài khoản đang đăng nhập — để frontend biết vai trò."""
     return UserRead.model_validate(user)
+
+
+@router.get("/session")
+async def session_info(
+    user: Annotated[User | None, Depends(get_current_user_optional)],
+) -> UserRead | None:
+    """Phiên tùy chọn cho trang public; khách chưa đăng nhập không phải lỗi API."""
+    return UserRead.model_validate(user) if user else None
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)

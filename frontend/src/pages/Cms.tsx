@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   AdminApiError,
@@ -115,8 +115,13 @@ function Editor({
   const [busy, setBusy] = useState(false)
 
   // Cập nhật một nhóm credits của trang chủ
-  const setCredit = (i: number, patch: Partial<{ role: string; names: string }>) =>
-    setCredits((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)))
+  const setCredit = (
+    i: number,
+    patch: Partial<{ role: string; names: string }>,
+  ) =>
+    setCredits((prev) =>
+      prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)),
+    )
 
   const upload = async (files: FileList | null) => {
     if (!files?.length) return
@@ -143,7 +148,9 @@ function Editor({
   }
 
   const setPrimary = (id: number) =>
-    setMedia((prev) => prev.map((m) => ({ ...m, is_primary: m.media_id === id })))
+    setMedia((prev) =>
+      prev.map((m) => ({ ...m, is_primary: m.media_id === id })),
+    )
 
   const removeMedia = (id: number) =>
     setMedia((prev) =>
@@ -192,6 +199,15 @@ function Editor({
         .filter((c) => c.role || c.names.length)
       if (cr.length) body.credits = cr
       else delete body.credits
+      // New homepage forms must provide the sections required by publishing.
+      // Existing structured sections are preserved when editing older records.
+      if (!Array.isArray(body.sections) || body.sections.length === 0) {
+        body.sections = [
+          ...(intro.trim() ? [{ type: 'intro', text: intro.trim() }] : []),
+          ...(cr.length ? [{ type: 'credits', groups: cr }] : []),
+          ...(lines.length ? [{ type: 'support', items: lines }] : []),
+        ]
+      }
     }
 
     const payload = {
@@ -270,7 +286,10 @@ function Editor({
             <div className="cms-editor__row">
               <label className="cms-field">
                 <span>Nghệ sĩ</span>
-                <input value={artist} onChange={(e) => setArtist(e.target.value)} />
+                <input
+                  value={artist}
+                  onChange={(e) => setArtist(e.target.value)}
+                />
               </label>
               <label className="cms-field">
                 <span>Thể loại</span>
@@ -281,9 +300,10 @@ function Editor({
                 >
                   <option value="">— Chọn thể loại —</option>
                   {/* Giữ giá trị cũ không nằm trong danh sách chuẩn (dữ liệu cũ) */}
-                  {category && !(MUSIC_GENRES as readonly string[]).includes(category) && (
-                    <option value={category}>{category}</option>
-                  )}
+                  {category &&
+                    !(MUSIC_GENRES as readonly string[]).includes(category) && (
+                      <option value={category}>{category}</option>
+                    )}
                   {MUSIC_GENRES.map((g) => (
                     <option key={g} value={g}>
                       {g}
@@ -291,7 +311,7 @@ function Editor({
                   ))}
                 </select>
                 <small className="cms-field__hint">
-                  Dùng để nhóm bài theo dòng nhạc ở trang Nghe nhạc.
+                  Metadata tùy chọn trong kho CMS.
                 </small>
               </label>
             </div>
@@ -303,8 +323,8 @@ function Editor({
                 placeholder="https://.../bai-hat.mp3"
               />
               <small className="cms-field__hint">
-                Có link này thì bài phát trực tuyến trong trình phát. Bỏ trống sẽ mở
-                link video bên dưới.
+                Có link này thì bài phát trực tuyến trong trình phát. Bỏ trống
+                sẽ mở link video bên dưới.
               </small>
             </label>
             <label className="cms-field">
@@ -322,7 +342,10 @@ function Editor({
           <>
             <label className="cms-field">
               <span>Nghệ sĩ</span>
-              <input value={artist} onChange={(e) => setArtist(e.target.value)} />
+              <input
+                value={artist}
+                onChange={(e) => setArtist(e.target.value)}
+              />
             </label>
             <label className="cms-field">
               <span>Link video (YouTube/Vimeo) — bắt buộc để phát</span>
@@ -337,7 +360,9 @@ function Editor({
 
         {(type === 'gallery' || type === 'community') && (
           <label className="cms-field">
-            <span>{type === 'gallery' ? 'Tác giả bộ ảnh' : 'Tên người đăng'}</span>
+            <span>
+              {type === 'gallery' ? 'Tác giả bộ ảnh' : 'Tên người đăng'}
+            </span>
             <input value={author} onChange={(e) => setAuthor(e.target.value)} />
             <small className="cms-field__hint">
               {type === 'gallery'
@@ -358,7 +383,7 @@ function Editor({
               />
             </label>
             <label className="cms-field">
-              <span>Mục “Maintain Website” — mỗi dòng một mục</span>
+              <span>Thông tin đóng góp — mỗi dòng một mục</span>
               <textarea
                 value={maintainText}
                 onChange={(e) => setMaintainText(e.target.value)}
@@ -434,9 +459,7 @@ function Editor({
                 <div
                   key={m.media_id}
                   className={
-                    m.is_primary
-                      ? 'cms-thumb cms-thumb--primary'
-                      : 'cms-thumb'
+                    m.is_primary ? 'cms-thumb cms-thumb--primary' : 'cms-thumb'
                   }
                 >
                   <img src={m.url} alt="" loading="lazy" />
@@ -473,7 +496,11 @@ function Editor({
           <button type="button" className="cms-pill" onClick={onClose}>
             Huỷ
           </button>
-          <button type="submit" className="cms-pill cms-pill--active" disabled={busy}>
+          <button
+            type="submit"
+            className="cms-pill cms-pill--active"
+            disabled={busy}
+          >
             {busy ? 'Đang lưu…' : 'Lưu'}
           </button>
         </div>
@@ -549,7 +576,9 @@ function NewUserForm({
               <button
                 key={r.value}
                 type="button"
-                className={role === r.value ? 'cms-pill cms-pill--active' : 'cms-pill'}
+                className={
+                  role === r.value ? 'cms-pill cms-pill--active' : 'cms-pill'
+                }
                 onClick={() => setRole(r.value)}
               >
                 {r.label}
@@ -567,7 +596,11 @@ function NewUserForm({
           <button type="button" className="cms-pill" onClick={onClose}>
             Huỷ
           </button>
-          <button type="submit" className="cms-pill cms-pill--active" disabled={busy}>
+          <button
+            type="submit"
+            className="cms-pill cms-pill--active"
+            disabled={busy}
+          >
             {busy ? 'Đang tạo…' : 'Tạo'}
           </button>
         </div>
@@ -590,9 +623,12 @@ function UsersPanel({ meId }: { meId: number | null }) {
     try {
       setUsers(await adminApi.listUsers())
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Tải danh sách tài khoản lỗi', {
-        tone: 'error',
-      })
+      notify(
+        err instanceof Error ? err.message : 'Tải danh sách tài khoản lỗi',
+        {
+          tone: 'error',
+        },
+      )
     } finally {
       setLoading(false)
     }
@@ -608,7 +644,9 @@ function UsersPanel({ meId }: { meId: number | null }) {
       await load()
       if (success) notify(success, { tone: 'success' })
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Thao tác lỗi', { tone: 'error' })
+      notify(err instanceof Error ? err.message : 'Thao tác lỗi', {
+        tone: 'error',
+      })
     }
   }
 
@@ -618,7 +656,13 @@ function UsersPanel({ meId }: { meId: number | null }) {
   const renderRow = (u: AdminUser) => (
     <li key={u.id} className="cms__row page-enter">
       <div className="cms__row-main">
-        <span className={u.is_active ? 'cms-badge cms-badge--published' : 'cms-badge cms-badge--draft'}>
+        <span
+          className={
+            u.is_active
+              ? 'cms-badge cms-badge--published'
+              : 'cms-badge cms-badge--draft'
+          }
+        >
           {u.is_active ? 'Hoạt động' : 'Chờ duyệt'}
         </span>
         <div className="cms__row-text">
@@ -745,26 +789,35 @@ function Moderation() {
   const [words, setWords] = useState<BannedWord[]>([])
   const [loading, setLoading] = useState(true)
   const [newWord, setNewWord] = useState('')
+  const [pageNumber, setPageNumber] = useState(1)
+  const [pages, setPages] = useState(1)
+  const [total, setTotal] = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const [page, w] = await Promise.all([
-        adminApi.list({ status: 'draft' }),
+        adminApi.list({ status: 'draft', page: pageNumber }),
         adminApi.bannedWords(),
       ])
       setPending(page.items)
+      setPages(Math.max(1, page.pages))
+      setTotal(page.total)
+      if (pageNumber > Math.max(1, page.pages))
+        setPageNumber(Math.max(1, page.pages))
       setWords(w)
     } catch (err) {
       if (err instanceof AdminApiError && err.status === 401) {
         navigate('/login', { replace: true })
         return
       }
-      notify(err instanceof Error ? err.message : 'Tải dữ liệu lỗi', { tone: 'error' })
+      notify(err instanceof Error ? err.message : 'Tải dữ liệu lỗi', {
+        tone: 'error',
+      })
     } finally {
       setLoading(false)
     }
-  }, [navigate, notify])
+  }, [navigate, notify, pageNumber])
 
   useEffect(() => {
     void load()
@@ -776,7 +829,9 @@ function Moderation() {
       await load()
       if (success) notify(success, { tone: 'success' })
     } catch (err) {
-      notify(err instanceof Error ? err.message : 'Thao tác lỗi', { tone: 'error' })
+      notify(err instanceof Error ? err.message : 'Thao tác lỗi', {
+        tone: 'error',
+      })
     }
   }
 
@@ -792,10 +847,10 @@ function Moderation() {
     <div className="cms-mod">
       {/* Hàng đợi chờ duyệt (nội dung nháp — cần admin duyệt trước khi công khai) */}
       <section>
-        <p className="cms__section-label">Chờ duyệt ({pending.length})</p>
+        <p className="cms__section-label">Chờ duyệt ({total})</p>
         <p className="cms-field__hint">
-          Bài do biên tập viên / tác giả tạo nằm ở dạng nháp cho tới khi admin duyệt.
-          Duyệt để đăng công khai, hoặc từ chối (chuyển lưu trữ).
+          Bài do biên tập viên / tác giả tạo nằm ở dạng nháp cho tới khi admin
+          duyệt. Duyệt để đăng công khai, hoặc từ chối (chuyển lưu trữ).
         </p>
         {loading ? (
           <p className="cms__status">Đang tải…</p>
@@ -850,6 +905,13 @@ function Moderation() {
           </ul>
         )}
       </section>
+
+      <CmsPagination
+        page={pageNumber}
+        pages={pages}
+        onChange={setPageNumber}
+        label="Phân trang chờ duyệt"
+      />
 
       {/* Từ cấm — chặn khi lưu mô tả/nội dung bài & khi gửi bình luận */}
       <section className="cms-mod__words">
@@ -913,6 +975,9 @@ export function Cms() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<ContentAdmin | null>(null)
   const [creating, setCreating] = useState(false)
+  const [pageNumber, setPageNumber] = useState(1)
+  const [pages, setPages] = useState(1)
+  const loadGeneration = useRef(0)
 
   // Biết vai trò để hiện tab Tài khoản (chỉ admin)
   useEffect(() => {
@@ -927,14 +992,20 @@ export function Cms() {
   const isAdmin = me?.role === 'admin'
 
   const load = useCallback(async () => {
+    const generation = ++loadGeneration.current
     setLoading(true)
     try {
       const page = await adminApi.list({
         type: type ?? undefined,
         status: status ?? undefined,
+        page: pageNumber,
       })
+      if (generation !== loadGeneration.current) return
       setItems(page.items)
       setTotal(page.total)
+      setPages(Math.max(1, page.pages))
+      if (pageNumber > Math.max(1, page.pages))
+        setPageNumber(Math.max(1, page.pages))
     } catch (err) {
       if (err instanceof AdminApiError && err.status === 401) {
         navigate('/login', { replace: true })
@@ -944,9 +1015,9 @@ export function Cms() {
         tone: 'error',
       })
     } finally {
-      setLoading(false)
+      if (generation === loadGeneration.current) setLoading(false)
     }
-  }, [type, status, navigate, notify])
+  }, [type, status, navigate, notify, pageNumber])
 
   useEffect(() => {
     void load()
@@ -981,7 +1052,9 @@ export function Cms() {
         navigate('/login', { replace: true })
         return
       }
-      notify(err instanceof Error ? err.message : 'Thao tác lỗi', { tone: 'error' })
+      notify(err instanceof Error ? err.message : 'Thao tác lỗi', {
+        tone: 'error',
+      })
     }
   }
 
@@ -1001,7 +1074,9 @@ export function Cms() {
           {isAdmin && (
             <button
               type="button"
-              className={view === 'dashboard' ? 'cms-pill cms-pill--active' : 'cms-pill'}
+              className={
+                view === 'dashboard' ? 'cms-pill cms-pill--active' : 'cms-pill'
+              }
               onClick={() => setView('dashboard')}
             >
               Tổng quan
@@ -1009,7 +1084,9 @@ export function Cms() {
           )}
           <button
             type="button"
-            className={view === 'content' ? 'cms-pill cms-pill--active' : 'cms-pill'}
+            className={
+              view === 'content' ? 'cms-pill cms-pill--active' : 'cms-pill'
+            }
             onClick={() => setView('content')}
           >
             Nội dung
@@ -1028,7 +1105,9 @@ export function Cms() {
           {isAdmin && (
             <button
               type="button"
-              className={view === 'users' ? 'cms-pill cms-pill--active' : 'cms-pill'}
+              className={
+                view === 'users' ? 'cms-pill cms-pill--active' : 'cms-pill'
+              }
               onClick={() => setView('users')}
             >
               Tài khoản
@@ -1037,19 +1116,25 @@ export function Cms() {
           <Link to="/" className="cms-pill">
             Xem trang
           </Link>
-          <button type="button" className="cms-pill" onClick={() => void logout()}>
+          <button
+            type="button"
+            className="cms-pill"
+            onClick={() => void logout()}
+          >
             Đăng xuất
           </button>
         </div>
       </header>
 
-      {source.status === 'success' && source.data.body.source === 'google_drive' && (
-        <p className="cms__source-note">
-          Website đang hiển thị nội dung từ Google Drive. Hãy cập nhật file và mô tả
-          trong thư mục Drive. Mục Nội dung và thống kê nội dung ở đây dành cho kho CMS riêng;
-          tài khoản và tương tác vẫn được quản lý qua website.
-        </p>
-      )}
+      {source.status === 'success' &&
+        source.data.body.source === 'google_drive' && (
+          <p className="cms__source-note">
+            Website đang hiển thị nội dung từ Google Drive. Hãy cập nhật file và
+            mô tả trong thư mục Drive. Mục Nội dung và thống kê nội dung ở đây
+            dành cho kho CMS riêng; tài khoản và tương tác vẫn được quản lý qua
+            website.
+          </p>
+        )}
 
       {view === 'dashboard' && isAdmin ? (
         <Dashboard />
@@ -1060,15 +1145,25 @@ export function Cms() {
       ) : (
         <CmsContent
           type={type}
-          setType={setType}
+          setType={(value) => {
+            setType(value)
+            setPageNumber(1)
+          }}
           status={status}
-          setStatus={setStatus}
+          setStatus={(value) => {
+            setStatus(value)
+            setPageNumber(1)
+          }}
           items={items}
           total={total}
           loading={loading}
           act={act}
           onNew={() => setCreating(true)}
           onEdit={setEditing}
+          role={me?.role ?? 'member'}
+          page={pageNumber}
+          pages={pages}
+          onPage={setPageNumber}
         />
       )}
 
@@ -1097,6 +1192,10 @@ interface ActOpts {
 }
 
 interface CmsContentProps {
+  role: UserRole
+  page: number
+  pages: number
+  onPage: (page: number) => void
   type: ContentType | null
   setType: (t: ContentType | null) => void
   status: ContentStatus | null
@@ -1111,6 +1210,10 @@ interface CmsContentProps {
 
 /** View quản lý nội dung (tách khỏi Cms để đọc dễ hơn). */
 function CmsContent({
+  role,
+  page,
+  pages,
+  onPage,
   type,
   setType,
   status,
@@ -1122,6 +1225,7 @@ function CmsContent({
   onNew,
   onEdit,
 }: CmsContentProps) {
+  const canPublish = role === 'admin' || role === 'editor'
   // Nội dung đang chờ xác nhận xoá (mở ConfirmDialog thay window.confirm)
   const [pendingDelete, setPendingDelete] = useState<ContentAdmin | null>(null)
   return (
@@ -1139,7 +1243,9 @@ function CmsContent({
             <button
               key={t.value}
               type="button"
-              className={type === t.value ? 'cms-pill cms-pill--active' : 'cms-pill'}
+              className={
+                type === t.value ? 'cms-pill cms-pill--active' : 'cms-pill'
+              }
               onClick={() => setType(type === t.value ? null : t.value)}
             >
               {t.label}
@@ -1162,7 +1268,11 @@ function CmsContent({
           ))}
         </div>
 
-        <button type="button" className="cms-pill cms-pill--new" onClick={onNew}>
+        <button
+          type="button"
+          className="cms-pill cms-pill--new"
+          onClick={onNew}
+        >
           + Nội dung mới
         </button>
       </div>
@@ -1184,43 +1294,55 @@ function CmsContent({
                   <div className="cms__row-text">
                     <span className="cms__row-title">{c.title}</span>
                     <span className="cms__row-meta">
-                      {typeLabel(c.type)} · /{c.slug} · sửa {fmtTime(c.updated_at)}
+                      {typeLabel(c.type)} · /{c.slug} · sửa{' '}
+                      {fmtTime(c.updated_at)}
                       {c.media.length > 0 && ` · ${c.media.length} media`}
                       {c.author_email && ` · ${c.author_email}`}
                     </span>
                   </div>
                 </div>
                 <div className="cms__row-actions">
-                  <button type="button" className="cms-pill" onClick={() => onEdit(c)}>
+                  <button
+                    type="button"
+                    className="cms-pill"
+                    disabled={!canPublish && c.status === 'published'}
+                    title={
+                      !canPublish && c.status === 'published'
+                        ? 'Nhân bản bài đã đăng để đề xuất chỉnh sửa'
+                        : undefined
+                    }
+                    onClick={() => onEdit(c)}
+                  >
                     Sửa
                   </button>
-                  {c.status !== 'published' ? (
-                    <button
-                      type="button"
-                      className="cms-pill cms-pill--publish"
-                      onClick={() =>
-                        void act(() => adminApi.publish(c.id), {
-                          success: `Đã đăng “${c.title}”`,
-                        })
-                      }
-                    >
-                      Đăng
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="cms-pill"
-                      onClick={() =>
-                        void act(() => adminApi.unpublish(c.id), {
-                          success: `Đã gỡ “${c.title}” về nháp`,
-                          undo: () => adminApi.publish(c.id),
-                        })
-                      }
-                    >
-                      Gỡ
-                    </button>
-                  )}
-                  {c.status !== 'archived' && (
+                  {canPublish &&
+                    (c.status !== 'published' ? (
+                      <button
+                        type="button"
+                        className="cms-pill cms-pill--publish"
+                        onClick={() =>
+                          void act(() => adminApi.publish(c.id), {
+                            success: `Đã đăng “${c.title}”`,
+                          })
+                        }
+                      >
+                        Đăng
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="cms-pill"
+                        onClick={() =>
+                          void act(() => adminApi.unpublish(c.id), {
+                            success: `Đã gỡ “${c.title}” về nháp`,
+                            undo: () => adminApi.publish(c.id),
+                          })
+                        }
+                      >
+                        Gỡ
+                      </button>
+                    ))}
+                  {canPublish && c.status !== 'archived' && (
                     <button
                       type="button"
                       className="cms-pill"
@@ -1249,19 +1371,28 @@ function CmsContent({
                   >
                     Nhân bản
                   </button>
-                  <button
-                    type="button"
-                    className="cms-pill cms-pill--danger"
-                    onClick={() => setPendingDelete(c)}
-                  >
-                    Xoá
-                  </button>
+                  {canPublish && (
+                    <button
+                      type="button"
+                      className="cms-pill cms-pill--danger"
+                      onClick={() => setPendingDelete(c)}
+                    >
+                      Xoá
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
           </ul>
         </>
       )}
+
+      <CmsPagination
+        page={page}
+        pages={pages}
+        onChange={onPage}
+        label="Phân trang nội dung"
+      />
 
       {pendingDelete && (
         <ConfirmDialog
@@ -1279,5 +1410,42 @@ function CmsContent({
         />
       )}
     </>
+  )
+}
+
+function CmsPagination({
+  page,
+  pages,
+  onChange,
+  label,
+}: {
+  page: number
+  pages: number
+  onChange: (page: number) => void
+  label: string
+}) {
+  if (pages <= 1) return null
+  return (
+    <nav className="cms-pagination" aria-label={label}>
+      <button
+        type="button"
+        className="cms-pill"
+        disabled={page <= 1}
+        onClick={() => onChange(page - 1)}
+      >
+        Trang trước
+      </button>
+      <span aria-live="polite">
+        Trang {page}/{pages}
+      </span>
+      <button
+        type="button"
+        className="cms-pill"
+        disabled={page >= pages}
+        onClick={() => onChange(page + 1)}
+      >
+        Trang sau
+      </button>
+    </nav>
   )
 }
