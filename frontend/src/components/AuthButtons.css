@@ -1,0 +1,129 @@
+/* AuthButtons — icon tài khoản tròn + dropdown, đồng bộ chất liệu PillNav */
+.auth-menu {
+  position: relative;
+}
+
+/* Nút tròn kính mờ 48px */
+.auth-menu__trigger {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0.5px solid var(--nav-border);
+  border-radius: 50%;
+  background: var(--nav-bg);
+  box-shadow: var(--shadow-nav);
+  backdrop-filter: blur(var(--nav-blur));
+  -webkit-backdrop-filter: blur(var(--nav-blur));
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.25s var(--ease-out);
+}
+
+.auth-menu__trigger svg {
+  width: 22px;
+  height: 22px;
+}
+
+.auth-menu__trigger:hover {
+  color: var(--color-text);
+  border-color: var(--color-text);
+}
+
+.auth-menu__trigger--open {
+  color: var(--color-text-bright);
+  border-color: var(--color-text);
+}
+
+/* Chấm báo đã đăng nhập */
+.auth-menu__dot {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7ee08a;
+  box-shadow: 0 0 6px rgba(126, 224, 138, 0.7);
+}
+
+/* Dropdown */
+.auth-menu__panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: rgba(6, 6, 6, 0.9);
+  border: 0.5px solid var(--nav-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-nav);
+  backdrop-filter: blur(var(--nav-blur));
+  -webkit-backdrop-filter: blur(var(--nav-blur));
+  z-index: 60;
+  animation: auth-menu-in 0.22s var(--ease-out) both;
+}
+
+@keyframes auth-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.auth-menu__item {
+  display: block;
+  width: 100%;
+  padding: 11px 16px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+.auth-menu__item:hover {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.auth-menu__item--primary {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.auth-menu__item--primary:hover {
+  color: var(--color-text-bright);
+  text-shadow: var(--glow-text);
+}
+
+@media (max-width: 900px) {
+  .auth-menu__trigger {
+    width: 42px;
+    height: 42px;
+  }
+  .auth-menu__trigger svg {
+    width: 20px;
+    height: 20px;
+  }
+}

@@ -9,6 +9,8 @@ type State<T> =
 export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): State<T> {
   const [state, setState] = useState<State<T>>({ status: 'loading' })
 
+  // Deps do caller truyền vào, cố ý bỏ fetcher khỏi deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     let alive = true
     setState({ status: 'loading' })
@@ -22,4 +24,14 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): Stat
   }, deps)
 
   return state
+}
+
+/** Debounce giá trị search cho mượt (gõ xong 300ms mới gọi API). */
+export function useDebounced(value: string, delay = 300) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
 }

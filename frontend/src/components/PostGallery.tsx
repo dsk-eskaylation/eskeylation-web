@@ -31,7 +31,17 @@ export function PostGallery({ content }: { content: ContentOut }) {
 
       <div className="post-gallery__grid">
         {content.media.map((m, i) => (
-          <img key={i} src={m.url} alt={m.alt_text ?? ''} loading="lazy" />
+          m.preview_url ? (
+            <iframe
+              key={i}
+              src={m.preview_url}
+              title={m.alt_text ?? content.title}
+              allow="autoplay; fullscreen"
+              allowFullScreen
+            />
+          ) : (
+            <img key={i} src={m.url} alt={m.alt_text ?? ''} loading="lazy" />
+          )
         ))}
       </div>
     </div>

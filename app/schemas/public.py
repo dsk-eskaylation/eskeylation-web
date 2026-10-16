@@ -7,6 +7,7 @@ from app.models.enums import ContentType
 
 class MediaOut(BaseModel):
     url: str
+    preview_url: str | None = None
     caption: str | None = None
     alt_text: str | None = None
     is_primary: bool = False

@@ -1,6 +1,7 @@
 """Xử lý upload media: validate MIME/size, lấy dimensions, lưu qua storage."""
 
 import io
+import logging
 import uuid
 
 import filetype
@@ -14,6 +15,7 @@ from app.models.media import Media
 from app.services.storage import get_storage
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 _IMAGE_EXT = {
     "image/jpeg": "jpg",
@@ -46,10 +48,28 @@ def _image_dimensions(data: bytes) -> tuple[int, int]:
         ) from exc
 
 
+async def _read_capped(file: UploadFile, cap: int) -> bytes:
+    """Đọc upload theo chunk, dừng ngay khi vượt trần — không cho body khổng lồ
+    chiếm hết RAM trước khi kịp kiểm tra size."""
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(1024 * 1024):
+        total += len(chunk)
+        if total > cap:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"File vượt giới hạn {cap // (1024 * 1024)}MB",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 async def create_media(
     session: AsyncSession, file: UploadFile, alt_text: str | None = None
 ) -> Media:
-    data = await file.read()
+    data = await _read_capped(
+        file, max(settings.max_image_size, settings.max_video_size)
+    )
     if not data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File rỗng")
 
@@ -93,6 +113,12 @@ async def create_media(
 
 
 async def delete_media(session: AsyncSession, media: Media) -> None:
-    await run_in_threadpool(get_storage().delete, media.storage_key)
+    """Xoá record DB TRƯỚC rồi mới xoá file storage — nếu xoá file lỗi thì chỉ
+    orphan file (dễ dọn), không bao giờ có record trỏ tới file đã mất."""
+    storage_key = media.storage_key
     await session.delete(media)
     await session.commit()
+    try:
+        await run_in_threadpool(get_storage().delete, storage_key)
+    except Exception:
+        logger.warning("Không xoá được file storage %s (orphan)", storage_key)

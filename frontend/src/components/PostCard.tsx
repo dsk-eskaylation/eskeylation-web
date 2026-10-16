@@ -40,7 +40,13 @@ export function PostCard({ content, onClick }: Props) {
         <div className="post-card__grid">
           {shown.map((m, i) => (
             <div className="post-card__cell" key={i}>
-              <img src={m.url} alt={m.alt_text ?? ''} loading="lazy" />
+              {m.preview_url ? (
+                m.url ? (
+                  <img src={m.url} alt={m.alt_text ?? ''} loading="lazy" />
+                ) : <span>Xem tư liệu</span>
+              ) : (
+                <img src={m.url} alt={m.alt_text ?? ''} loading="lazy" />
+              )}
               {i === 3 && extra > 0 && (
                 <span className="post-card__more">+{extra}</span>
               )}

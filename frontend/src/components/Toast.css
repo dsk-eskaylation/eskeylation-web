@@ -1,0 +1,129 @@
+/* Chồng toast cố định ở GÓC DƯỚI-PHẢI màn hình, xếp chồng lên nhau. */
+.toast-stack {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column-reverse; /* toast mới nhất nằm DƯỚI cùng, sát mép */
+  gap: 10px;
+  max-width: min(400px, calc(100vw - 40px));
+  pointer-events: none; /* vùng trống không chặn click; từng toast bật lại bên dưới */
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px 13px 16px;
+  border: 0.5px solid var(--color-border-strong);
+  border-left-width: 3px;
+  border-radius: 14px;
+  background: rgba(16, 16, 16, 0.96);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  color: var(--color-text);
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  animation: toast-in 0.28s var(--ease-out) both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+/* Chấm màu + màu viền trái theo sắc thái */
+.toast__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+.toast--success {
+  border-left-color: #7ee08a;
+}
+.toast--success .toast__dot {
+  color: #7ee08a;
+}
+.toast--error {
+  border-left-color: var(--color-error);
+}
+.toast--error .toast__dot {
+  color: var(--color-error);
+}
+.toast--info {
+  border-left-color: var(--color-border-strong);
+}
+.toast--info .toast__dot {
+  color: var(--color-text-muted);
+}
+
+.toast__msg {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+/* Nút hành động (VD: Hoàn tác) */
+.toast__action {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 0.5px solid var(--color-text);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-bright);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.toast__action:hover {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+.toast__action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.toast__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.toast__close:hover {
+  color: var(--color-text);
+}
+.toast__close svg {
+  width: 15px;
+  height: 15px;
+}
+
+@media (max-width: 600px) {
+  .toast-stack {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+  }
+}

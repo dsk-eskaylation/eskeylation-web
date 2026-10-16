@@ -30,6 +30,7 @@
 }
 
 .post-card__name {
+  overflow-wrap: anywhere;
   font-size: 18px; /* Figma style_5607154b */
   font-weight: 600;
   letter-spacing: 0.01em;

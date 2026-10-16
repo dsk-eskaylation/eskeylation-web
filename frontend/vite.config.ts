@@ -6,9 +6,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'http://localhost:8000',
+      // ws: true -> proxy cả WebSocket cộng đồng (/api/community/{id}/ws)
+      '/api': { target: 'http://localhost:8000', ws: true },
       '/media': 'http://localhost:8000',
       '/auth': 'http://localhost:8000',
+      // API quản trị (route SPA của CMS là /cms nên không đụng nhau)
+      '/admin': 'http://localhost:8000',
     },
   },
 })

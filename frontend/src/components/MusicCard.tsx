@@ -2,7 +2,10 @@ import type { ContentOut } from '../api/types'
 import './MusicCard.css'
 
 function primary(c: ContentOut) {
-  return c.media.find((m) => m.is_primary) ?? c.media[0]
+  const images = c.media.filter(
+    (m) => m.url && (m.mime_type.startsWith('image/') || m.preview_url),
+  )
+  return images.find((m) => m.is_primary) ?? images[0]
 }
 
 function timeParts(iso: string | null) {

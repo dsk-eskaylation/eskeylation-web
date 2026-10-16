@@ -23,12 +23,26 @@ function toEmbedUrl(url: string): string | null {
 }
 
 function Player({ content }: { content: ContentOut }) {
+  const driveMedia = content.media.find((m) => m.preview_url)
   const embed =
     typeof content.body.embed_url === 'string'
       ? toEmbedUrl(content.body.embed_url)
       : null
   const videoMedia = content.media.find((m) => m.mime_type.startsWith('video/'))
-  const poster = content.media.find((m) => m.is_primary) ?? content.media[0]
+  const images = content.media.filter((m) => m.mime_type.startsWith('image/'))
+  const poster = images.find((m) => m.is_primary) ?? images[0]
+
+  if (driveMedia?.preview_url) {
+    return (
+      <iframe
+        className="video-modal__frame"
+        src={driveMedia.preview_url}
+        title={content.title}
+        allow="autoplay; fullscreen"
+        allowFullScreen
+      />
+    )
+  }
 
   if (embed) {
     return (

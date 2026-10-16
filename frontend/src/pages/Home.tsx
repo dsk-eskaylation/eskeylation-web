@@ -29,27 +29,29 @@ const DEFAULT_MAINTAIN = [
   'Được “sao kê" ở phần comment bài viết này',
 ]
 
-/* Dải chữ ESKAYLATION chạy ngang (Figma #1:215/#1:265) — 2 bản sao để loop liền mạch */
+/* Dải chữ ESKAYLATION chạy ngang (Figma #1:215/#1:265) — 2 bản sao để loop liền mạch.
+   JSX tĩnh hoist ra ngoài component để không phải tạo lại 22 item + 44 svg mỗi render. */
+const MARQUEE_ITEMS = Array.from({ length: 11 }).map((_, i) => (
+  <span className="marquee__item" key={i}>
+    <svg viewBox="0 0 12 29" className="marquee__slash">
+      <line x1="11" y1="1" x2="1" y2="28" stroke="currentColor" strokeWidth="1" />
+    </svg>
+    ESKAYLATION
+    <svg viewBox="0 0 12 29" className="marquee__slash">
+      <line x1="11" y1="1" x2="1" y2="28" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  </span>
+))
+
 function Marquee({ reverse = false }: { reverse?: boolean }) {
-  const strip = (key: string) => (
-    <div className="marquee__strip" key={key} aria-hidden="true">
-      {Array.from({ length: 11 }).map((_, i) => (
-        <span className="marquee__item" key={i}>
-          <svg viewBox="0 0 12 29" className="marquee__slash">
-            <line x1="11" y1="1" x2="1" y2="28" stroke="currentColor" strokeWidth="1" />
-          </svg>
-          ESKAYLATION
-          <svg viewBox="0 0 12 29" className="marquee__slash">
-            <line x1="11" y1="1" x2="1" y2="28" stroke="currentColor" strokeWidth="1" />
-          </svg>
-        </span>
-      ))}
-    </div>
-  )
   return (
     <div className={reverse ? 'marquee marquee--reverse' : 'marquee'}>
-      {strip('a')}
-      {strip('b')}
+      <div className="marquee__strip" aria-hidden="true">
+        {MARQUEE_ITEMS}
+      </div>
+      <div className="marquee__strip" aria-hidden="true">
+        {MARQUEE_ITEMS}
+      </div>
     </div>
   )
 }
@@ -117,7 +119,8 @@ export function Home() {
     unknown
   >
 
-  const intro = typeof body.intro === 'string' ? body.intro : DEFAULT_INTRO
+  // Luôn dùng đoạn giới thiệu mặc định, bỏ qua body.intro từ Supabase (theo yêu cầu)
+  const intro = DEFAULT_INTRO
   const credits = Array.isArray(body.credits)
     ? (body.credits as typeof DEFAULT_CREDITS)
     : DEFAULT_CREDITS
@@ -127,21 +130,26 @@ export function Home() {
 
   return (
     <div className="home">
-      {/* Lớp nền: texture mờ 20% + 2 đốm sáng blur (Figma #1:115/#1:116/#1:117) */}
-      <div
-        className="home__bg"
-        style={{ backgroundImage: `url(${bgTexture})` }}
-        aria-hidden="true"
-      />
-      <span className="home__orb home__orb--soft" aria-hidden="true" />
-      <span className="home__orb home__orb--sharp" aria-hidden="true" />
+      {/* Lớp nền trang trí (texture + 2 đốm sáng blur) — bọc trong vùng CLIP
+          full-viewport để orbs/nền KHÔNG tràn ngang gây cuộn/xô layout. */}
+      <div className="home__decor" aria-hidden="true">
+        <div
+          className="home__bg"
+          style={{ backgroundImage: `url(${bgTexture})` }}
+        />
+        <span className="home__orb home__orb--soft" />
+        <span className="home__orb home__orb--sharp" />
+      </div>
 
       {/* Hero: dải 5 ảnh + tên + nút cuộn (Figma #1:203) */}
       <section className="home__hero">
         <div className="home__hero-strip" aria-hidden="true">
-          {HERO_IMAGES.map((src, i) => (
-            <img src={src} alt="" key={i} style={{ animationDelay: `${i * 90}ms` }} />
-          ))}
+          {/* Băng chuyền chạy ngang trái -> phải; nhân đôi ảnh để loop liền mạch */}
+          <div className="home__hero-track">
+            {[...HERO_IMAGES, ...HERO_IMAGES].map((src, i) => (
+              <img src={src} alt="" key={i} />
+            ))}
+          </div>
         </div>
         <div className="home__hero-title">
           <h1 className="home__brand">ESKAYLATION</h1>
@@ -155,7 +163,23 @@ export function Home() {
                 ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
             }
           >
-            <span />
+            <span className="home__scroll-mouse">
+              <span className="home__scroll-dot" />
+            </span>
+            <svg
+              className="home__scroll-chevron"
+              viewBox="0 0 24 14"
+              aria-hidden="true"
+            >
+              <polyline
+                points="3,3 12,11 21,3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </div>
       </section>
@@ -166,7 +190,7 @@ export function Home() {
         <div className="home__about">
           <div className="home__about-brand">
             <span className="home__about-name">ESKAYLATION</span>
-            <span className="home__about-q">Là gì?</span>
+            <span className="home__about-q">là gì?</span>
           </div>
           <p className="home__about-text">{intro}</p>
         </div>

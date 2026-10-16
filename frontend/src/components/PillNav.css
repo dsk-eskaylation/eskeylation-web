@@ -2,8 +2,8 @@
 .pill-nav {
   display: inline-flex;
   align-items: center;
-  gap: 40px;
-  padding: 16px;
+  gap: 20px;
+  padding: 12px 16px;
   background: var(--nav-bg);
   border: 0.5px solid var(--nav-border);
   border-radius: var(--radius-pill);
@@ -15,30 +15,18 @@
 .pill-nav__group {
   display: inline-flex;
   align-items: center;
-  gap: 40px;
+  gap: 20px;
 }
 
-/* Brand giữa — GSF SemiBold 24, ls -0.05em */
-.pill-nav__brand {
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.05em;
-  color: var(--color-text);
-  white-space: nowrap;
-  transition: text-shadow var(--dur-fast) ease;
-}
-
-.pill-nav__brand:hover {
-  text-shadow: var(--glow-text);
-}
-
-/* Item — Figma: padding 12px 46px, radius 22, chữ 18 */
+/* Item — chữ 18, padding gọn để pill không đè brand khi có 5 mục */
 .pill-nav__link {
   position: relative;
+  display: grid;
+  place-items: center;
   color: var(--color-text-muted);
   font-family: var(--font-nav);
   font-size: 18px;
-  padding: 12px 46px;
+  padding: 10px 22px;
   border-radius: 22px;
   border-left: 1px solid transparent;
   border-right: 1px solid transparent;
@@ -48,6 +36,20 @@
     text-shadow 0.25s ease,
     border-color 0.25s ease,
     box-shadow 0.25s ease;
+}
+
+/* Ghost giữ chỗ theo CHỮ ĐẬM -> chuyển active (SemiBold) KHÔNG đổi độ rộng
+   link => pill không bị dãn/nhảy khi bấm. Ghost và nhãn thật chồng cùng ô grid. */
+.pill-nav__link::before {
+  content: attr(data-label);
+  grid-area: 1 / 1;
+  font-weight: 600;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.pill-nav__label {
+  grid-area: 1 / 1;
 }
 
 .pill-nav__link:hover {
@@ -73,32 +75,54 @@
     padding: 10px 20px;
     font-size: 15px;
   }
-  .pill-nav__brand {
-    font-size: 18px;
-  }
 }
 
 @media (max-width: 640px) {
-  .pill-nav__brand {
+  /* Pill lấp đầy full-width hàng 2 và CO items lại để cả 5 mục VỪA KHÍT
+     (không cắt "Cộng đồng"). Dàn 2 nhóm ra hai biên, chữ + padding nhỏ lại. */
+  .pill-nav {
+    justify-self: stretch;
+    width: 100%;
+    gap: 2px;
+    padding: 6px 6px;
+    justify-content: space-around;
+    overflow-x: auto; /* dự phòng: nếu máy quá hẹp vẫn cuộn được thay vì tràn */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .pill-nav::-webkit-scrollbar {
     display: none;
   }
-  .pill-nav,
+  /* display:contents -> bỏ hộp 2 nhóm để CẢ 5 mục thành flex-item trực tiếp,
+     dàn đều toàn pill (hết khoảng trống lớn giữa "Nghe nhạc" và "Ảnh"). */
   .pill-nav__group {
-    gap: 6px;
-  }
-  .pill-nav {
-    padding: 8px;
-    max-width: calc(100vw - 24px);
+    display: contents;
   }
   .pill-nav__link {
-    padding: 9px 12px;
-    font-size: 13px;
+    padding: 8px 6px;
+    font-size: 12px;
   }
 }
 
-@media (max-width: 380px) {
+/* Máy hẹp (~360-410px): thu chữ + padding để 5 mục vừa khít, không cắt */
+@media (max-width: 410px) {
   .pill-nav__link {
-    padding: 8px 9px;
-    font-size: 12px;
+    padding: 8px 4px;
+    font-size: 11px;
+  }
+}
+
+/* Máy rất nhỏ (iPhone SE ~320px) */
+@media (max-width: 360px) {
+  .pill-nav {
+    gap: 1px;
+    padding: 6px 4px;
+  }
+  .pill-nav__group {
+    gap: 1px;
+  }
+  .pill-nav__link {
+    padding: 7px 3px;
+    font-size: 10px;
   }
 }

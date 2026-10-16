@@ -13,12 +13,13 @@
   width: 100vw;
   overflow: hidden;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 /* Track trượt bằng translateX — mượt theo ease-out */
 .feed__track {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 146px; /* Figma #1:1846 gap 146 */
   transition: transform 0.55s var(--ease-out);
@@ -106,6 +107,9 @@
 
 /* ---- Mobile (card 88vw, gap 24) ---- */
 @media (max-width: 640px) {
+  .feed {
+    padding-top: 140px; /* chừa cho header mobile 2 hàng */
+  }
   .feed__track {
     gap: 24px;
     margin-left: 6vw;

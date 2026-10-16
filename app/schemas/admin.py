@@ -55,6 +55,8 @@ class ContentAdminRead(BaseModel):
     summary: str | None = None
     body: dict
     author_id: int | None = None
+    # Email tác giả (nạp riêng ở list) — để CMS hiển thị AI tạo nội dung này
+    author_email: str | None = None
     published_at: datetime | None = None
     created_at: datetime
     updated_at: datetime

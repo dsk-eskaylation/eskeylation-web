@@ -7,6 +7,7 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
@@ -21,8 +22,38 @@ from app.models.user import User
 from app.services.storage import get_storage
 
 
+@pytest.fixture(autouse=True)
+def default_public_source(monkeypatch):
+    """Bộ test CMS/Public API cũ dùng DB; test Drive tự chọn nguồn Drive."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "public_content_source", "database")
+
+
 def unique_slug(prefix: str = "pytest") -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
+
+
+@pytest.fixture(autouse=True)
+def _reset_ratelimit():
+    """Bộ đếm rate limit sạch trước mỗi test — login dày đặc trong suite
+    không được phép làm 429 lan giữa các test."""
+    from app.services import ratelimit
+
+    ratelimit.reset()
+    yield
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _dispose_engine():
+    """Engine giờ POOL kết nối (tối ưu độ trễ prod). pytest-asyncio tạo event
+    loop MỚI cho mỗi test — kết nối pool của test trước gắn với loop đã đóng,
+    tái dùng sẽ nổ RuntimeError. Dispose pool ở teardown (chạy trong đúng loop
+    của test) để test sau bắt đầu với pool rỗng."""
+    yield
+    from app.db import engine
+
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture

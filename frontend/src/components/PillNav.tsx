@@ -7,6 +7,7 @@ const left = [
 ]
 const right = [
   { to: '/photos', label: 'Ảnh' },
+  { to: '/video', label: 'Video' },
   { to: '/community', label: 'Cộng đồng' },
 ]
 
@@ -19,20 +20,27 @@ export function PillNav() {
     <nav className="pill-nav" aria-label="Điều hướng chính">
       <div className="pill-nav__group">
         {left.map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
-            {item.label}
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={linkClass}
+            data-label={item.label}
+          >
+            <span className="pill-nav__label">{item.label}</span>
           </NavLink>
         ))}
       </div>
 
-      <NavLink to="/" className="pill-nav__brand">
-        ESKAYLATION
-      </NavLink>
-
       <div className="pill-nav__group">
         {right.map((item) => (
-          <NavLink key={item.to} to={item.to} className={linkClass}>
-            {item.label}
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={linkClass}
+            data-label={item.label}
+          >
+            <span className="pill-nav__label">{item.label}</span>
           </NavLink>
         ))}
       </div>

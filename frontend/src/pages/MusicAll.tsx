@@ -1,28 +1,34 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { useApi } from '../api/useApi'
+import { useApi, useDebounced } from '../api/useApi'
 import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
 import { MusicCard } from '../components/MusicCard'
 import { VideoModal } from '../components/VideoModal'
 import { EmptyState } from '../components/EmptyState'
+import { usePlayer, audioUrl } from '../player/PlayerContext'
 import './MusicAll.css'
 
-const CATEGORIES = ['LIFE RAP', 'LOVE RAP', 'GANGSTA', "DISSIN'", 'AI']
+/* Gangsta đã gộp vào Dissin'; 'Thể Nghiệm' thay cho 'AI'. */
+const CATEGORIES = ['LIFE RAP', 'LOVE RAP', "DISSIN'", 'Thể Nghiệm']
 
 export function MusicAll() {
   const [q, setQ] = useState('')
+  const debouncedQ = useDebounced(q) // tránh gọi API theo từng phím gõ
   const [category, setCategory] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<ContentOut | null>(null)
+  const player = usePlayer()
   const state = useApi(
     () =>
       api.list('music', {
-        q: q || undefined,
+        q: debouncedQ || undefined,
         category: category || undefined,
         pageSize: 60,
+        page,
       }),
-    [q, category],
+    [debouncedQ, category, page],
   )
   const items = state.status === 'success' ? state.data.items : []
 
@@ -50,7 +56,10 @@ export function MusicAll() {
                 ? 'music-all__cat music-all__cat--active'
                 : 'music-all__cat'
             }
-            onClick={() => setCategory(null)}
+            onClick={() => {
+              setCategory(null)
+              setPage(1)
+            }}
           >
             Tất cả
           </button>
@@ -63,14 +72,27 @@ export function MusicAll() {
                   ? 'music-all__cat music-all__cat--active'
                   : 'music-all__cat'
               }
-              onClick={() => setCategory(category === c ? null : c)}
+              onClick={() => {
+                setCategory(category === c ? null : c)
+                setPage(1)
+              }}
             >
               {c}
             </button>
           ))}
         </div>
 
-        <SearchBar value={q} onChange={setQ} onClear={() => setQ('')} />
+        <SearchBar
+          value={q}
+          onChange={(value) => {
+            setQ(value)
+            setPage(1)
+          }}
+          onClear={() => {
+            setQ('')
+            setPage(1)
+          }}
+        />
       </header>
 
       {state.status === 'success' && items.length === 0 && (
@@ -84,10 +106,31 @@ export function MusicAll() {
             key={item.id}
             style={{ animationDelay: `${(i % 9) * 60}ms` }}
           >
-            <MusicCard content={item} onClick={() => setSelected(item)} />
+            <MusicCard
+              content={item}
+              onClick={() =>
+                audioUrl(item) ? player.playQueue(items, i) : setSelected(item)
+              }
+            />
           </div>
         ))}
       </div>
+
+      {state.status === 'success' && state.data.pages > 1 ? (
+        <nav className="music-all__pagination" aria-label="Phân trang nhạc">
+          <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            Trang trước
+          </button>
+          <span>Trang {page}/{state.data.pages}</span>
+          <button
+            type="button"
+            disabled={page >= state.data.pages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Trang sau
+          </button>
+        </nav>
+      ) : null}
 
       {selected && <VideoModal content={selected} onClose={() => setSelected(null)} />}
     </div>

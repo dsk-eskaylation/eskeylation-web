@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,6 +12,7 @@ from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
 from app.models.media import ContentMedia, Media
 from app.schemas.admin import ContentCreate, ContentMediaIn, ContentUpdate
+from app.services import moderation
 from app.services.sanitize import sanitize_body, sanitize_summary, validate_embeds
 from app.services.slug import unique_slug
 
@@ -78,6 +80,8 @@ async def create_content(
     session: AsyncSession, data: ContentCreate, author_id: int
 ) -> Content:
     validate_embeds(data.body)
+    # Chặn từ ngữ không phù hợp trong mô tả + body (kiểm duyệt)
+    await moderation.assert_clean(session, summary=data.summary, body=data.body)
     content = Content(
         type=data.type,
         title=data.title,
@@ -88,9 +92,17 @@ async def create_content(
         author_id=author_id,
     )
     session.add(content)
-    await session.flush()
-    await _replace_media(session, content, data.media)
-    await session.commit()
+    try:
+        await session.flush()
+        await _replace_media(session, content, data.media)
+        await session.commit()
+    except IntegrityError as exc:
+        # Hai request cùng title đua nhau qua unique_slug -> UNIQUE(type, slug)
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Slug vừa bị chiếm bởi thao tác khác — thử lại",
+        ) from exc
     return await get_with_media(session, content.id)
 
 
@@ -98,6 +110,12 @@ async def update_content(
     session: AsyncSession, content: Content, data: ContentUpdate
 ) -> Content:
     fields = data.model_dump(exclude_unset=True)
+    # Chặn từ ngữ không phù hợp trong các trường được sửa (kiểm duyệt)
+    await moderation.assert_clean(
+        session,
+        summary=fields.get("summary") if "summary" in fields else None,
+        body=fields.get("body") if "body" in fields else None,
+    )
     if "title" in fields:
         content.title = fields["title"]
     if "summary" in fields:
@@ -170,16 +188,23 @@ async def duplicate(session: AsyncSession, content: Content, author_id: int) -> 
         author_id=author_id,
     )
     session.add(copy)
-    await session.flush()
-    for link in content.media_links:
-        session.add(
-            ContentMedia(
-                content_id=copy.id,
-                media_id=link.media_id,
-                caption=link.caption,
-                position=link.position,
-                is_primary=link.is_primary,
+    try:
+        await session.flush()
+        for link in content.media_links:
+            session.add(
+                ContentMedia(
+                    content_id=copy.id,
+                    media_id=link.media_id,
+                    caption=link.caption,
+                    position=link.position,
+                    is_primary=link.is_primary,
+                )
             )
-        )
-    await session.commit()
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Slug vừa bị chiếm bởi thao tác khác — thử lại",
+        ) from exc
     return await get_with_media(session, copy.id)

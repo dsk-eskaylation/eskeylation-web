@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.dependencies import PaginationParams, require_role
 from app.models.enums import UserRole
-from app.models.media import Media
+from app.models.media import ContentMedia, Media
 from app.schemas.media import MediaRead
 from app.schemas.pagination import Page
 from app.services import media as media_service
@@ -74,5 +74,20 @@ async def delete_media(
     if media is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy media"
+        )
+    # Chặn xoá media đang được nội dung dùng — nếu không FK CASCADE sẽ âm thầm
+    # gỡ ảnh khỏi bài (kể cả bài đã publish). Phải gỡ khỏi nội dung trước.
+    in_use = await session.scalar(
+        select(func.count())
+        .select_from(ContentMedia)
+        .where(ContentMedia.media_id == media_id)
+    )
+    if in_use:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Media đang được {in_use} nội dung sử dụng — "
+                "gỡ khỏi nội dung trước khi xoá"
+            ),
         )
     await media_service.delete_media(session, media)

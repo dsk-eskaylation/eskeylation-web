@@ -31,6 +31,7 @@ htmlcov/
 .tox/
 .mypy_cache/
 .ruff_cache/
+.local/
 # Playwright
 test-results/
 playwright-report/
@@ -45,6 +46,10 @@ playwright/.cache/
 /media/
 /uploads/
 /storage/
+/drive-manifest*.json
+/drive-report*.json
+/drive-preview*.json
+/drive-*-preview.png
 
 # ---- Frontend (React + Vite) ----
 node_modules/
@@ -57,6 +62,13 @@ yarn-error.log*
 pnpm-debug.log*
 
 # ---- Claude Code / agent tooling ----
+# Tài liệu và hướng dẫn giữ cục bộ theo yêu cầu chủ dự án.
+*.md
+*.markdown
+*.mdx
+/docs/
+/Rules/
+/skills/
 # CLAUDE.md: brain cục bộ, không push lên repo
 CLAUDE.md
 # Toàn bộ cấu hình Claude Code là đồ cục bộ, không đưa lên GitHub

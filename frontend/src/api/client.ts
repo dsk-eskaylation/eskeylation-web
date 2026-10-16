@@ -36,10 +36,21 @@ function buildQuery(params: ListParams): string {
   return qs ? `?${qs}` : ''
 }
 
+async function listAll(type: 'photos' | 'video'): Promise<Page<ContentOut>> {
+  const first = await api.list(type, { pageSize: 60 })
+  const rest = await Promise.all(
+    Array.from({ length: Math.max(0, first.pages - 1) }, (_, i) =>
+      api.list(type, { pageSize: 60, page: i + 2 }),
+    ),
+  )
+  return { ...first, items: first.items.concat(...rest.map((p) => p.items)) }
+}
+
 export const api = {
+  listAll,
   homepage: () => getJson<ContentOut>('/api/homepage'),
-  list: (type: 'music' | 'photos' | 'community', params: ListParams = {}) =>
+  list: (type: 'music' | 'photos' | 'community' | 'video', params: ListParams = {}) =>
     getJson<Page<ContentOut>>(`/api/${type}${buildQuery(params)}`),
-  detail: (type: 'music' | 'photos' | 'community', slug: string) =>
+  detail: (type: 'music' | 'photos' | 'community' | 'video', slug: string) =>
     getJson<ContentOut>(`/api/${type}/${slug}`),
 }

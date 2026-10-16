@@ -1,30 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
 import type { ContentOut } from '../api/types'
-import { SearchBar } from '../components/SearchBar'
 import { VideoModal } from '../components/VideoModal'
 import { EmptyState } from '../components/EmptyState'
+import { usePlayer, audioUrl, coverUrl, artistOf } from '../player/PlayerContext'
+import { MUSIC_GENRES } from '../genres'
 import './Music.css'
 
-const CATEGORIES = ['LIFE RAP', 'LOVE RAP', 'GANGSTA', "DISSIN'", 'AI']
+/* 'ALL' là mục ảo -> chọn = bỏ lọc (category null). Các thể loại lấy từ hằng
+   dùng chung với CMS (MUSIC_GENRES) để đồng bộ. */
+const CATEGORIES = ['ALL', ...MUSIC_GENRES]
 
-function primaryMedia(c: ContentOut) {
-  return c.media.find((m) => m.is_primary) ?? c.media[0]
-}
+/* Mảng rỗng ổn định — tránh effect chạy lại vì tạo [] mới mỗi render */
+const EMPTY_ITEMS: ContentOut[] = []
 
-/** Debounce giá trị search cho mượt (gõ xong 300ms mới gọi API). */
-function useDebounced(value: string, delay = 300) {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
-}
-
-/* Góc ngắm trang trí quanh player (Figma EL-20a8c54a: 12x12, nét trên+trái) */
+/* Góc ngắm trang trí quanh cover (Figma EL-20a8c54a) */
 function Brackets({ flip = false }: { flip?: boolean }) {
   return (
     <div className={flip ? 'music__brackets music__brackets--flip' : 'music__brackets'}>
@@ -34,86 +26,60 @@ function Brackets({ flip = false }: { flip?: boolean }) {
   )
 }
 
+/** Trang Nghe nhạc — trải nghiệm phát trực tuyến kiểu Spotify, giữ style Eskaylation:
+    thể loại trên cùng, cover lớn "đang phát" + danh sách bài bên phải.
+    Bài có body.audio_url -> stream qua trình phát toàn cục (phát nền + màn khoá).
+    Bài chưa có audio_url -> mở VideoModal (giữ hành vi cũ với dữ liệu hiện tại). */
 export function Music() {
-  const [q, setQ] = useState('')
-  const debouncedQ = useDebounced(q)
   const [category, setCategory] = useState<string | null>(null)
-  const [featuredId, setFeaturedId] = useState<number | null>(null)
-  const [playing, setPlaying] = useState<ContentOut | null>(null)
+  const [modal, setModal] = useState<ContentOut | null>(null)
+  const player = usePlayer()
 
   const state = useApi(
-    () =>
-      api.list('music', {
-        q: debouncedQ || undefined,
-        category: category || undefined,
-      }),
-    [debouncedQ, category],
+    () => api.list('music', { category: category || undefined, pageSize: 60 }),
+    [category],
   )
+  const items = state.status === 'success' ? state.data.items : EMPTY_ITEMS
 
-  const items = state.status === 'success' ? state.data.items : []
-  const featured = items.find((i) => i.id === featuredId) ?? items[0]
-  const searching = q.trim().length > 0
-  const noResult = searching && state.status === 'success' && items.length === 0
+  // Bài nổi bật ở hero: bài đang phát nếu thuộc danh sách này, không thì bài đầu
+  const playingInList =
+    player.current && items.some((i) => i.id === player.current!.id)
+      ? player.current
+      : null
+  const featured = playingInList ?? items[0]
 
-  const pick = (item: ContentOut) => {
-    setFeaturedId(item.id)
-    setQ('')
+  const isCurrent = (c: ContentOut) => player.current?.id === c.id
+
+  /* Bấm một bài: có audio_url -> phát vào trình phát; chưa có -> mở modal */
+  function activate(c: ContentOut) {
+    if (audioUrl(c)) {
+      const idx = items.findIndex((i) => i.id === c.id)
+      if (isCurrent(c)) player.toggle()
+      else player.playQueue(items, idx)
+    } else {
+      setModal(c)
+    }
   }
-
-  /* Playlist dọc quanh bài đang chọn (Figma #1:570: 5 thumb, giữa nổi bật) */
-  const fIdx = featured ? items.indexOf(featured) : 0
-  const around = items.length
-    ? [-2, -1, 0, 1, 2].map((d) => items[(fIdx + d + items.length) % items.length])
-    : []
-
-  const artist = (c: ContentOut) =>
-    typeof c.body.artist === 'string' ? c.body.artist : 'DSK'
 
   return (
     <div className="music">
+      {/* Thể loại trên cùng */}
       <div className="music__topbar">
-        <div className="music__search">
-          <SearchBar
-            value={q}
-            onChange={setQ}
-            placeholder="Tìm kiếm bài hát"
-            error={noResult}
-            onClear={() => setQ('')}
-          />
-          {/* Dropdown gợi ý (Figma #1:758) */}
-          {searching && items.length > 0 && (
-            <ul className="music__suggest" role="listbox">
-              {items.slice(0, 4).map((item) => (
-                <li key={item.id}>
-                  <button type="button" onClick={() => pick(item)}>
-                    {item.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {/* Báo lỗi tìm kiếm (Figma #1:972) */}
-          {noResult && (
-            <p className="music__search-error">
-              <span>*</span>Hiện tại chưa có bài hát này. Bạn hãy thử lại
-            </p>
-          )}
-        </div>
-
         <div className="music__categories">
           {CATEGORIES.map((c) => {
-            const active = category === c
+            const isAll = c === 'ALL'
+            const active = isAll ? category === null : category === c
             return (
               <button
                 key={c}
                 type="button"
                 className={active ? 'music__cat music__cat--active' : 'music__cat'}
-                onClick={() => setCategory(active ? null : c)}
+                onClick={() => setCategory(isAll || active ? null : c)}
               >
+                {c}
                 <svg viewBox="0 0 27 2" className="music__cat-line" aria-hidden="true">
                   <line x1="0" y1="1" x2="27" y2="1" stroke="currentColor" />
                 </svg>
-                {c}
               </button>
             )
           })}
@@ -121,85 +87,104 @@ export function Music() {
       </div>
 
       {state.status === 'error' && <EmptyState title="Không tải được nhạc." />}
-      {state.status === 'success' && items.length === 0 && !searching && (
+      {state.status === 'success' && items.length === 0 && (
         <EmptyState title="Hiện tại chưa có bài hát nào TT.  " />
       )}
 
       {featured && (
-        <section
-          className={searching ? 'music__stage music__stage--dim' : 'music__stage'}
-        >
-          {/* Tiêu đề bài + gạch ngang (Figma #1:554) */}
-          <div className="music__head" key={featured.id}>
-            <h2 className="music__title">
-              {featured.title.toUpperCase()} - {artist(featured).toUpperCase()}
-            </h2>
-            <svg viewBox="0 0 47 2" className="music__head-line" aria-hidden="true">
-              <line x1="0" y1="1" x2="47" y2="1" stroke="currentColor" />
-            </svg>
-          </div>
-
-          {/* Player giữa với góc ngắm (Figma #1:557) */}
-          <div className="music__player-wrap">
+        <section className="music__stage">
+          {/* Hero: cover lớn của bài nổi bật + nút phát chính */}
+          <div className="music__hero">
             <Brackets />
-            <button
-              type="button"
-              className="music__player"
-              onClick={() => setPlaying(featured)}
-              aria-label={`Phát ${featured.title}`}
-            >
-              {primaryMedia(featured) ? (
-                <img
-                  key={featured.id}
-                  src={primaryMedia(featured)!.url}
-                  alt={featured.title}
-                />
+            <div className="music__cover" key={featured.id}>
+              {coverUrl(featured) ? (
+                <img src={coverUrl(featured)!} alt={featured.title} />
               ) : (
-                <span className="music__player-empty" />
+                <span className="music__cover-empty" />
               )}
-              <span className="music__player-play" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M7 4.5v15l13-7.5z" fill="currentColor" />
-                </svg>
-              </span>
-            </button>
+              <button
+                type="button"
+                className="music__cover-play"
+                onClick={() => activate(featured)}
+                aria-label={
+                  isCurrent(featured) && player.isPlaying
+                    ? `Tạm dừng ${featured.title}`
+                    : `Phát ${featured.title}`
+                }
+              >
+                {isCurrent(featured) && player.isPlaying ? (
+                  <svg viewBox="0 0 24 24">
+                    <rect x="6" y="5" width="4" height="14" fill="currentColor" />
+                    <rect x="14" y="5" width="4" height="14" fill="currentColor" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24">
+                    <path d="M7 4.5v15l13-7.5z" fill="currentColor" />
+                  </svg>
+                )}
+              </button>
+            </div>
             <Brackets flip />
-          </div>
-
-          {/* Cột phải: Xem tất cả + playlist dọc (Figma #1:565) */}
-          <aside className="music__side">
-            <Link to="/music/all" className="music__see-all">
-              Xem tất cả
-            </Link>
-            <div className="music__side-row">
-              <svg viewBox="0 0 47 2" className="music__side-line" aria-hidden="true">
+            <div className="music__hero-meta">
+              <h2 className="music__hero-title">{featured.title.toUpperCase()}</h2>
+              <svg viewBox="0 0 47 2" className="music__hero-line" aria-hidden="true">
                 <line x1="0" y1="1" x2="47" y2="1" stroke="currentColor" />
               </svg>
-              {around.length > 1 && (
-                <div className="music__playlist" aria-label="Danh sách phát">
-                  {around.map((item, i) => (
+              <span className="music__hero-artist">{artistOf(featured).toUpperCase()}</span>
+            </div>
+          </div>
+
+          {/* Danh sách bài — hàng theo kiểu Spotify */}
+          <aside className="music__side">
+            <div className="music__side-head">
+              <span className="music__side-label">Danh sách phát</span>
+              <Link to="/music/all" className="music__see-all" title="Xem tất cả và tìm kiếm">
+                Xem tất cả
+              </Link>
+            </div>
+            <ol className="music__list">
+              {items.map((c, i) => {
+                const active = isCurrent(c)
+                return (
+                  <li key={c.id}>
                     <button
-                      key={`${item.id}-${i}`}
                       type="button"
-                      className={
-                        i === 2 ? 'music__thumb music__thumb--active' : 'music__thumb'
-                      }
-                      onClick={() => (i === 2 ? setPlaying(item) : pick(item))}
-                      aria-label={item.title}
+                      className={active ? 'music__row music__row--active' : 'music__row'}
+                      onClick={() => activate(c)}
                     >
-                      {primaryMedia(item) && (
-                        <img src={primaryMedia(item)!.url} alt="" loading="lazy" />
+                      <span className="music__row-idx" aria-hidden="true">
+                        {active && player.isPlaying ? (
+                          <span className="music__eq">
+                            <i />
+                            <i />
+                            <i />
+                          </span>
+                        ) : (
+                          i + 1
+                        )}
+                      </span>
+                      {coverUrl(c) ? (
+                        <img className="music__row-cover" src={coverUrl(c)!} alt="" loading="lazy" />
+                      ) : (
+                        <span className="music__row-cover music__row-cover--empty" />
+                      )}
+                      <span className="music__row-meta">
+                        <span className="music__row-title">{c.title}</span>
+                        <span className="music__row-artist">{artistOf(c)}</span>
+                      </span>
+                      {!audioUrl(c) && !c.media.some((m) => m.preview_url && m.mime_type.startsWith('audio/')) && (
+                        <span className="music__row-badge" title="Xem dạng video">video</span>
                       )}
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                  </li>
+                )
+              })}
+            </ol>
           </aside>
         </section>
       )}
 
-      {playing && <VideoModal content={playing} onClose={() => setPlaying(null)} />}
+      {modal && <VideoModal content={modal} onClose={() => setModal(null)} />}
     </div>
   )
 }

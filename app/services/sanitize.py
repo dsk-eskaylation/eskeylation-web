@@ -46,19 +46,35 @@ def _clean_value(value):
 
 
 def validate_embeds(body: dict) -> None:
-    """Chặn embed trỏ tới host ngoài whitelist (chống SSRF / iframe lạ)."""
-    for key in _EMBED_KEYS:
-        url = body.get(key)
-        if not url:
-            continue
-        parsed = urlparse(str(url))
-        host = (parsed.hostname or "").lower()
-        allowed = host in settings.allowed_embed_hosts
-        if parsed.scheme not in ("http", "https") or not allowed:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=(
-                    f"Embed không hợp lệ ({key}): chỉ cho phép "
-                    f"{settings.allowed_embed_hosts}"
-                ),
-            )
+    """Chặn embed trỏ tới host ngoài whitelist (chống SSRF / iframe lạ).
+
+    Duyệt ĐỆ QUY toàn bộ body: embed lồng trong list/dict con
+    (vd homepage.sections[].video_url) cũng phải qua whitelist.
+    """
+    _walk_embeds(body)
+
+
+def _walk_embeds(value) -> None:
+    if isinstance(value, dict):
+        for key, v in value.items():
+            if key in _EMBED_KEYS and v:
+                _check_embed_url(key, v)
+            else:
+                _walk_embeds(v)
+    elif isinstance(value, list):
+        for v in value:
+            _walk_embeds(v)
+
+
+def _check_embed_url(key: str, url) -> None:
+    parsed = urlparse(str(url))
+    host = (parsed.hostname or "").lower()
+    allowed = host in settings.allowed_embed_hosts
+    if parsed.scheme not in ("http", "https") or not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Embed không hợp lệ ({key}): chỉ cho phép "
+                f"{settings.allowed_embed_hosts}"
+            ),
+        )
