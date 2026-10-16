@@ -1,10 +1,10 @@
 """Kiểm tra cấu hình backend trên máy deploy; không in giá trị bí mật."""
 
-from app.config import get_settings
+from scripts.deploy import settings_from_env
 
 
 def main() -> None:
-    settings = get_settings()
+    settings = settings_from_env()
     missing = []
     if settings.public_content_source != "drive":
         missing.append("PUBLIC_CONTENT_SOURCE=drive")

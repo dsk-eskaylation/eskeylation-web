@@ -133,6 +133,10 @@ jobs:
         working-directory: /home/eskaylation/eskeylation-web
         env:
           DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
+          DEPLOY_JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DEPLOY_GOOGLE_DRIVE_FOLDER_ID: 1lnfNK-1UMVLrydMHBntY33cLipf4MyFL
+          DEPLOY_PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
         run: |
           set -eo pipefail
           export PATH="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}:$HOME/.local/bin:$PATH"
@@ -154,11 +158,13 @@ jobs:
           git merge --ff-only "$DEPLOY_SHA"
           test "$(git rev-parse HEAD)" = "$DEPLOY_SHA"
           uv sync --locked
+          uv run --locked python -m scripts.deploy configure
           uv run --locked python -m scripts.check_deploy
           npm --prefix frontend ci
           npm --prefix frontend run build
           uv run --locked alembic upgrade head
-          pm2 startOrReload ecosystem.config.cjs --only eskeylation-api --update-env
+          uv run --locked python -m scripts.deploy restart
           curl --fail --silent --show-error \
             --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors \
             --max-time 5 http://127.0.0.1:8000/health/ready
+          pm2 save
