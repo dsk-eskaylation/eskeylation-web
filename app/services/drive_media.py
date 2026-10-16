@@ -15,6 +15,7 @@ import httpx
 from fastapi import HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
+from pillow_heif import register_heif_opener
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
@@ -31,6 +32,7 @@ _streams = asyncio.Semaphore(get_settings().drive_stream_concurrency)
 _RANGE = re.compile(r"bytes=(\d{0,18})-(\d{0,18})")
 _CONTENT_RANGE = re.compile(r"bytes \d+-\d+/\d+")
 logger = logging.getLogger(__name__)
+register_heif_opener(thumbnails=False, decode_threads=2)
 
 
 def _log_failure(
@@ -101,8 +103,16 @@ def _range(value: str, size: int) -> str:
 
 
 def _upstream_error(status: int) -> HTTPException:
-    if status in (403, 404):
+    if status == 404:
         return HTTPException(404, "Tư liệu không còn khả dụng")
+    if status == 403:
+        # Google can reject anonymous downloads or throttle traffic with 403.
+        # Metadata may still be readable: this does not prove the file was deleted.
+        return HTTPException(
+            503,
+            "Kho tư liệu đang tạm từ chối tải. Vui lòng thử lại sau.",
+            headers={"Retry-After": "60"},
+        )
     return HTTPException(
         503, "Tạm thời chưa tải được tư liệu", headers={"Retry-After": "5"}
     )
@@ -173,6 +183,8 @@ async def stream(content_id: int, request: Request, *, head: bool = False) -> Re
                 headers={"Content-Range": f"bytes */{size}"},
             )
         if upstream.status_code not in (200, 206):
+            if upstream.status_code == 404:
+                catalog.invalidate()
             raise _upstream_error(upstream.status_code)
         length = upstream.headers.get("content-length", "")
         if length.isdigit():
@@ -290,6 +302,8 @@ async def _image_bytes_from(content: ContentOut, width: int, poster: bool) -> by
             "GET", url, params=params, headers=outgoing
         ) as response:
             if response.status_code != 200:
+                if response.status_code == 404:
+                    catalog.invalidate()
                 raise _upstream_error(response.status_code)
             if (
                 not response.headers.get("content-type", "")

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
-import { useApi, useDebounced } from '../api/useApi'
+import { useDebounced } from '../api/useApi'
+import { useLiveApi } from '../api/useLiveApi'
 import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
 import { EmptyState } from '../components/EmptyState'
@@ -21,7 +22,7 @@ export function VideoAll() {
   const debouncedQ = useDebounced(q)
   const [page, setPage] = useState(1)
   const navigate = useNavigate()
-  const state = useApi(
+  const state = useLiveApi(
     () => api.list('video', { q: debouncedQ || undefined, pageSize: 60, page }),
     [debouncedQ, page],
   )

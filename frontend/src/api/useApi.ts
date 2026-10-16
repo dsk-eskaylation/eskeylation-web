@@ -6,19 +6,49 @@ type State<T> =
   | { status: 'success'; data: T }
 
 /** Gọi một hàm trả Promise và theo dõi trạng thái loading/error/success. */
-export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): State<T> {
+export function useApi<T>(
+  fetcher: () => Promise<T>,
+  deps: unknown[] = [],
+  keepPrevious = false,
+): State<T> {
   const [state, setState] = useState<State<T>>({ status: 'loading' })
 
   // Deps do caller truyền vào, cố ý bỏ fetcher khỏi deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     let alive = true
-    setState({ status: 'loading' })
-    fetcher()
-      .then((data) => alive && setState({ status: 'success', data }))
-      .catch((error) => alive && setState({ status: 'error', error }))
+    let retry: ReturnType<typeof setTimeout> | undefined
+    let retryDelay = 5000
+    setState((current) =>
+      keepPrevious && current.status === 'success'
+        ? current
+        : { status: 'loading' },
+    )
+    const load = () => {
+      if (!alive) return
+      if (keepPrevious && document.hidden) {
+        retry = setTimeout(load, 15000)
+        return
+      }
+      fetcher()
+        .then((data) => alive && setState({ status: 'success', data }))
+        .catch((error) => {
+          if (!alive) return
+          setState((current) =>
+            keepPrevious && current.status === 'success'
+              ? current
+              : { status: 'error', error },
+          )
+          if (keepPrevious) {
+            retry = setTimeout(load, retryDelay)
+            retryDelay = Math.min(retryDelay * 2, 60000)
+          }
+        })
+    }
+    load()
     return () => {
       alive = false
+      clearTimeout(retry)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)

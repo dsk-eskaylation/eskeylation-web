@@ -50,6 +50,18 @@ def test_unknown_thumbnail_host_is_not_rendered():
     assert file_to_content(row(mimeType="application/zip"), ["Nhạc & MV"]) is None
 
 
+def test_modified_files_have_versioned_urls_and_heif_has_browser_safe_full_view():
+    before = file_to_content(row(modifiedTime="2026-10-15"), ["Nhạc & MV"])
+    after = file_to_content(row(modifiedTime="2026-10-16"), ["Nhạc & MV"])
+    assert before.id == after.id
+    assert before.body["audio_url"] != after.body["audio_url"]
+    image = file_to_content(
+        row(mimeType="image/heif", modifiedTime="2026-10-16"), ["Cộng đồng"]
+    )
+    assert "/image?w=1920&v=" in image.media[0].original_url
+    assert "&v=" in image.media[0].srcset
+
+
 async def test_scan_handles_pages_and_only_requests_metadata():
     requests = []
 
@@ -99,6 +111,55 @@ async def test_changed_folder_refreshes_cache(monkeypatch):
     monkeypatch.setattr(settings, "google_drive_folder_id", "other_123456789")
     await catalog.items()
     assert catalog._scan.await_count == 2
+
+
+async def test_revision_changes_after_delete_and_modify_without_leaking_drive_id(
+    monkeypatch,
+):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "google_drive_api_key", "test-secret")
+    monkeypatch.setattr(settings, "drive_catalog_cache_seconds", 0)
+    catalog = DriveCatalog()
+    first = file_to_content(row(), ["Nhạc & MV"])
+    other = file_to_content(row("file_987654321"), ["Nhạc & MV"])
+    catalog._scan = AsyncMock(side_effect=[[first, other], [first], [first], []])
+    await catalog.items()
+    original = catalog.revision
+    await catalog.items()
+    deleted = catalog.revision
+    assert deleted != original and len(deleted) == 32
+    first._drive["modifiedTime"] = "2026-10-16T15:00:00Z"
+    await catalog.items()
+    assert catalog.revision != deleted
+    assert "file_" not in catalog.revision and "test-secret" not in catalog.revision
+    await catalog.items()
+    assert catalog._by_id == {}
+
+
+async def test_revision_api_no_store_no_database(client, drive_source):
+    drive_source.revision = "opaque-revision"
+    response = await client.get("/api/catalog")
+    assert response.status_code == 200
+    assert response.json() == {"revision": "opaque-revision"}
+    assert response.headers["cache-control"] == "no-store"
+
+
+async def test_deleted_image_disappears_when_shared_catalog_cache_expires(monkeypatch):
+    from app.services import drive_catalog
+
+    monkeypatch.setattr(get_settings(), "google_drive_api_key", "test-secret")
+    monkeypatch.setattr(get_settings(), "drive_catalog_cache_seconds", 15)
+    now = 0.0
+    monkeypatch.setattr(drive_catalog, "monotonic", lambda: now)
+    catalog = DriveCatalog()
+    image = file_to_content(row(mimeType="image/jpeg"), ["Cộng đồng"])
+    catalog._scan = AsyncMock(side_effect=[[image], []])
+    assert (await catalog.page(ContentType.community, 1, 30, None)).total == 1
+    now = 14.0
+    assert (await catalog.page(ContentType.community, 1, 30, None)).total == 1
+    now = 15.0
+    assert (await catalog.page(ContentType.community, 1, 30, None)).total == 0
+    assert await catalog.get(image.id) is None
 
 
 @pytest.fixture

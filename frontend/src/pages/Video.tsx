@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
-import { useApi } from '../api/useApi'
+import { useLiveApi } from '../api/useLiveApi'
 import type { ContentOut } from '../api/types'
 import { VideoPlayer } from '../components/VideoPlayer'
 import { EmptyState } from '../components/EmptyState'
@@ -62,7 +62,7 @@ function VideoThumb({
     player lớn phát inline tại chỗ + lưới video làm playlist. Bấm một video
     -> nạp vào player và phát ngay; điều khiển start/pause trong chính player. */
 export function Video() {
-  const state = useApi(() => api.listAll('video'), [])
+  const state = useLiveApi(() => api.listAll('video'), [])
   const items = state.status === 'success' ? state.data.items : []
   const [params] = useSearchParams()
   const requestedId = params.get('v')

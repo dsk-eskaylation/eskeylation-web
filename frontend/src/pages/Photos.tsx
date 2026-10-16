@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
-import { useApi } from '../api/useApi'
+import { useLiveApi } from '../api/useLiveApi'
 import type { ContentOut, MediaOut } from '../api/types'
 import { MediaImage } from '../components/MediaImage'
 import { Modal } from '../components/Modal'
@@ -46,7 +46,7 @@ function fmtDate(iso: string | null) {
     trải toàn bộ ảnh của mọi bài gallery thành lưới nhiều cột, bấm để xem lớn
     (lightbox có chuyển ảnh ←/→). Giữ style tối Eskaylation, responsive mọi thiết bị. */
 export function Photos() {
-  const state = useApi(() => api.listAll('photos'), [])
+  const state = useLiveApi(() => api.listAll('photos'), [])
   const items: ContentOut[] =
     state.status === 'success' ? state.data.items : EMPTY_ITEMS
 

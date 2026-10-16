@@ -17,6 +17,16 @@ from app.services.serialize import content_to_out
 router = APIRouter(prefix="/api", tags=["public"])
 
 
+@router.get("/catalog")
+async def catalog_revision(response: Response) -> dict[str, str | None]:
+    """Small shared freshness check; never return Drive IDs or credentials."""
+    response.headers["Cache-Control"] = "no-store"
+    if get_settings().public_content_source != "drive":
+        return {"revision": None}
+    await catalog.items()
+    return {"revision": catalog.revision}
+
+
 @router.get("/drive/thumbnails/{file_id}")
 async def drive_thumbnail(file_id: str) -> Response:
     if get_settings().public_content_source != "drive":

@@ -137,6 +137,32 @@ async def test_timeout_releases_stream_slot(client, library, monkeypatch, caplog
     assert "private-test-key" not in caplog.text
 
 
+@pytest.mark.parametrize("mime", ["text/html", "application/json"])
+async def test_google_forbidden_is_temporary_not_a_deleted_file(
+    client, library, monkeypatch, mime
+):
+    mock_upstream(
+        monkeypatch,
+        lambda request: httpx.Response(
+            403,
+            text="Google rejected automated traffic",
+            headers={"content-type": mime},
+        ),
+    )
+    response = await client.get(f"/api/library/{library.id}/stream")
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "60"
+    assert "private-test-key" not in response.text
+    assert drive_media._streams._value == 2
+
+
+async def test_deleted_file_is_still_not_found(client, library, monkeypatch):
+    mock_upstream(monkeypatch, lambda request: httpx.Response(404))
+    response = await client.get(f"/api/library/{library.id}/stream")
+    assert response.status_code == 404
+    assert drive_media._streams._value == 2
+
+
 async def test_disconnected_client_closes_upstream_and_releases_slot(
     library, monkeypatch
 ):
@@ -197,3 +223,21 @@ async def test_image_from_original_is_resized_cached_and_has_original_link(
         await client.get(f"/api/library/{library.id}/image?w=777")
     ).status_code == 422
     assert len(requests) == 1
+
+
+async def test_heif_is_decoded_from_original_and_served_as_browser_image(
+    client, library, monkeypatch
+):
+    buffer = io.BytesIO()
+    Image.new("RGB", (1800, 1200), "orange").save(buffer, "HEIF", quality=90)
+    library.media[0].mime_type = "image/heif"
+    mock_upstream(
+        monkeypatch,
+        lambda request: httpx.Response(
+            200, content=buffer.getvalue(), headers={"content-type": "image/heif"}
+        ),
+    )
+    response = await client.get(f"/api/library/{library.id}/image?w=1280")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/webp"
+    assert Image.open(io.BytesIO(response.content)).size == (1280, 853)

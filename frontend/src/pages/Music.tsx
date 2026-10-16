@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import { useApi } from "../api/useApi";
+import { useLiveApi } from "../api/useLiveApi";
 import type { ContentOut } from "../api/types";
 import { EmptyState } from "../components/EmptyState";
 import { SearchBar } from "../components/SearchBar";
@@ -26,7 +26,7 @@ export function Music() {
   const [query, setQuery] = useState("");
   const [attempt, setAttempt] = useState(0);
   const player = usePlayer();
-  const state = useApi(() => api.listAll("music"), [attempt]);
+  const state = useLiveApi(() => api.listAll("music"), [attempt]);
   const library = state.status === "success" ? state.data.items : EMPTY_ITEMS;
   const items = useMemo(() => {
     const needle = searchable(query.trim());

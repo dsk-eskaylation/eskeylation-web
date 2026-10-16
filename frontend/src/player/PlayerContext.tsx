@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from 'react'
 import type { ContentOut } from '../api/types'
+import { api } from '../api/client'
+import { useCatalogRevision } from '../api/useLiveApi'
 
 export type RepeatMode = 'off' | 'all' | 'one'
 
@@ -90,6 +92,51 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const current = queue[index] ?? null
   const currentId = current?.id ?? null
+  const currentUrl = current ? audioUrl(current) : null
+  const hasQueue = queue.length > 0
+  const catalogRevision = useCatalogRevision(hasQueue)
+  const latestQueue = useRef({ queue, index })
+  useEffect(() => {
+    latestQueue.current = { queue, index }
+  }, [queue, index])
+
+  useEffect(() => {
+    if (!catalogRevision || !latestQueue.current.queue.length) return
+    let alive = true
+    void api
+      .listAll('music')
+      .then((library) => {
+        if (!alive) return
+        const snapshot = latestQueue.current
+        if (snapshot.queue.length === 0) return
+        const available = new Map(
+          library.items.map((track) => [track.id, track]),
+        )
+        const updated = snapshot.queue.flatMap((track) => {
+          const fresh = available.get(track.id)
+          return fresh && audioUrl(fresh) ? [fresh] : []
+        })
+        const selected = snapshot.queue[snapshot.index]
+        const position = updated.findIndex((track) => track.id === selected?.id)
+        if (position < 0) {
+          playAttempt.current++
+          const audio = audioRef.current
+          audio?.pause()
+          audio?.removeAttribute('src')
+          audio?.load()
+          setIsPlaying(false)
+          setBusy(false)
+          setError('Bài hát đã được gỡ khỏi thư viện. Hãy chọn bài khác.')
+        }
+        if (updated.length !== snapshot.queue.length) historyRef.current = []
+        setQueue(updated)
+        setIndex(Math.max(0, position))
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [catalogRevision, hasQueue])
 
   const playAudio = useCallback((audio: HTMLAudioElement) => {
     const attempt = ++playAttempt.current
@@ -286,7 +333,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setDuration(0)
     if (isPlaying && audio.paused) playAudio(audio)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentId])
+  }, [currentId, currentUrl])
 
   // Play/pause đồng bộ với state
   useEffect(() => {

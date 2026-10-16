@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { useApi, useDebounced } from '../api/useApi'
+import { useDebounced } from '../api/useApi'
+import { useLiveApi } from '../api/useLiveApi'
 import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
 import { MusicCard } from '../components/MusicCard'
@@ -16,7 +17,7 @@ export function MusicAll() {
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<ContentOut | null>(null)
   const player = usePlayer()
-  const state = useApi(
+  const state = useLiveApi(
     () =>
       api.list('music', {
         q: debouncedQ || undefined,

@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     google_drive_service_account_file: str = ""
     public_content_source: Literal["database", "drive"] = "database"
     google_drive_folder_id: str = "1lnfNK-1UMVLrydMHBntY33cLipf4MyFL"
-    drive_catalog_cache_seconds: int = Field(default=300, ge=0, le=3600)
+    drive_catalog_cache_seconds: int = Field(default=15, ge=0, le=3600)
     drive_image_cache_bytes: int = Field(
         default=32 * 1024 * 1024, ge=0, le=128 * 1024 * 1024
     )

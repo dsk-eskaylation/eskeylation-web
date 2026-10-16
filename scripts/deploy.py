@@ -90,6 +90,9 @@ def configure(path: Path = Path(".env")) -> None:
         "PUBLIC_CONTENT_SOURCE": "drive",
         "GOOGLE_DRIVE_API_KEY": key,
         "GOOGLE_DRIVE_FOLDER_ID": folder,
+        "DRIVE_CATALOG_CACHE_SECONDS": str(
+            min(current.drive_catalog_cache_seconds, 15)
+        ),
         "JWT_SECRET": jwt,
     }
     database = os.environ.get("DEPLOY_DATABASE_URL", "").strip()

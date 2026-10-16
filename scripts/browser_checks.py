@@ -334,6 +334,84 @@ def check_ui(password: str, tag: str) -> None:
                 "Comment POST/socket deduplication, own edit, "
                 "admin delete updates live thread"
             )
+            live_context = context()
+            live_page = live_context.new_page()
+            page = live_page
+            revision = "before-delete"
+            fail_list_once = False
+            list_requests = []
+
+            def refresh_failure(route):
+                nonlocal fail_list_once
+                if fail_list_once:
+                    fail_list_once = False
+                    route.fulfill(
+                        status=503, json={"detail": "Temporary catalog outage"}
+                    )
+                else:
+                    route.continue_()
+
+            live_page.route("**/api/community?*", refresh_failure)
+            live_page.on(
+                "request",
+                lambda request: (
+                    list_requests.append(request.url)
+                    if "/api/community?" in request.url
+                    else None
+                ),
+            )
+            live_page.route(
+                "**/api/catalog",
+                lambda route: route.fulfill(json={"revision": revision}),
+            )
+            live_page.goto(BASE + "/community", wait_until="networkidle")
+            expect(live_page.locator(".cpost")).to_have_count(6)
+            previous_requests = len(list_requests)
+            live_page.evaluate("window.dispatchEvent(new Event('focus'))")
+            live_page.wait_for_load_state("networkidle")
+            assert len(list_requests) == previous_requests
+            live_page.locator(".cpost__cell").first.click()
+            expect(live_page.get_by_role("dialog")).to_be_visible()
+            response = admin_page.request.delete(
+                BASE + f"/admin/content/{post_id}", headers={"X-CSRF-Token": csrf}
+            )
+            assert response.status == 204
+            fail_list_once = True
+            revision = "after-delete"
+            expect(live_page.locator(".cpost")).to_have_count(5, timeout=30000)
+            expect(live_page.get_by_role("dialog")).to_have_count(0)
+            passed(
+                "Catalog polling removes a deleted post and open image without reload"
+            )
+            live_context.close()
+
+            live_context = context()
+            live_page = live_context.new_page()
+            page = live_page
+            revision = "before-music-delete"
+            live_page.route(
+                "**/api/catalog",
+                lambda route: route.fulfill(json={"revision": revision}),
+            )
+            live_page.goto(BASE + "/music", wait_until="networkidle")
+            live_page.locator(".music__row").first.click()
+            live_page.wait_for_function(
+                "()=>document.querySelector('audio').currentTime>.2"
+            )
+            track_id = live_page.request.get(BASE + "/api/music?page_size=1").json()[
+                "items"
+            ][0]["id"]
+            response = admin_page.request.delete(
+                BASE + f"/admin/content/{track_id}", headers={"X-CSRF-Token": csrf}
+            )
+            assert response.status == 204
+            revision = "after-music-delete"
+            expect(live_page.locator(".music__row")).to_have_count(23, timeout=22000)
+            live_page.wait_for_function("()=>document.querySelector('audio').paused")
+            live_page.get_by_role("button", name="Hàng chờ", exact=True).click()
+            expect(live_page.locator(".pbq")).to_have_count(23)
+            passed("Deleted track leaves the live library and queue, playback stops")
+            live_context.close()
             admin_context.close()
             member_context.close()
             for role in ["author", "editor", "member"]:

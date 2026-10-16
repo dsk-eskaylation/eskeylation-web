@@ -42,16 +42,21 @@ def file_to_content(file: dict, folders: list[str]) -> ContentOut | None:
         hashlib.sha256(file_id.encode()).digest()[:6], "big"
     )
     base = f"/api/library/{content_id}"
+    version = (
+        "&v=" + hashlib.sha256(str(file["modifiedTime"]).encode()).hexdigest()[:16]
+        if file.get("modifiedTime")
+        else ""
+    )
     is_image = item["mime_type"].startswith("image/")
     is_audio = item["mime_type"].startswith("audio/")
     if is_audio:
-        body["audio_url"] = f"{base}/stream"
+        body["audio_url"] = f"{base}/stream" + version.replace("&", "?", 1)
     dimensions = file.get("imageMediaMetadata") or file.get("videoMediaMetadata") or {}
     thumbnail = google_thumbnail(file.get("thumbnailLink"))
     image_url = (
-        f"{base}/image?w=1280"
+        f"{base}/image?w=1280{version}"
         if is_image
-        else (f"{base}/poster?w=960" if thumbnail else "")
+        else (f"{base}/poster?w=960{version}" if thumbnail else "")
     )
     content = ContentOut(
         id=content_id,
@@ -65,11 +70,20 @@ def file_to_content(file: dict, folders: list[str]) -> ContentOut | None:
         media=[
             MediaOut(
                 url=image_url,
-                stream_url=None if is_image else f"{base}/stream",
-                original_url=f"{base}/stream" if is_image else None,
+                stream_url=None
+                if is_image
+                else body.get("audio_url", f"{base}/stream"),
+                original_url=(
+                    f"{base}/image?w=1920{version}"
+                    if item["mime_type"] in {"image/heif", "image/heic"}
+                    else f"{base}/stream" + version.replace("&", "?", 1)
+                )
+                if is_image
+                else None,
                 srcset=(
                     ", ".join(
-                        f"{base}/image?w={w} {w}w" for w in (320, 640, 960, 1280, 1920)
+                        f"{base}/image?w={w}{version} {w}w"
+                        for w in (320, 640, 960, 1280, 1920)
                     )
                     if is_image
                     else None
@@ -101,6 +115,10 @@ class DriveCatalog:
         self._by_id: dict[int, ContentOut] = {}
         self._search: dict[int, str] = {}
         self.public_write_access = False
+        self.revision = ""
+
+    def invalidate(self) -> None:
+        self._expires = 0.0
 
     async def items(self) -> list[ContentOut]:
         settings = get_settings()
@@ -142,6 +160,12 @@ class DriveCatalog:
                 for item in result
             }
             self._source = source
+            digest = hashlib.sha256()
+            for item in result:
+                digest.update(item.model_dump_json().encode())
+                digest.update(str(item._drive.get("modifiedTime", "")).encode())
+                digest.update(str(item._drive.get("size", "")).encode())
+            self.revision = digest.hexdigest()[:32]
             self._expires = monotonic() + max(0, settings.drive_catalog_cache_seconds)
             return self._items
 

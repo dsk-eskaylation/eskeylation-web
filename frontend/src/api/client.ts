@@ -2,6 +2,10 @@ import type { ContentOut, Page } from './types'
 
 const publicCache = new Map<string, { expires: number; value: Promise<unknown> }>()
 
+export function invalidatePublicCache() {
+  publicCache.clear()
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const cached = publicCache.get(path)
   if (cached && cached.expires > Date.now()) return cached.value as Promise<T>
