@@ -43,6 +43,17 @@ jobs:
               if value:
                   output = output.replace(value, '[REDACTED]')
           print(output)
+          from pathlib import Path
+          import re
+          for path in sorted(Path('/etc/nginx/sites-enabled').glob('*')):
+              if path.is_file():
+                  print('NGINX_SITE', str(path), 'TARGET', str(path.resolve()))
+                  for number, line in enumerate(path.read_text().splitlines(), 1):
+                      if re.match(r'\s*(?:listen|server_name|location|proxy_pass|proxy_http_version|root)\s', line) or re.match(r'\s*proxy_set_header\s+(?:Upgrade|Connection|Host|X-Forwarded-Proto)\s', line):
+                          print(f'{number}: {line.strip()}')
+          check = subprocess.run(['sudo', '-n', 'nginx', '-t'], capture_output=True, text=True, timeout=15)
+          print('NGINX_CONFIG_TEST', check.returncode)
+          print(check.stdout + check.stderr)
           PY
 
   backend:
