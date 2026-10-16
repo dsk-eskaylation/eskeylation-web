@@ -135,6 +135,7 @@ jobs:
           DEPLOY_SHA: ${{ github.sha }}
           DEPLOY_GOOGLE_DRIVE_API_KEY: ${{ secrets.GOOGLE_DRIVE_API_KEY }}
           DEPLOY_JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DEPLOY_DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DEPLOY_GOOGLE_DRIVE_FOLDER_ID: 1lnfNK-1UMVLrydMHBntY33cLipf4MyFL
           DEPLOY_PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
         run: |

@@ -13,6 +13,8 @@ from uuid import uuid4
 
 from dotenv import dotenv_values
 from pydantic import ValidationError
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from app.config import Settings
 from app.services.drive_metadata import drive_id
@@ -72,6 +74,15 @@ def configure(path: Path = Path(".env")) -> None:
         "GOOGLE_DRIVE_FOLDER_ID": folder,
         "JWT_SECRET": jwt,
     }
+    database = os.environ.get("DEPLOY_DATABASE_URL", "").strip()
+    if database:
+        try:
+            url = make_url(database)
+        except ArgumentError:
+            raise ValueError("DATABASE_URL deploy không hợp lệ") from None
+        if url.drivername != "postgresql+asyncpg" or not url.host:
+            raise ValueError("DATABASE_URL deploy cần PostgreSQL với driver asyncpg")
+        updates["DATABASE_URL"] = database
     site = os.environ.get("DEPLOY_PUBLIC_SITE_URL", "").strip()
     if site:
         origin = public_origin(site)

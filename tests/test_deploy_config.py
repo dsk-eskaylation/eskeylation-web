@@ -14,6 +14,7 @@ def environment(tmp_path, monkeypatch):
         "DEPLOY_JWT_SECRET",
         "DEPLOY_PUBLIC_SITE_URL",
         "DEPLOY_GOOGLE_DRIVE_FOLDER_ID",
+        "DEPLOY_DATABASE_URL",
         "GOOGLE_DRIVE_API_KEY",
         "JWT_SECRET",
     ):
@@ -70,6 +71,23 @@ def test_existing_strong_jwt_is_preserved(environment):
     )
     deploy.configure(environment)
     assert deploy.settings_from_env(environment).jwt_secret == original
+
+
+def test_database_secret_updates_only_database_and_keeps_private_backup(
+    environment, monkeypatch, capsys
+):
+    before = environment.read_bytes()
+    database = "postgresql+asyncpg://postgres.project:new-password@pooler.example:6543/postgres"
+    monkeypatch.setenv("DEPLOY_DATABASE_URL", database)
+    deploy.configure(environment)
+    settings = deploy.settings_from_env(environment)
+    assert settings.database_url == database
+    assert settings.supabase_service_key == "keep-storage-credential"
+    backups = list(
+        environment.parent.glob(".local/deploy-backups/*/environment.backup")
+    )
+    assert backups[0].read_bytes() == before
+    assert database not in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("invalid", ["missing_key", "invalid_origin"])
