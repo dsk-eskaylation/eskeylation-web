@@ -113,6 +113,16 @@ jobs:
             exit 1
           fi
           tracked_changes=$(git status --porcelain --untracked-files=no)
+          if [ "$tracked_changes" = ' M frontend/package-lock.json' ] && git diff --cached --quiet; then
+            backup_dir=".local/deploy-backups/$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            mkdir -p "$backup_dir"
+            cp -p -- frontend/package-lock.json "$backup_dir/package-lock.json"
+            cmp --silent -- frontend/package-lock.json "$backup_dir/package-lock.json"
+            git diff --binary HEAD -- frontend/package-lock.json > "$backup_dir/package-lock.patch"
+            printf 'Saved server lockfile changes to %s; using the tested main lockfile.\n' "$backup_dir"
+            git restore --source=HEAD --worktree -- frontend/package-lock.json
+            tracked_changes=$(git status --porcelain --untracked-files=no)
+          fi
           if [ -n "$tracked_changes" ]; then
             printf 'Deployment stopped: server has uncommitted tracked changes:\n%s\n' "$tracked_changes" >&2
             exit 1
