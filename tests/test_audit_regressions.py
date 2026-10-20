@@ -36,7 +36,12 @@ async def test_published_edits_require_publisher_and_stay_valid(
 ):
     owner = await token_for(client, make_user, UserRole.author)
     draft = await _create(
-        client, owner, track_content, type="music", title="Live", body={"artist": "A"}
+        client,
+        owner,
+        track_content,
+        type="music",
+        title="Live",
+        body={"artist": "A", "audio_url": "/media/fake.mp3"},
     )
     url = f"/admin/content/{draft['id']}"
     editor = await token_for(client, make_user, UserRole.editor)

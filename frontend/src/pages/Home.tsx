@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api } from '../api/client'
-import { useApi } from '../api/useApi'
+import { useLiveApi } from '../api/useLiveApi'
 import hero1 from '../assets/figma/hero-1-4ee723.png'
 import hero2 from '../assets/figma/hero-2-25801d.png'
 import hero3 from '../assets/figma/hero-3-5a4166.png'
@@ -113,14 +113,17 @@ function RoleColumn({ role, names }: { role: string; names: string[] }) {
 }
 
 export function Home() {
-  const state = useApi(() => api.homepage())
+  const state = useLiveApi(() => api.homepage())
   const body = (state.status === 'success' ? state.data.body : {}) as Record<
     string,
     unknown
   >
 
-  // Luôn dùng đoạn giới thiệu mặc định, bỏ qua body.intro từ Supabase (theo yêu cầu)
-  const intro = DEFAULT_INTRO
+  const intro = typeof body.intro === 'string' && body.intro.trim() ? body.intro : DEFAULT_INTRO
+  const uploadedImages = state.status === 'success'
+    ? state.data.media.filter((m) => m.mime_type.startsWith('image/') && m.url).map((m) => m.url)
+    : []
+  const heroImages = uploadedImages.length ? uploadedImages : HERO_IMAGES
   const credits = Array.isArray(body.credits)
     ? (body.credits as typeof DEFAULT_CREDITS)
     : DEFAULT_CREDITS
@@ -146,7 +149,7 @@ export function Home() {
         <div className="home__hero-strip" aria-hidden="true">
           {/* Băng chuyền chạy ngang trái -> phải; nhân đôi ảnh để loop liền mạch */}
           <div className="home__hero-track">
-            {[...HERO_IMAGES, ...HERO_IMAGES].map((src, i) => (
+            {[...heroImages, ...heroImages].map((src, i) => (
               <img src={src} alt="" key={i} />
             ))}
           </div>

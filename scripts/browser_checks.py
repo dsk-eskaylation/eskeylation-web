@@ -50,6 +50,10 @@ def environment() -> dict[str, str]:
         "SUPABASE_SERVICE_KEY": "",
         "GOOGLE_DRIVE_API_KEY": "",
         "GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE": "",
+        "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON": "",
+        "AWS_ACCESS_KEY_ID": "",
+        "AWS_SECRET_ACCESS_KEY": "",
+        "AWS_EC2_METADATA_DISABLED": "true",
         "CORS_ORIGINS": json.dumps([BASE]),
     }
 
@@ -150,6 +154,8 @@ async def seed(password: str, tag: str) -> None:
 
 
 def check_ui(password: str, tag: str) -> None:
+    from scripts.cms_browser_checks import check_cms_mapping
+
     checks = []
 
     def passed(name):
@@ -501,6 +507,7 @@ def check_ui(password: str, tag: str) -> None:
             live_context.close()
             admin_context.close()
             member_context.close()
+            check_cms_mapping(BASE, context, login, passed)
             for role in ["author", "editor", "member"]:
                 ctx = context()
                 page = ctx.new_page()

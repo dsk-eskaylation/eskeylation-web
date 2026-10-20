@@ -1,6 +1,7 @@
 """Business logic CMS: tạo/sửa/workflow nội dung, gắn media, validate publish."""
 
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
@@ -13,7 +14,12 @@ from app.models.enums import ContentStatus, ContentType
 from app.models.media import ContentMedia, Media
 from app.schemas.admin import ContentCreate, ContentMediaIn, ContentUpdate
 from app.services import moderation
-from app.services.sanitize import sanitize_body, sanitize_summary, validate_embeds
+from app.services.sanitize import (
+    playable_video_embed,
+    sanitize_body,
+    sanitize_summary,
+    validate_embeds,
+)
 from app.services.slug import unique_slug
 
 
@@ -127,7 +133,8 @@ async def update_content(
         await _replace_media(session, content, data.media or [])
     if content.status == ContentStatus.published:
         await session.flush()
-        await session.refresh(content, ["media_links"])
+        session.expire(content, ["media_links"])
+        content = await get_with_media(session, content.id)
         validate_for_publish(content)
     await session.commit()
     # expire_on_commit=False giữ media_links cũ trên object -> ép reload cho đúng
@@ -143,10 +150,32 @@ async def delete_content(session: AsyncSession, content: Content) -> None:
 def validate_for_publish(content: Content) -> None:
     """Chặn publish nếu thiếu media/metadata bắt buộc theo loại."""
     errors: list[str] = []
-    if content.type == ContentType.music and not content.body.get("artist"):
-        errors.append("music cần 'artist' trong body")
-    if content.type == ContentType.gallery and not content.media_links:
-        errors.append("gallery cần ít nhất 1 media")
+    mimes = [link.media.mime_type for link in content.media_links]
+    if content.type == ContentType.music:
+        artist = content.body.get("artist")
+        if not isinstance(artist, str) or not artist.strip():
+            errors.append("Nhạc cần tên nghệ sĩ")
+        audio_url = content.body.get("audio_url")
+        valid_url = False
+        if isinstance(audio_url, str) and audio_url.strip():
+            try:
+                parsed = urlparse(audio_url.strip())
+                valid_url = (
+                    parsed.scheme in {"http", "https"} and bool(parsed.hostname)
+                ) or (audio_url.startswith("/") and not audio_url.startswith("//"))
+            except ValueError:
+                pass
+        if not any(m.startswith("audio/") for m in mimes) and not valid_url:
+            errors.append("Nhạc cần file âm thanh hoặc link âm thanh HTTP/HTTPS hợp lệ")
+    if content.type == ContentType.video and not (
+        any(m.startswith("video/") for m in mimes)
+        or playable_video_embed(content.body.get("embed_url"))
+    ):
+        errors.append("Video cần file video hoặc link YouTube/Vimeo có thể phát")
+    if content.type == ContentType.gallery and not any(
+        m.startswith("image/") for m in mimes
+    ):
+        errors.append("Album ảnh cần ít nhất một file ảnh")
     if content.type == ContentType.homepage and not content.body.get("sections"):
         errors.append("homepage cần 'sections' trong body")
     if content.type == ContentType.community and not (
@@ -161,6 +190,8 @@ def validate_for_publish(content: Content) -> None:
 
 
 async def publish(session: AsyncSession, content: Content) -> Content:
+    # Callers outside the router may not have loaded media relationships yet.
+    content = await get_with_media(session, content.id)
     validate_for_publish(content)
     content.status = ContentStatus.published
     if content.published_at is None:

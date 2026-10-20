@@ -97,6 +97,19 @@ export interface BannedWord {
   created_at: string
 }
 
+export type LyricStatus = 'pending' | 'accepted' | 'rejected'
+export interface LyricSuggestion {
+  id: number
+  content_id: number
+  cms_content_id: number | null
+  title: string | null
+  user_email: string | null
+  body: string
+  status: LyricStatus
+  created_at: string
+  can_accept: boolean
+}
+
 export interface ActivityEntry {
   id: number
   actor_email: string | null
@@ -210,6 +223,12 @@ export const adminApi = {
     request<AdminUser>('/admin/users', jsonInit('POST', payload)),
 
   // ---- Kiểm duyệt (chỉ admin) ----
+  lyrics: (page = 1, status: LyricStatus = 'pending') =>
+    request<Page<LyricSuggestion>>(`/admin/moderation/lyrics?page=${page}&review_status=${status}`),
+
+  reviewLyrics: (id: number, status: 'accepted' | 'rejected') =>
+    request<LyricSuggestion>(`/admin/moderation/lyrics/${id}`, jsonInit('PATCH', { status })),
+
   bannedWords: () => request<BannedWord[]>('/admin/moderation/banned-words'),
 
   addBannedWord: (word: string) =>

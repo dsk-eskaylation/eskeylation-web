@@ -87,7 +87,7 @@ async def test_set_status_published_di_qua_validate_va_set_published_at(
     content = await make_content(
         type_=ContentType.music,
         status=ContentStatus.draft,
-        body={"artist": "DSK"},
+        body={"artist": "DSK", "audio_url": "/media/fake.mp3"},
         published=False,
     )
     updated = await content_admin.set_status(db, content, ContentStatus.published)

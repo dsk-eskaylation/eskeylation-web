@@ -8,7 +8,8 @@ import { EmptyState } from '../components/EmptyState'
 import './Video.css'
 
 function poster(c: ContentOut) {
-  return c.media.find((m) => m.is_primary) ?? c.media[0]
+  const images = c.media.filter((m) => m.url && (m.mime_type.startsWith('image/') || m.preview_url))
+  return images.find((m) => m.is_primary) ?? images[0]
 }
 function artistOf(c: ContentOut) {
   return typeof c.body.artist === 'string' ? c.body.artist : 'DSK'
@@ -67,26 +68,32 @@ export function Video() {
   const [params] = useSearchParams()
   const requestedId = params.get('v')
 
-  const [current, setCurrent] = useState<ContentOut | null>(null)
-  const [playing, setPlaying] = useState(false)
+  const [currentId, setCurrentId] = useState<number | null>(null)
+  const [playingId, setPlayingId] = useState<number | null>(null)
   const heroRef = useRef<HTMLDivElement>(null)
+  const requestedVideoId = items.find((x) => String(x.id) === requestedId)?.id
 
   // Đến từ trang "Xem tất cả" (?v=id) -> nạp đúng video đó vào player & phát
   useEffect(() => {
-    if (!requestedId) return
-    const v = items.find((x) => String(x.id) === requestedId)
-    if (v) {
-      setCurrent(v)
-      setPlaying(true)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestedId, state.status])
+    if (requestedVideoId === undefined) return
+    setCurrentId(requestedVideoId)
+    setPlayingId(requestedVideoId)
+  }, [requestedVideoId])
 
-  const active = current ?? items[0]
+  const selected = items.find((x) => x.id === currentId)
+  const active = selected ?? items[0]
+  const playing = active !== undefined && playingId === active.id
+  const selectionRemoved = state.status === 'success' && currentId !== null && !selected
+  useEffect(() => {
+    if (selectionRemoved) {
+      setCurrentId(null)
+      setPlayingId(null)
+    }
+  }, [selectionRemoved])
 
   function selectVideo(v: ContentOut) {
-    setCurrent(v)
-    setPlaying(true)
+    setCurrentId(v.id)
+    setPlayingId(v.id)
     heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -107,10 +114,13 @@ export function Video() {
               <button
                 type="button"
                 className="video-hero__poster"
-                onClick={() => setPlaying(true)}
+                onClick={() => {
+                  setCurrentId(active.id)
+                  setPlayingId(active.id)
+                }}
                 aria-label={`Phát ${active.title}`}
               >
-                {poster(active) ? (
+                {poster(active)?.url ? (
                   <img src={poster(active)!.url} alt={active.title} />
                 ) : (
                   <span className="video-card__placeholder" />

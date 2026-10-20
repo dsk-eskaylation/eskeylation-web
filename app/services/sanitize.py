@@ -1,6 +1,7 @@
 """Chống XSS (bleach) cho rich text và whitelist host cho embed (chống SSRF)."""
 
-from urllib.parse import urlparse
+import re
+from urllib.parse import parse_qs, urlparse
 
 import bleach
 from fastapi import HTTPException, status
@@ -11,6 +12,35 @@ settings = get_settings()
 
 # Key trong body được coi là URL embed video — phải nằm trong host whitelist.
 _EMBED_KEYS = ("embed_url", "video_url")
+
+
+def playable_video_embed(value: object) -> bool:
+    """Match the YouTube/Vimeo URL formats supported by the public player."""
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"}:
+            return False
+        host = (parsed.hostname or "").removeprefix("www.")
+        parts = parsed.path.strip("/").split("/")
+        if host == "youtu.be":
+            video_id = parts[0]
+        elif host == "youtube.com":
+            video_id = (
+                parts[1]
+                if len(parts) == 2 and parts[0] in {"embed", "shorts"}
+                else parse_qs(parsed.query).get("v", [""])[0]
+                if parsed.path == "/watch"
+                else ""
+            )
+        elif host in {"vimeo.com", "player.vimeo.com"}:
+            return bool(re.fullmatch(r"(?:video/)?\d+", parsed.path.strip("/")))
+        else:
+            return False
+        return bool(re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id))
+    except ValueError:
+        return False
 
 
 def sanitize_summary(text: str | None) -> str | None:

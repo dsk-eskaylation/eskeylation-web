@@ -17,6 +17,7 @@ from app.dependencies import CSRF_COOKIE, SESSION_COOKIE
 from app.middleware import TextCompression
 from app.routers import (
     admin_content,
+    admin_lyrics,
     admin_moderation,
     admin_stats,
     admin_users,
@@ -172,6 +173,7 @@ app.include_router(community.router)
 app.include_router(lyrics.router)
 app.include_router(media.router)
 app.include_router(admin_content.router)
+app.include_router(admin_lyrics.router)
 app.include_router(admin_stats.router)
 app.include_router(admin_users.router)
 app.include_router(admin_moderation.router)

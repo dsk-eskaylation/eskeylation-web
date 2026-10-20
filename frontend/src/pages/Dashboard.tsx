@@ -24,6 +24,8 @@ const ACTION_FILTERS: { value: string | null; label: string }[] = [
   { value: 'duplicate', label: 'Nhân bản' },
   { value: 'user_create', label: 'Thêm TK' },
   { value: 'user_update', label: 'Sửa TK' },
+  { value: 'lyrics_accept', label: 'Duyệt lời nhạc' },
+  { value: 'lyrics_reject', label: 'Từ chối lời nhạc' },
 ]
 
 const TYPE_LABEL: Record<ContentType, string> = {
@@ -54,6 +56,8 @@ const ACTION_VERB: Record<string, string> = {
   banned_add: 'đã thêm từ cấm',
   banned_remove: 'đã xoá từ cấm',
   comment_delete: 'đã xoá bình luận',
+  lyrics_accept: 'đã duyệt lời nhạc',
+  lyrics_reject: 'đã từ chối lời nhạc',
 }
 
 const ACTION_TONE: Record<string, string> = {
@@ -69,6 +73,8 @@ const ACTION_TONE: Record<string, string> = {
   banned_add: 'ok',
   banned_remove: 'warn',
   comment_delete: 'danger',
+  lyrics_accept: 'ok',
+  lyrics_reject: 'warn',
 }
 
 const FIELD_LABEL: Record<string, string> = {

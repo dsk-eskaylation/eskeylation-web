@@ -1,27 +1,10 @@
+import { toEmbedUrl } from '../utils/video'
 import type { ContentOut } from '../api/types'
 import { Modal } from './Modal'
 import './VideoModal.css'
 import { usePlayer } from '../player/PlayerContext'
 
-/** Chuyển link youtube/vimeo sang dạng embed để nhúng iframe. */
-function toEmbedUrl(url: string): string | null {
-  try {
-    const u = new URL(url)
-    const host = u.hostname.replace(/^www\./, '')
-    if (host === 'youtu.be') return `https://www.youtube.com/embed${u.pathname}`
-    if (host === 'youtube.com') {
-      const id = u.searchParams.get('v')
-      return id ? `https://www.youtube.com/embed/${id}` : null
-    }
-    if (host.endsWith('vimeo.com')) {
-      const id = u.pathname.split('/').filter(Boolean).pop()
-      return id ? `https://player.vimeo.com/video/${id}` : null
-    }
-  } catch {
-    return null
-  }
-  return null
-}
+
 
 function Player({ content }: { content: ContentOut }) {
   const music = usePlayer()

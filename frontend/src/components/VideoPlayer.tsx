@@ -1,25 +1,8 @@
+import { toEmbedUrl } from '../utils/video'
 import type { ContentOut } from '../api/types'
 import { usePlayer } from '../player/PlayerContext'
 
-/** Chuyển link youtube/vimeo sang dạng embed để nhúng iframe. */
-function toEmbedUrl(url: string): string | null {
-  try {
-    const u = new URL(url)
-    const host = u.hostname.replace(/^www\./, '')
-    if (host === 'youtu.be') return `https://www.youtube.com/embed${u.pathname}`
-    if (host === 'youtube.com') {
-      const id = u.searchParams.get('v')
-      return id ? `https://www.youtube.com/embed/${id}` : null
-    }
-    if (host.endsWith('vimeo.com')) {
-      const id = u.pathname.split('/').filter(Boolean).pop()
-      return id ? `https://player.vimeo.com/video/${id}` : null
-    }
-  } catch {
-    return null
-  }
-  return null
-}
+
 
 /** Trình phát video INLINE (không modal): iframe nhúng youtube/vimeo qua
     body.embed_url, hoặc <video> cho media video, hoặc ảnh poster nếu chưa có
@@ -37,7 +20,8 @@ export function VideoPlayer({
       ? toEmbedUrl(content.body.embed_url)
       : null
   const videoMedia = content.media.find((m) => m.mime_type.startsWith('video/'))
-  const poster = content.media.find((m) => m.is_primary) ?? content.media[0]
+  const images = content.media.filter((m) => m.url && (m.mime_type.startsWith('image/') || m.preview_url))
+  const poster = images.find((m) => m.is_primary) ?? images[0]
 
   if (embed) {
     const src = autoPlay

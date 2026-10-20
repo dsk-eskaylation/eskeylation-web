@@ -9,6 +9,8 @@ import {
   type ContentMediaIn,
   type ContentStatus,
   type ContentType,
+  type LyricSuggestion,
+  type LyricStatus,
   type UserRole,
 } from '../api/admin'
 import { logout as apiLogout } from '../api/auth'
@@ -88,6 +90,7 @@ function Editor({
   const [artist, setArtist] = useState(bstr('artist'))
   const [category, setCategory] = useState(bstr('category'))
   const [audioUrl, setAudioUrl] = useState(bstr('audio_url'))
+  const [lyrics, setLyrics] = useState(bstr('lyrics'))
   const [embedUrl, setEmbedUrl] = useState(bstr('embed_url'))
   const [author, setAuthor] = useState(bstr('author'))
   // Trang chủ: giới thiệu, các dòng "bảo trì", và các nhóm credits (vai trò + tên)
@@ -177,6 +180,7 @@ function Editor({
       set('artist', artist)
       set('category', category)
       set('audio_url', audioUrl)
+      set('lyrics', lyrics)
       set('embed_url', embedUrl)
     } else if (type === 'video') {
       set('artist', artist)
@@ -331,6 +335,16 @@ function Editor({
               </small>
             </label>
             <label className="cms-field">
+              <span id="cms-lyrics-label">Lời bài hát</span>
+              <textarea
+                aria-labelledby="cms-lyrics-label"
+                value={lyrics}
+                onChange={(e) => setLyrics(e.target.value)}
+                rows={8}
+                maxLength={8000}
+              />
+            </label>
+            <label className="cms-field">
               <span>Link video (YouTube/Vimeo) — tùy chọn</span>
               <input
                 value={embedUrl}
@@ -351,12 +365,13 @@ function Editor({
               />
             </label>
             <label className="cms-field">
-              <span>Link video (YouTube/Vimeo) — bắt buộc để phát</span>
+              <span>Link video (YouTube/Vimeo) — tùy chọn nếu đã tải video</span>
               <input
                 value={embedUrl}
                 onChange={(e) => setEmbedUrl(e.target.value)}
                 placeholder="https://www.youtube.com/watch?v=..."
               />
+              <small className="cms-field__hint">Tải file video trong mục Media hoặc nhập link YouTube/Vimeo để đăng.</small>
             </label>
           </>
         )}
@@ -441,6 +456,7 @@ function Editor({
         )}
 
         <div className="cms-editor__media">
+          {type === 'homepage' && <p className="cms-field__hint">Ảnh tải lên sẽ thay dải ảnh đầu trang. Nếu không có ảnh, website dùng bộ ảnh mặc định.</p>}
           <div className="cms-editor__media-head">
             <span>Media ({media.length})</span>
             <label className="cms-pill cms-editor__upload">
@@ -791,7 +807,91 @@ function UsersPanel({ meId }: { meId: number | null }) {
   )
 }
 
-/** Panel Kiểm duyệt (chỉ admin): hàng đợi bài CHỜ DUYỆT (nháp) + quản lý TỪ CẤM. */
+function LyricsModeration() {
+  const { notify } = useToast()
+  const [items, setItems] = useState<LyricSuggestion[]>([])
+  const [status, setStatus] = useState<LyricStatus>('pending')
+  const [page, setPage] = useState(1)
+  const [pages, setPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<{ item: LyricSuggestion; status: 'accepted' | 'rejected' } | null>(null)
+  const generation = useRef(0)
+  const load = useCallback(async () => {
+    const request = ++generation.current
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await adminApi.lyrics(page, status)
+      if (request !== generation.current) return
+      setItems(data.items)
+      setTotal(data.total)
+      setPages(Math.max(1, data.pages))
+      if (page > Math.max(1, data.pages)) setPage(Math.max(1, data.pages))
+    } catch (err) {
+      if (request === generation.current) setError(err instanceof Error ? err.message : 'Không tải được lời nhạc')
+    } finally {
+      if (request === generation.current) setLoading(false)
+    }
+  }, [page, status])
+  useEffect(() => { void load() }, [load])
+
+  const review = async () => {
+    if (!confirm || busy) return
+    setBusy(true)
+    try {
+      await adminApi.reviewLyrics(confirm.item.id, confirm.status)
+      setConfirm(null)
+      notify(confirm.status === 'accepted' ? 'Đã duyệt và cập nhật lời bài hát' : 'Đã từ chối đóng góp', { tone: 'success' })
+      await load()
+    } catch (err) {
+      setConfirm(null)
+      notify(err instanceof Error ? err.message : 'Duyệt lời nhạc thất bại', { tone: 'error' })
+      await load()
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <section className="cms-lyrics" aria-label="Duyệt lời nhạc">
+      <p className="cms__section-label">Đóng góp lời nhạc ({total})</p>
+      <label className="cms-field">
+        <span>Trạng thái lời nhạc</span>
+        <select value={status} disabled={busy} onChange={(e) => { setStatus(e.target.value as LyricStatus); setPage(1) }}>
+          <option value="pending">Chờ duyệt</option>
+          <option value="accepted">Đã duyệt</option>
+          <option value="rejected">Đã từ chối</option>
+        </select>
+      </label>
+      {error ? <p className="cms-error" role="alert">{error} <button type="button" className="cms-pill" onClick={() => void load()}>Thử lại</button></p>
+        : loading ? <p className="cms__status">Đang tải lời nhạc…</p>
+        : items.length === 0 ? <p className="cms__status">Không có đóng góp trong mục này.</p>
+        : items.map((item) => (
+          <article key={item.id} className="cms-lyrics__item">
+            <h3>{item.title ?? `Bài hát #${item.content_id}`}</h3>
+            <p className="cms__row-meta">{item.user_email ?? 'Tài khoản đã xóa'} · {fmtTime(item.created_at)}</p>
+            <pre className="cms-lyrics__body">{item.body}</pre>
+            {!item.can_accept && <p className="cms-field__hint">Bài hát chưa liên kết với CMS hoặc đã bị xóa; chưa thể duyệt.</p>}
+            {item.status === 'pending' && <div className="cms__row-actions">
+              <button type="button" className="cms-pill cms-pill--publish" disabled={busy || !item.can_accept} onClick={() => setConfirm({ item, status: 'accepted' })}>Duyệt lời nhạc</button>
+              <button type="button" className="cms-pill" disabled={busy} onClick={() => setConfirm({ item, status: 'rejected' })}>Từ chối lời nhạc</button>
+            </div>}
+          </article>
+        ))}
+      <CmsPagination page={page} pages={pages} onChange={setPage} label="Phân trang lời nhạc" />
+      {confirm && <ConfirmDialog
+        title={confirm.status === 'accepted' ? 'Duyệt lời nhạc' : 'Từ chối lời nhạc'}
+        message={confirm.status === 'accepted' ? `Thay lời hiện tại của “${confirm.item.title}” bằng đóng góp này?` : 'Từ chối đóng góp này? Lời bài hát hiện tại được giữ nguyên.'}
+        confirmLabel={busy ? 'Đang xử lý…' : confirm.status === 'accepted' ? 'Duyệt và cập nhật' : 'Xác nhận từ chối'}
+        onConfirm={review}
+        onClose={() => { if (!busy) setConfirm(null) }}
+      />}
+    </section>
+  )
+}
+
+/** Panel Kiểm duyệt (chỉ admin): lời nhạc, bài nháp và từ cấm. */
 function Moderation() {
   const navigate = useNavigate()
   const { notify } = useToast()
@@ -855,6 +955,7 @@ function Moderation() {
 
   return (
     <div className="cms-mod">
+      <LyricsModeration />
       {/* Hàng đợi chờ duyệt (nội dung nháp — cần admin duyệt trước khi công khai) */}
       <section>
         <p className="cms__section-label">Chờ duyệt ({total})</p>
@@ -1030,8 +1131,8 @@ export function Cms() {
   }, [type, status, navigate, notify, pageNumber])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    if (view === 'content') void load()
+  }, [load, view])
 
   /** Chạy một thao tác, reload danh sách, báo kết quả bằng toast.
       opts.success: nội dung toast thành công. opts.undo: hàm hoàn tác (hiện nút). */

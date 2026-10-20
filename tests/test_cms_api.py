@@ -104,7 +104,7 @@ async def test_publish_music_co_artist_200(client, make_user, track_content):
         track_content,
         type="music",
         title="Có artist",
-        body={"artist": "DSK"},
+        body={"artist": "DSK", "audio_url": "/media/fake.mp3"},
     )
     r = await client.post(f"/admin/content/{c['id']}/publish", headers=auth(editor))
     assert r.status_code == 200
@@ -196,7 +196,7 @@ async def test_unpublish_va_archive(client, make_user, track_content):
         track_content,
         type="music",
         title="WF",
-        body={"artist": "X"},
+        body={"artist": "X", "audio_url": "/media/fake.mp3"},
     )
     await client.post(f"/admin/content/{c['id']}/publish", headers=auth(editor))
     r1 = await client.post(f"/admin/content/{c['id']}/unpublish", headers=auth(editor))
@@ -411,7 +411,7 @@ async def test_public_phan_anh_sau_publish(client, make_user, track_content):
         track_content,
         type="music",
         title="Public test",
-        body={"artist": "DSK"},
+        body={"artist": "DSK", "audio_url": "/media/fake.mp3"},
     )
     slug = c["slug"]
     # chưa publish -> public 404

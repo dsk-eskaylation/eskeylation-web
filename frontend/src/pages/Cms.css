@@ -391,6 +391,21 @@
 }
 
 /* ---- Media trong editor ---- */
+.cms-lyrics__item {
+  margin-block: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  min-width: 0;
+}
+.cms-lyrics__body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
 .cms-editor__media {
   display: flex;
   flex-direction: column;
