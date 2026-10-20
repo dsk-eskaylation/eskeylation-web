@@ -26,7 +26,6 @@
   overflow: hidden;
   cursor: pointer;
   break-inside: avoid; /* không cắt ảnh giữa 2 cột */
-  animation: page-enter 0.5s var(--ease-out) both;
 }
 .photos__item img {
   width: 100%;

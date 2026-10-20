@@ -218,6 +218,9 @@ def check_ui(password: str, tag: str) -> None:
                 titles = set()
                 for number in range(1, 7):
                     expect(pager).to_contain_text(f"Trang {number} / 6")
+                    assert page.locator(".photos__item").evaluate_all(
+                        "es=>es.every(e=>getComputedStyle(e).opacity==='1')"
+                    ), "Photo tiles must not wait invisibly for entrance animations"
                     expect(page.locator(".photos__item")).to_have_count(
                         2 if number == 6 else 12
                     )

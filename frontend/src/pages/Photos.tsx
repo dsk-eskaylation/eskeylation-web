@@ -117,14 +117,12 @@ export function Photos() {
   return (
     <div className="photos">
       <div ref={topRef} className="photos__anchor" aria-hidden="true" />
-      {/* key theo trang -> đổi trang thì remount, animation so le chạy lại (mượt) */}
-      <div className="photos__grid" key={safePage}>
+      <div className="photos__grid">
         {pagePhotos.map((p, i) => (
           <button
             type="button"
             className="photos__item"
             key={p.id}
-            style={{ animationDelay: `${(i % PER_PAGE) * 45}ms` }}
             onClick={() => setActiveId(p.id)}
             aria-label={p.caption ?? p.postTitle}
           >
