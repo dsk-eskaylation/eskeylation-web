@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.config import Settings
+from app.services.storage import S3Storage
 from scripts.deploy import settings_from_env
 
 
@@ -48,14 +49,27 @@ def main() -> None:
     args = parser.parse_args()
     settings = settings_from_env()
     missing = []
-    if settings.public_content_source != "drive":
-        missing.append("PUBLIC_CONTENT_SOURCE=drive")
-    if not (
+    if settings.public_content_source == "drive" and not (
         settings.google_drive_api_key or settings.google_drive_service_account_file
     ):
         missing.append("GOOGLE_DRIVE_API_KEY hoặc GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE")
-    if not settings.google_drive_folder_id:
+    if (
+        settings.public_content_source == "drive"
+        and not settings.google_drive_folder_id
+    ):
         missing.append("GOOGLE_DRIVE_FOLDER_ID")
+    if settings.storage_backend == "s3":
+        try:
+            S3Storage(
+                settings.s3_bucket,
+                settings.s3_region,
+                settings.s3_cdn_url,
+                settings.s3_key_prefix,
+            )
+        except ValueError:
+            missing.append("S3_BUCKET / S3_REGION / S3_CDN_URL")
+        if not (settings.aws_access_key_id and settings.aws_secret_access_key):
+            missing.append("AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY")
     if (
         settings.jwt_secret == "change-me-in-production"
         or len(settings.jwt_secret) < 32
@@ -65,7 +79,7 @@ def main() -> None:
         missing.append("DATABASE_URL")
     if missing:
         raise SystemExit("Cấu hình deploy còn thiếu: " + ", ".join(missing))
-    print("Cấu hình Drive và tài khoản đã sẵn sàng.")
+    print("Cấu hình nguồn nội dung, storage và tài khoản đã sẵn sàng.")
     if args.database:
         asyncio.run(check_database(settings))
 

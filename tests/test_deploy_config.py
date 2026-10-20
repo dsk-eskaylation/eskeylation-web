@@ -12,6 +12,14 @@ from scripts import deploy
 def environment(tmp_path, monkeypatch):
     for key in (
         "DEPLOY_GOOGLE_DRIVE_API_KEY",
+        "DEPLOY_PUBLIC_CONTENT_SOURCE",
+        "DEPLOY_STORAGE_BACKEND",
+        "DEPLOY_S3_BUCKET",
+        "DEPLOY_S3_REGION",
+        "DEPLOY_S3_CDN_URL",
+        "DEPLOY_S3_KEY_PREFIX",
+        "DEPLOY_AWS_ACCESS_KEY_ID",
+        "DEPLOY_AWS_SECRET_ACCESS_KEY",
         "DEPLOY_JWT_SECRET",
         "DEPLOY_PUBLIC_SITE_URL",
         "DEPLOY_GOOGLE_DRIVE_FOLDER_ID",
@@ -183,3 +191,36 @@ def test_migration_uses_deployment_file_instead_of_stale_runner_database(
         "postgresql+asyncpg://existing:password@db.example/test"
     )
     assert "existing:password" not in repr(args)
+
+
+def test_s3_configuration_persists_credentials_without_requiring_drive(
+    environment, monkeypatch, capsys
+):
+    monkeypatch.delenv("DEPLOY_GOOGLE_DRIVE_API_KEY")
+    for name, value in {
+        "PUBLIC_CONTENT_SOURCE": "database",
+        "STORAGE_BACKEND": "s3",
+        "S3_BUCKET": "test-eskaylation-media",
+        "S3_REGION": "ap-southeast-2",
+        "S3_CDN_URL": "https://test.cloudfront.net",
+        "S3_KEY_PREFIX": "cms",
+        "AWS_ACCESS_KEY_ID": "test-access-key",
+        "AWS_SECRET_ACCESS_KEY": "test-secret-value",
+    }.items():
+        monkeypatch.setenv("DEPLOY_" + name, value)
+    deploy.configure(environment)
+    settings = deploy.settings_from_env(environment)
+    assert settings.public_content_source == "database"
+    assert settings.storage_backend == "s3"
+    assert settings.aws_secret_access_key == "test-secret-value"
+    assert settings.s3_region == "ap-southeast-2"
+    assert "test-secret-value" not in capsys.readouterr().out
+    assert "test-secret-value" not in repr(settings)
+    assert (
+        deploy.application_environment(settings)["AWS_SECRET_ACCESS_KEY"]
+        == "test-secret-value"
+    )
+    # A subsequent deploy without explicit source selection stays on the S3 CMS.
+    monkeypatch.delenv("DEPLOY_PUBLIC_CONTENT_SOURCE")
+    deploy.configure(environment)
+    assert deploy.settings_from_env(environment).public_content_source == "database"

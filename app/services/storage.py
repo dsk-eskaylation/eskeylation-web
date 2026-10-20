@@ -1,12 +1,15 @@
 """Storage abstraction. Mọi truy cập media đi qua interface này.
 
-LocalStorage cho dev; SupabaseStorage cho prod (S3-compatible + CDN). Đổi backend
-bằng setting storage_backend — service/router KHÔNG gọi thẳng SDK Supabase.
+LocalStorage cho dev; SupabaseStorage hoặc S3Storage cho media production.
+Đổi backend bằng setting storage_backend; router không gọi trực tiếp SDK.
 """
 
 import mimetypes
+import re
 from abc import ABC, abstractmethod
+from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote, urlsplit
 
 import httpx
 
@@ -44,7 +47,8 @@ class LocalStorage(Storage):
         return self.url(key)
 
     def url(self, key: str) -> str:
-        return f"/{self.root.as_posix()}/{key}"
+        # MEDIA_ROOT là đường dẫn ổ đĩa; route StaticFiles luôn là /media.
+        return f"/media/{quote(key, safe='/')}"
 
     def read(self, key: str) -> bytes:
         return (self.root / key).read_bytes()
@@ -99,8 +103,109 @@ class SupabaseStorage(Storage):
             resp.raise_for_status()
 
 
+@lru_cache(maxsize=8)
+def _s3_client(region: str):
+    # Chỉ khởi tạo trong threadpool khi đọc/ghi, không gọi credential provider
+    # trong lúc serialize URL trên event loop. Tái sử dụng connection pool.
+    import boto3
+    from botocore.config import Config
+
+    return boto3.client(
+        "s3",
+        region_name=region,
+        aws_access_key_id=get_settings().aws_access_key_id or None,
+        aws_secret_access_key=get_settings().aws_secret_access_key or None,
+        config=Config(
+            signature_version="s3v4",
+            connect_timeout=5,
+            read_timeout=30,
+            retries={"mode": "standard", "total_max_attempts": 3},
+        ),
+    )
+
+
+class S3Storage(Storage):
+    """Backend-only AWS credentials; CloudFront chỉ được quyền đọc qua OAC."""
+
+    def __init__(
+        self, bucket: str, region: str, cdn_url: str, prefix: str = "cms"
+    ) -> None:
+        parsed = urlsplit(cdn_url)
+        if (
+            not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket)
+            or not re.fullmatch(r"[a-z]{2}(?:-[a-z]+)+-\d", region)
+            or parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError(
+                "Cần cấu hình S3 bucket, region và origin CDN HTTPS hợp lệ"
+            )
+        self.bucket = bucket
+        self.region = region
+        self.cdn_url = cdn_url.rstrip("/")
+        self.prefix = prefix.strip("/")
+        if self.prefix:
+            self._validate_key(self.prefix)
+
+    @staticmethod
+    def _validate_key(key: str) -> None:
+        if (
+            not key
+            or len(key.encode("utf-8")) > 1024
+            or "\\" in key
+            or any(ord(char) < 32 or ord(char) == 127 for char in key)
+            or any(part in {"", ".", ".."} for part in key.split("/"))
+        ):
+            raise ValueError("Storage key không hợp lệ")
+
+    def _key(self, key: str) -> str:
+        self._validate_key(key)
+        full_key = f"{self.prefix}/{key}" if self.prefix else key
+        self._validate_key(full_key)
+        return full_key
+
+    def save(self, key: str, data: bytes) -> str:
+        full_key = self._key(key)
+        _s3_client(self.region).put_object(
+            Bucket=self.bucket,
+            Key=full_key,
+            Body=data,
+            ContentType=mimetypes.guess_file_type(key)[0] or "application/octet-stream",
+            ServerSideEncryption="AES256",
+            CacheControl="public, max-age=300",
+            # File mới có UUID; không ghi đè object hiện hữu khi có xung đột.
+            IfNoneMatch="*",
+        )
+        return self.url(key)
+
+    def url(self, key: str) -> str:
+        return f"{self.cdn_url}/{quote(self._key(key), safe='/')}"
+
+    def read(self, key: str) -> bytes:
+        full_key = self._key(key)
+        response = _s3_client(self.region).get_object(Bucket=self.bucket, Key=full_key)
+        body = response["Body"]
+        try:
+            return body.read()
+        finally:
+            body.close()
+
+    def delete(self, key: str) -> None:
+        full_key = self._key(key)
+        _s3_client(self.region).delete_object(Bucket=self.bucket, Key=full_key)
+
+
 def get_storage() -> Storage:
     s = get_settings()
     if s.storage_backend == "supabase":
         return SupabaseStorage(s.supabase_url, s.supabase_service_key, s.storage_bucket)
-    return LocalStorage(s.media_root)
+    if s.storage_backend == "s3":
+        return S3Storage(s.s3_bucket, s.s3_region, s.s3_cdn_url, s.s3_key_prefix)
+    if s.storage_backend == "local":
+        return LocalStorage(s.media_root)
+    raise ValueError("Storage backend không được hỗ trợ")

@@ -21,8 +21,15 @@ export function audioUrl(c: ContentOut): string | null {
 }
 
 export function coverUrl(c: ContentOut): string | null {
-  const primary = c.media.find((m) => m.is_primary) ?? c.media[0]
-  return primary?.url ?? null
+  const images = c.media.filter(
+    (m) =>
+      m.mime_type.startsWith('image/') ||
+      m.preview_url ||
+      // Catalog cũ có thể trả ảnh poster và stream audio trong cùng media.
+      (m.mime_type.startsWith('audio/') && m.stream_url && m.url !== m.stream_url),
+  )
+  const primary = images.find((m) => m.is_primary) ?? images[0]
+  return primary?.preview_url || primary?.url || null
 }
 
 export function artistOf(c: ContentOut): string {

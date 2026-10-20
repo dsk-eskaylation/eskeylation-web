@@ -2,17 +2,19 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import get_session
 from app.dependencies import get_current_user
-from app.models.content import Content
-from app.models.enums import ContentStatus, ContentType
+from app.models.enums import ContentType
 from app.models.lyrics import LyricSuggestion
 from app.models.user import User
-from app.services.interaction_targets import drive_content, ensure_drive_target
+from app.services.interaction_targets import (
+    drive_content,
+    ensure_drive_target,
+    published_cms_target,
+)
 from app.services.ratelimit import check_rate
 from app.services.sanitize import sanitize_summary
 
@@ -43,16 +45,8 @@ async def submit_lyrics(
         music = await drive_content(content_id, ContentType.music)
         if music is not None:
             await ensure_drive_target(session, music)
-    elif 0 < content_id < 2**31:
-        music = await session.scalar(
-            select(Content).where(
-                Content.id == content_id,
-                Content.type == ContentType.music,
-                Content.status == ContentStatus.published,
-            )
-        )
     else:
-        music = None
+        music = await published_cms_target(session, content_id, ContentType.music)
     if music is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bài hát"

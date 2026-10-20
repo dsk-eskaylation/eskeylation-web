@@ -52,6 +52,11 @@ def test_local_storage_roundtrip(tmp_path):
     s.delete("d/f.txt")  # xoá file không tồn tại không được lỗi
 
 
+def test_local_storage_url_does_not_expose_filesystem_root(tmp_path):
+    s = LocalStorage(str(tmp_path))
+    assert s.url("music/a b.mp3") == "/media/music/a%20b.mp3"
+
+
 # ---------- Supabase roundtrip thật (chỉ chạy khi đã cấu hình) ----------
 
 

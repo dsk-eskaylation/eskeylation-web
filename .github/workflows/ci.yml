@@ -39,7 +39,7 @@ jobs:
                   print(json.dumps({key: data.get(key) for key in ['status', 'pm_exec_path', 'exec_interpreter', 'pm_cwd', 'exit_code', 'restart_time']}))
           logs = subprocess.run(['pm2', 'logs', 'eskeylation-api', '--err', '--lines', '50', '--nostream'], capture_output=True, text=True, env=env, timeout=20)
           output = logs.stdout + logs.stderr
-          for value in [settings.database_url, settings.jwt_secret, settings.google_drive_api_key, settings.supabase_service_key, make_url(settings.database_url).password]:
+          for value in [settings.database_url, settings.jwt_secret, settings.google_drive_api_key, settings.supabase_service_key, settings.aws_access_key_id, settings.aws_secret_access_key, make_url(settings.database_url).password]:
               if value:
                   output = output.replace(value, '[REDACTED]')
           print(output)
@@ -297,6 +297,14 @@ jobs:
           DEPLOY_DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DEPLOY_GOOGLE_DRIVE_FOLDER_ID: 1lnfNK-1UMVLrydMHBntY33cLipf4MyFL
           DEPLOY_PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
+          DEPLOY_PUBLIC_CONTENT_SOURCE: ${{ vars.PUBLIC_CONTENT_SOURCE }}
+          DEPLOY_STORAGE_BACKEND: ${{ vars.STORAGE_BACKEND }}
+          DEPLOY_S3_BUCKET: ${{ vars.S3_BUCKET }}
+          DEPLOY_S3_REGION: ${{ vars.S3_REGION }}
+          DEPLOY_S3_CDN_URL: ${{ vars.S3_CDN_URL }}
+          DEPLOY_S3_KEY_PREFIX: ${{ vars.S3_KEY_PREFIX }}
+          DEPLOY_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          DEPLOY_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           set -eo pipefail
           export PATH="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}:$HOME/.local/bin:$PATH"

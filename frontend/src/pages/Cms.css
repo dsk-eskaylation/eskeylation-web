@@ -431,10 +431,16 @@
   border: 1.5px solid var(--color-text);
   box-shadow: 0 0 10px rgba(239, 239, 239, 0.2);
 }
-.cms-thumb img {
+.cms-thumb img,
+.cms-thumb video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.cms-thumb audio {
+  position: absolute;
+  bottom: 8px;
+  width: 100%;
 }
 .cms-thumb__actions {
   position: absolute;
@@ -445,7 +451,8 @@
   opacity: 0;
   transition: opacity 0.2s ease;
 }
-.cms-thumb:hover .cms-thumb__actions {
+.cms-thumb:hover .cms-thumb__actions,
+.cms-thumb:focus-within .cms-thumb__actions {
   opacity: 1;
 }
 .cms-thumb__actions button {

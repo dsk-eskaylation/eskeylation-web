@@ -5,12 +5,13 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.db import get_session
+from app.db import SessionLocal, get_session
 from app.dependencies import PaginationParams
 from app.models.enums import ContentType
 from app.schemas.pagination import Page
 from app.schemas.public import ContentOut
 from app.services import content_query
+from app.services.catalog_revision import database_revision
 from app.services.drive_catalog import catalog
 from app.services.serialize import content_to_out
 
@@ -22,7 +23,8 @@ async def catalog_revision(response: Response) -> dict[str, str | None]:
     """Small shared freshness check; never return Drive IDs or credentials."""
     response.headers["Cache-Control"] = "no-store"
     if get_settings().public_content_source != "drive":
-        return {"revision": None}
+        async with SessionLocal() as session:
+            return {"revision": await database_revision(session)}
     await catalog.items()
     return {"revision": catalog.revision}
 
@@ -174,8 +176,14 @@ async def get_homepage(
         session, ContentType.homepage, page=1, page_size=1
     )
     if not items:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Chưa có nội dung trang chủ",
+        return ContentOut(
+            id=0,
+            type=ContentType.homepage,
+            title="Eskaylation",
+            slug="homepage",
+            body={
+                "source": "s3" if get_settings().storage_backend == "s3" else "database"
+            },
+            media=[],
         )
     return content_to_out(items[0])

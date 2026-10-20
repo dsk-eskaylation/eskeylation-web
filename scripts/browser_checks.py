@@ -266,11 +266,33 @@ def check_ui(password: str, tag: str) -> None:
             title = "Browser created " + tag
             dialog.get_by_label("Tiêu đề", exact=True).fill(title)
             dialog.get_by_label("Nghệ sĩ", exact=True).fill("Browser artist")
+            # Valid MPEG-1 silent frames; upload uses real CMS validation/storage.
+            dialog.locator('input[type="file"]').set_input_files(
+                {
+                    "name": "browser-silence.mp3",
+                    "mimeType": "audio/mpeg",
+                    "buffer": (b"\xff\xfb\x90\x00" + b"\0" * 413) * 80,
+                }
+            )
+            preview = dialog.get_by_label("Nghe thử nhạc", exact=True)
+            expect(preview).to_be_visible()
+            assert dialog.locator(".cms-thumb img").count() == 0
+            uploaded_audio_url = preview.get_attribute("src")
+            preview.evaluate("audio => audio.play()")
+            page.wait_for_function(
+                "()=>document.querySelector('.cms-thumb audio').currentTime>.1"
+            )
             dialog.get_by_role("button", name="Lưu", exact=True).click()
             expect(dialog).to_have_count(0)
             row = page.locator(".cms__row").filter(has_text=title)
             row.get_by_role("button", name="Đăng", exact=True).click()
             expect(row).to_contain_text("Đã đăng")
+            public_music = page.request.get(
+                BASE + "/api/music", params={"q": title}
+            ).json()["items"]
+            assert len(public_music) == 1
+            assert public_music[0]["body"]["audio_url"] == uploaded_audio_url
+            passed("CMS MP3 upload, inline playback, published audio URL")
             row.get_by_role("button", name="Gỡ", exact=True).click()
             expect(row).to_contain_text("Nháp")
             row.get_by_role("button", name="Xoá", exact=True).click()

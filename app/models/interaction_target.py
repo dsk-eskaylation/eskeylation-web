@@ -19,7 +19,7 @@ class InteractionTarget(Base):
         CheckConstraint(
             "(id > 0 AND content_id IS NOT NULL AND content_id = id "
             "AND drive_file_id IS NULL) OR "
-            "(id < 0 AND content_id IS NULL AND drive_file_id IS NOT NULL)",
+            "(id < 0 AND drive_file_id IS NOT NULL)",
             name="ck_interaction_targets_source",
         ),
     )

@@ -1,13 +1,31 @@
 """Nối định danh Drive với database tài khoản/tương tác, không nhập nội dung."""
 
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import ContentType
+from app.models.content import Content
+from app.models.enums import ContentStatus, ContentType
 from app.models.interaction_target import InteractionTarget
 from app.schemas.public import ContentOut
 from app.services.drive_catalog import catalog
+
+
+async def published_cms_target(
+    session: AsyncSession, public_id: int, type_: ContentType
+) -> Content | None:
+    if public_id == 0 or abs(public_id) > 2**53 - 1:
+        return None
+    return await session.scalar(
+        select(Content)
+        .join(InteractionTarget, InteractionTarget.content_id == Content.id)
+        .where(
+            InteractionTarget.id == public_id,
+            Content.type == type_,
+            Content.status == ContentStatus.published,
+        )
+    )
 
 
 async def drive_content(content_id: int, type_: ContentType) -> ContentOut | None:

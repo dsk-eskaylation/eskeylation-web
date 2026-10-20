@@ -29,6 +29,7 @@ from app.routers import (
 )
 from app.services import drive_http, realtime
 from app.services.drive_catalog import catalog
+from app.services.storage import get_storage
 
 settings = get_settings()
 
@@ -196,6 +197,8 @@ async def readiness() -> dict[str, str]:
                 await conn.execute(text("SELECT 1"))
             if settings.public_content_source == "drive":
                 await catalog.items()
+            if settings.storage_backend == "s3":
+                await asyncio.to_thread(get_storage().read, settings.s3_probe_key)
     except Exception:
         raise HTTPException(503, "Dịch vụ chưa sẵn sàng") from None
     return {"status": "ready"}
@@ -207,6 +210,8 @@ async def content_readiness() -> dict[str, str]:
     if settings.public_content_source == "drive":
         await catalog.items()
         return {"status": "ready"}
+    if settings.storage_backend == "s3":
+        await asyncio.to_thread(get_storage().read, settings.s3_probe_key)
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
     return {"status": "ready"}

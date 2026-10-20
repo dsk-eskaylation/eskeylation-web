@@ -19,10 +19,14 @@ from app.models.community import (
     SavedPost,
 )
 from app.models.content import Content
-from app.models.enums import ContentStatus, ContentType, ReactionType
+from app.models.enums import ContentType, ReactionType
 from app.models.user import User
 from app.schemas.public import ContentOut
-from app.services.interaction_targets import drive_content, ensure_drive_target
+from app.services.interaction_targets import (
+    drive_content,
+    ensure_drive_target,
+    published_cms_target,
+)
 
 
 def author_name(user: User | None) -> str:
@@ -42,15 +46,7 @@ async def get_published_community(
         if post is not None:
             await ensure_drive_target(session, post)
         return post
-    if not 0 < content_id < 2**31:
-        return None
-    return await session.scalar(
-        select(Content).where(
-            Content.id == content_id,
-            Content.type == ContentType.community,
-            Content.status == ContentStatus.published,
-        )
-    )
+    return await published_cms_target(session, content_id, ContentType.community)
 
 
 async def interaction_overview(
@@ -60,7 +56,7 @@ async def interaction_overview(
     tồn tại + đếm cảm xúc theo loại + cảm xúc của tôi + số bình luận + đã lưu.
     Trả None nếu bài không tồn tại/chưa publish."""
     is_drive = get_settings().public_content_source == "drive"
-    if not is_drive and not 0 < content_id < 2**31:
+    if content_id == 0 or abs(content_id) > 2**53 - 1:
         return None
     if is_drive and await get_published_community(session, content_id) is None:
         return None
@@ -69,9 +65,10 @@ async def interaction_overview(
             text(
                 """
                 SELECT
-                  (:is_drive OR EXISTS(SELECT 1 FROM contents
-                         WHERE id=CAST(:cid AS bigint)
-                           AND type='community' AND status='published'))
+                  (:is_drive OR EXISTS(SELECT 1 FROM interaction_targets t
+                         JOIN contents c ON c.id=t.content_id
+                         WHERE t.id=CAST(:cid AS bigint)
+                           AND c.type='community' AND c.status='published'))
                     AS ok,
                   (SELECT coalesce(jsonb_object_agg(t.type, t.n), '{}'::jsonb)
                      FROM (SELECT type, count(*) AS n FROM post_reactions

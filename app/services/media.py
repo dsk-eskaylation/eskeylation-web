@@ -5,6 +5,7 @@ import logging
 import uuid
 
 import filetype
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import HTTPException, UploadFile, status
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +25,7 @@ _IMAGE_EXT = {
     "image/gif": "gif",
 }
 _VIDEO_EXT = {"video/mp4": "mp4", "video/webm": "webm"}
+_AUDIO_EXT = {"audio/mpeg": "mp3"}
 
 
 def _ensure_size(size: int, limit: int) -> None:
@@ -88,6 +90,10 @@ async def create_media(
         # Dimensions/duration video cần ffprobe — bổ sung ở bước sau.
         width = height = duration = None
         ext = _VIDEO_EXT[mime]
+    elif mime in settings.allowed_audio_types:
+        data = await _read_capped(file, settings.max_audio_size)
+        width = height = duration = None
+        ext = _AUDIO_EXT[mime]
     else:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -96,7 +102,14 @@ async def create_media(
 
     key = f"{uuid.uuid4().hex}.{ext}"
     # storage có thể gọi mạng (Supabase) → chạy trong threadpool, không chặn loop.
-    await run_in_threadpool(get_storage().save, key, data)
+    try:
+        await run_in_threadpool(get_storage().save, key, data)
+    except (BotoCoreError, ClientError) as error:
+        # Không đưa AWS request/credential hoặc lỗi nội bộ ra response/log.
+        logger.warning("Không lưu được media trên S3 (%s)", type(error).__name__)
+        raise HTTPException(
+            503, "Tạm thời không lưu được media, vui lòng thử lại"
+        ) from None
 
     media = Media(
         storage_key=key,

@@ -10,13 +10,15 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from app.db import Base
 from app.models.enums import ContentStatus, ContentType
+from app.models.interaction_target import InteractionTarget
 from app.models.mixins import TimestampMixin
 
 if TYPE_CHECKING:
@@ -32,6 +34,13 @@ class Content(TimestampMixin, Base):
     __tablename__ = "contents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Preserve imported Drive public IDs using the indexed target lookup.
+    public_id: Mapped[int | None] = column_property(
+        select(InteractionTarget.id)
+        .where(InteractionTarget.content_id == id)
+        .correlate_except(InteractionTarget)
+        .scalar_subquery()
+    )
     type: Mapped[ContentType] = mapped_column(
         Enum(ContentType, native_enum=False, length=20), index=True
     )

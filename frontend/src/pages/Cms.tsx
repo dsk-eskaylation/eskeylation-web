@@ -66,6 +66,7 @@ function fmtTime(iso: string) {
 
 interface EditorMedia extends ContentMediaIn {
   url: string
+  mime_type: string
 }
 
 /** Form tạo/sửa nội dung trong Modal. Music có field riêng; loại khác sửa body JSON. */
@@ -106,6 +107,7 @@ function Editor({
     (initial?.media ?? []).map((m) => ({
       media_id: m.media_id,
       url: m.url,
+      mime_type: m.mime_type,
       position: m.position,
       is_primary: m.is_primary,
       caption: m.caption,
@@ -135,6 +137,7 @@ function Editor({
           {
             media_id: up.id,
             url: up.url,
+            mime_type: up.mime_type,
             position: prev.length,
             is_primary: prev.length === 0,
           },
@@ -316,15 +319,15 @@ function Editor({
               </label>
             </div>
             <label className="cms-field">
-              <span>Link nhạc streaming (mp3/m4a)</span>
+              <span>Link nhạc có sẵn (tùy chọn)</span>
               <input
                 value={audioUrl}
                 onChange={(e) => setAudioUrl(e.target.value)}
                 placeholder="https://.../bai-hat.mp3"
               />
               <small className="cms-field__hint">
-                Có link này thì bài phát trực tuyến trong trình phát. Bỏ trống
-                sẽ mở link video bên dưới.
+                Tải file MP3 trong mục Media bên dưới để phát nhạc trên website.
+                File đã tải lên được ưu tiên hơn link này.
               </small>
             </label>
             <label className="cms-field">
@@ -441,10 +444,11 @@ function Editor({
           <div className="cms-editor__media-head">
             <span>Media ({media.length})</span>
             <label className="cms-pill cms-editor__upload">
-              + Tải ảnh/video
+              + Tải ảnh/video/nhạc
               <input
                 type="file"
-                accept="image/*,video/*"
+                accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,audio/mpeg,.mp3"
+                disabled={busy}
                 multiple
                 onChange={(e) => {
                   void upload(e.target.files)
@@ -462,12 +466,18 @@ function Editor({
                     m.is_primary ? 'cms-thumb cms-thumb--primary' : 'cms-thumb'
                   }
                 >
-                  <img src={m.url} alt="" loading="lazy" />
+                  {m.mime_type.startsWith('audio/') ? (
+                    <audio src={m.url} controls preload="none" aria-label="Nghe thử nhạc" />
+                  ) : m.mime_type.startsWith('video/') ? (
+                    <video src={m.url} controls preload="metadata" aria-label="Xem thử video" />
+                  ) : (
+                    <img src={m.url} alt="" loading="lazy" />
+                  )}
                   <div className="cms-thumb__actions">
                     <button
                       type="button"
                       onClick={() => setPrimary(m.media_id)}
-                      title="Đặt làm ảnh chính"
+                      title="Đặt làm media chính"
                     >
                       ★
                     </button>

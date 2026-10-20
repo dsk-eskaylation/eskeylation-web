@@ -18,6 +18,7 @@ from sqlalchemy.exc import ArgumentError
 
 from app.config import Settings
 from app.services.drive_metadata import drive_id
+from app.services.storage import S3Storage
 
 
 def settings_from_env(path: Path = Path(".env")) -> Settings:
@@ -54,10 +55,18 @@ def configure(path: Path = Path(".env")) -> None:
     if path.is_symlink():
         raise ValueError("Cần cấu hình trực tiếp file .env thường, không qua symlink")
     current = settings_from_env(path)
+    source = os.environ.get("DEPLOY_PUBLIC_CONTENT_SOURCE", "").strip() or (
+        "database" if current.storage_backend == "s3" else "drive"
+    )
+    if source not in {"drive", "database"}:
+        raise ValueError("PUBLIC_CONTENT_SOURCE deploy không hợp lệ")
+    backend = (
+        os.environ.get("DEPLOY_STORAGE_BACKEND", "").strip() or current.storage_backend
+    )
     key = os.environ.get("DEPLOY_GOOGLE_DRIVE_API_KEY") or current.google_drive_api_key
     account_json = os.environ.get("DEPLOY_GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON", "")
     account = None
-    if account_json:
+    if account_json and source == "drive":
         try:
             account = json.loads(account_json)
             if (
@@ -73,7 +82,7 @@ def configure(path: Path = Path(".env")) -> None:
         except (ValueError, AttributeError):
             raise ValueError("Thông tin service account Drive không hợp lệ") from None
     account_file = current.google_drive_service_account_file
-    if not (key or account or account_file):
+    if source == "drive" and not (key or account or account_file):
         raise ValueError("Cần API key hoặc service account chỉ đọc cho Drive")
     jwt = current.jwt_secret
     rotate_jwt = jwt == "change-me-in-production" or len(jwt) < 32
@@ -81,13 +90,13 @@ def configure(path: Path = Path(".env")) -> None:
         jwt = os.environ.get("DEPLOY_JWT_SECRET", "")
         if len(jwt) < 32 or jwt == "change-me-in-production":
             raise ValueError("Chưa có JWT_SECRET đủ mạnh cho deploy")
-    folder = drive_id(
-        os.environ.get("DEPLOY_GOOGLE_DRIVE_FOLDER_ID")
-        or current.google_drive_folder_id
-    )
+    folder = current.google_drive_folder_id
+    if source == "drive":
+        folder = drive_id(os.environ.get("DEPLOY_GOOGLE_DRIVE_FOLDER_ID") or folder)
     updates = {
         "ENVIRONMENT": "prod",
-        "PUBLIC_CONTENT_SOURCE": "drive",
+        "PUBLIC_CONTENT_SOURCE": source,
+        "STORAGE_BACKEND": backend,
         "GOOGLE_DRIVE_API_KEY": key,
         "GOOGLE_DRIVE_FOLDER_ID": folder,
         "DRIVE_CATALOG_CACHE_SECONDS": str(
@@ -95,6 +104,27 @@ def configure(path: Path = Path(".env")) -> None:
         ),
         "JWT_SECRET": jwt,
     }
+    if backend == "s3":
+        for name in (
+            "S3_BUCKET",
+            "S3_REGION",
+            "S3_CDN_URL",
+            "S3_KEY_PREFIX",
+            "S3_PROBE_KEY",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+        ):
+            updates[name] = os.environ.get("DEPLOY_" + name) or str(
+                getattr(current, name.lower())
+            )
+        S3Storage(
+            updates["S3_BUCKET"],
+            updates["S3_REGION"],
+            updates["S3_CDN_URL"],
+            updates["S3_KEY_PREFIX"],
+        )
+        if not (updates["AWS_ACCESS_KEY_ID"] and updates["AWS_SECRET_ACCESS_KEY"]):
+            raise ValueError("Thiếu credential S3 cho backend VPS")
     database = os.environ.get("DEPLOY_DATABASE_URL", "").strip()
     if database:
         try:
@@ -150,7 +180,7 @@ def configure(path: Path = Path(".env")) -> None:
             file.write("\n".join(lines) + "\n")
         temporary.chmod(0o600)
         validated = settings_from_env(temporary)
-        if validated.public_content_source != "drive" or not validated.is_prod:
+        if validated.public_content_source != source or not validated.is_prod:
             raise ValueError("Cấu hình deploy không hợp lệ")
         os.replace(temporary, path)
     finally:

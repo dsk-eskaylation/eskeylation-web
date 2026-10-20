@@ -22,9 +22,18 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = Field(default=60 * 12, ge=5, le=1440)
 
-    # Storage: "local" (dev) | "supabase" (prod, dùng Supabase Storage + CDN).
-    storage_backend: str = "local"
+    # S3 giữ bucket riêng tư; URL public được phục vụ qua CloudFront OAC.
+    storage_backend: Literal["local", "supabase", "s3"] = "local"
     media_root: str = "media"  # dùng khi backend = local
+
+    s3_bucket: str = ""
+    s3_region: str = "ap-southeast-2"
+    s3_cdn_url: str = ""
+    # Tách file CMS khỏi các file tải thử/thư mục khác trong cùng bucket.
+    s3_key_prefix: str = "cms"
+    s3_probe_key: str = "migration-ready.json"
+    aws_access_key_id: str = Field(default="", repr=False)
+    aws_secret_access_key: str = Field(default="", repr=False)
 
     # Supabase Storage (khi backend = supabase). Bucket nên đặt public để có CDN URL.
     supabase_url: str = ""  # https://<project-ref>.supabase.co
@@ -34,6 +43,7 @@ class Settings(BaseSettings):
     # Upload media — giới hạn size (byte) và MIME được phép.
     max_image_size: int = 10 * 1024 * 1024  # 10 MB
     max_video_size: int = 200 * 1024 * 1024  # 200 MB
+    max_audio_size: int = 100 * 1024 * 1024  # 100 MB
     allowed_image_types: list[str] = [
         "image/jpeg",
         "image/png",
@@ -41,6 +51,7 @@ class Settings(BaseSettings):
         "image/gif",
     ]
     allowed_video_types: list[str] = ["video/mp4", "video/webm"]
+    allowed_audio_types: list[str] = ["audio/mpeg"]
     # Chỉ dùng phía server/CLI, không đưa vào frontend.
     google_drive_api_key: str = ""
     google_drive_service_account_file: str = ""

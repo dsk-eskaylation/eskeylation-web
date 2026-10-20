@@ -115,6 +115,58 @@ async def test_upload_video_mp4(client, make_user, track_media):
     assert body["url"].endswith(".mp4")
 
 
+async def test_upload_mp3_detects_bytes_and_publishes_attached_audio(
+    client, make_user, track_media, track_content
+):
+    token = await _token(client, make_user, UserRole.admin)
+    # MPEG audio frame signature; the browser suite uses a real audio fixture.
+    audio = b"\xff\xfb\x90\x64" + b"\0" * 1024
+    uploaded = await client.post(
+        "/admin/media",
+        files={"file": ("misleading.png", audio, "image/png")},
+        headers=_auth(token),
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    media = uploaded.json()
+    track_media.append(media["id"])
+    assert media["mime_type"] == "audio/mpeg"
+    assert media["url"].endswith(".mp3")
+    created = await client.post(
+        "/admin/content",
+        json={
+            "type": "music",
+            "title": "Attached MP3",
+            "body": {"artist": "Test", "audio_url": "https://old.invalid/old.mp3"},
+            "media": [{"media_id": media["id"], "is_primary": True}],
+        },
+        headers=_auth(token),
+    )
+    assert created.status_code == 201, created.text
+    content = created.json()
+    track_content.append(content["id"])
+    published = await client.post(
+        f"/admin/content/{content['id']}/publish", headers=_auth(token)
+    )
+    assert published.status_code == 200, published.text
+    public = await client.get(f"/api/music/{content['slug']}")
+    assert public.status_code == 200
+    assert public.json()["body"]["audio_url"] == media["url"]
+    assert public.json()["media"][0]["mime_type"] == "audio/mpeg"
+
+
+async def test_mp3_size_cap_is_enforced(client, make_user, monkeypatch):
+    from app.services.media import settings
+
+    monkeypatch.setattr(settings, "max_audio_size", 16)
+    token = await _token(client, make_user)
+    response = await client.post(
+        "/admin/media",
+        files={"file": ("large.mp3", b"\xff\xfb\x90\x64" + b"\0" * 100, "audio/mpeg")},
+        headers=_auth(token),
+    )
+    assert response.status_code == 413
+
+
 async def test_upload_anh_hong_tra_400(client, make_user):
     # Magic bytes PNG hợp lệ nhưng nội dung hỏng → Pillow từ chối → 400
     token = await _token(client, make_user)

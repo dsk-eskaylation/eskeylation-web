@@ -3,6 +3,8 @@
 import re
 from urllib.parse import urlparse
 
+from slugify import slugify
+
 FOLDER_MIME = "application/vnd.google-apps.folder"
 ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{10,200}")
 
@@ -28,13 +30,14 @@ def describe_file(file: dict, folders: list[str]) -> dict:
         flags=re.IGNORECASE,
     )
     title = title.removeprefix("Bản sao của ").strip()
-    if "Cộng đồng" in folders:
+    normalized = [slugify(folder) for folder in folders]
+    if "cong-dong" in normalized:
         content_type = "community"
-    elif "Video" in folders:
+    elif any(folder in {"video", "video-mv", "videos"} for folder in normalized):
         content_type = "video"
-    elif "Nhạc & MV" in folders:
+    elif any(folder in {"nhac-mv", "nhac", "music"} for folder in normalized):
         content_type = "video" if file["mimeType"].startswith("video/") else "music"
-    elif "Ảnh" in folders:
+    elif any(folder in {"anh", "photos"} for folder in normalized):
         content_type = "gallery"
     else:
         content_type = None
