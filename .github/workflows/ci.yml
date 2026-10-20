@@ -316,6 +316,9 @@ jobs:
           test -s "$FRONTEND_ARTIFACT/index.html"
           mkdir -p frontend/dist
           cp -a "$FRONTEND_ARTIFACT/." frontend/dist/
+          if [ ! -e "$FRONTEND_ARTIFACT/eskaylation_logo.jpg" ]; then
+            rm -f -- frontend/dist/eskaylation_logo.jpg
+          fi
           uv run --no-sync python -m scripts.deploy restart
           curl --fail --silent --show-error \
             --retry 10 --retry-delay 2 --retry-connrefused --retry-all-errors \

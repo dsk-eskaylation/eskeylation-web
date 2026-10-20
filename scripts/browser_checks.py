@@ -117,7 +117,14 @@ async def seed(password: str, tag: str) -> None:
                 )
             )
         for kind in [ContentType.community, ContentType.gallery, ContentType.video]:
-            for i in range(6 if kind == ContentType.community else 1):
+            count = (
+                6
+                if kind == ContentType.community
+                else 62
+                if kind == ContentType.gallery
+                else 1
+            )
+            for i in range(count):
                 content = Content(
                     type=kind,
                     status=ContentStatus.published,
@@ -200,6 +207,61 @@ def check_ui(password: str, tag: str) -> None:
                 page.goto(BASE + "/", wait_until="networkidle")
                 assert "Maintain" not in page.locator("body").inner_text()
                 passed(f"{width}px pinned header, modal without scroll jump, homepage")
+                ctx.close()
+
+            for width in [390, 768, 1440]:
+                ctx = context(width)
+                page = ctx.new_page()
+                page.emulate_media(reduced_motion="reduce")
+                page.goto(BASE + "/photos", wait_until="networkidle")
+                pager = page.get_by_role("navigation", name="Phân trang ảnh")
+                titles = set()
+                for number in range(1, 7):
+                    expect(pager).to_contain_text(f"Trang {number} / 6")
+                    expect(page.locator(".photos__item")).to_have_count(
+                        2 if number == 6 else 12
+                    )
+                    for image in page.locator(".photos__item img").all():
+                        image.scroll_into_view_if_needed()
+                        expect(image).to_be_visible()
+                        assert image.evaluate("i=>i.complete&&i.naturalWidth>0")
+                    titles.update(
+                        page.locator(".photos__item").evaluate_all(
+                            "es=>es.map(e=>e.getAttribute('aria-label'))"
+                        )
+                    )
+                    assert pager.locator("button").evaluate_all(
+                        "es=>es.every(e=>e.offsetWidth<=44&&e.offsetHeight<=44)"
+                    )
+                    assert page.evaluate(
+                        "document.documentElement.scrollWidth<=innerWidth"
+                    )
+                    if number < 6:
+                        pager.get_by_role(
+                            "button", name="Trang sau", exact=True
+                        ).click()
+                assert len(titles) == 62
+                page.reload(wait_until="networkidle")
+                expect(pager).to_contain_text("Trang 6 / 6")
+                page.locator(".photos__item").first.click()
+                expect(page.get_by_role("dialog")).to_be_visible()
+                page.keyboard.press("ArrowRight")
+                expect(page.locator(".photos__viewer-sub")).to_contain_text("62/62")
+                page.keyboard.press("Escape")
+                page.go_back(wait_until="networkidle")
+                expect(pager).to_contain_text("Trang 5 / 6")
+                expect(
+                    page.locator('link[rel="icon"][type="image/svg+xml"]')
+                ).to_have_attribute("href", "/favicon.svg")
+                assert (
+                    page.request.get(BASE + "/favicon-32.png")
+                    .body()
+                    .startswith(b"\x89PNG\r\n\x1a\n")
+                )
+                passed(
+                    f"{width}px all 62 photos across six compact pages, "
+                    "URL/back navigation, lightbox, E favicon"
+                )
                 ctx.close()
 
             ctx = context()

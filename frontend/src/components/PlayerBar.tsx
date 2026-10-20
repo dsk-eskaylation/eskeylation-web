@@ -216,7 +216,7 @@ export function PlayerBar() {
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
-                  d="M3 7h4l3 4M3 17h4l10-13h4M14 4h4M17 20h-4l-3-4M17 20l3 0M18 17l3 3-3 3"
+                  d="M3 7h3c4 0 8 10 12 10h3M17 13l4 4-4 4M3 17h3c1.5 0 3-1.5 4.5-3.5M13.5 10.5C15 8.5 16.5 7 18 7h3M17 3l4 4-4 4"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.7"
@@ -233,7 +233,7 @@ export function PlayerBar() {
               aria-label="Bài trước"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 5v14M20 5v14l-11-7z" fill="currentColor" />
+                <path d="M6 5h2v14H6zM19 5v14L9 12z" fill="currentColor" />
               </svg>
             </button>
 
@@ -262,7 +262,7 @@ export function PlayerBar() {
               aria-label="Bài sau"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M17 5v14M4 5v14l11-7z" fill="currentColor" />
+                <path d="M16 5h2v14h-2zM5 5v14l10-7z" fill="currentColor" />
               </svg>
             </button>
 

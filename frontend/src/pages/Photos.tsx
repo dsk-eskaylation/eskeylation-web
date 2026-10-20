@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Pagination } from '../components/Pagination'
 import { api } from '../api/client'
 import { useLiveApi } from '../api/useLiveApi'
 import type { ContentOut, MediaOut } from '../api/types'
@@ -8,6 +10,7 @@ import { EmptyState } from '../components/EmptyState'
 import './Photos.css'
 
 interface Photo {
+  id: string
   media: MediaOut
   url: string
   alt: string
@@ -22,20 +25,6 @@ const EMPTY_ITEMS: ContentOut[] = []
 
 const PER_PAGE = 12
 
-/* Danh sách số trang hiển thị: rút gọn bằng '…' khi nhiều trang
-   (vd 1 … 4 5 6 … 12). Trả về số trang (1-index) hoặc null = dấu '…'. */
-function pageList(current: number, total: number): (number | null)[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-  const out: (number | null)[] = [1]
-  const start = Math.max(2, current - 1)
-  const end = Math.min(total - 1, current + 1)
-  if (start > 2) out.push(null)
-  for (let p = start; p <= end; p++) out.push(p)
-  if (end < total - 1) out.push(null)
-  out.push(total)
-  return out
-}
-
 function fmtDate(iso: string | null) {
   if (!iso) return ''
   const d = new Date(iso)
@@ -46,6 +35,9 @@ function fmtDate(iso: string | null) {
     trải toàn bộ ảnh của mọi bài gallery thành lưới nhiều cột, bấm để xem lớn
     (lightbox có chuyển ảnh ←/→). Giữ style tối Eskaylation, responsive mọi thiết bị. */
 export function Photos() {
+  const [params, setParams] = useSearchParams()
+  const requestedPage = Number(params.get('page') ?? 1)
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
   const state = useLiveApi(() => api.listAll('photos'), [])
   const items: ContentOut[] =
     state.status === 'success' ? state.data.items : EMPTY_ITEMS
@@ -54,7 +46,8 @@ export function Photos() {
   const photos = useMemo<Photo[]>(
     () =>
       items.flatMap((c) =>
-        c.media.map((m) => ({
+        c.media.filter((m) => m.mime_type.startsWith('image/') && Boolean(m.url)).map((m) => ({
+          id: `${c.id}:${m.url}`,
           url: m.url,
           media: m,
           alt: m.alt_text ?? c.title,
@@ -67,39 +60,59 @@ export function Photos() {
     [items],
   )
 
-  const [active, setActive] = useState<number | null>(null)
-  const [page, setPage] = useState(0) // 0-index
+  const [activeId, setActiveId] = useState<string | null>(null)
   const topRef = useRef<HTMLDivElement>(null)
 
   const pageCount = Math.max(1, Math.ceil(photos.length / PER_PAGE))
   // Kẹp page khi số ảnh đổi (vd data mới về)
-  const safePage = Math.min(page, pageCount - 1)
-  const start = safePage * PER_PAGE
+  const safePage = Math.min(page, pageCount)
+  const start = (safePage - 1) * PER_PAGE
   const pagePhotos = photos.slice(start, start + PER_PAGE)
 
-  function goPage(p: number) {
-    setPage(p)
-    // Cuộn mượt về đầu thư viện để thấy trang mới từ đầu
-    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const active = photos.findIndex((photo) => photo.id === activeId)
+  const cur = active >= 0 ? photos[active] : null
+
+  function goPage(nextPage: number) {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous)
+      if (nextPage === 1) next.delete('page')
+      else next.set('page', String(nextPage))
+      return next
+    })
+    topRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })
   }
 
   useEffect(() => {
-    if (active === null) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') setActive((i) => (i === null ? i : Math.max(0, i - 1)))
-      if (e.key === 'ArrowRight')
-        setActive((i) => (i === null ? i : Math.min(photos.length - 1, i + 1)))
+    if (state.status !== 'success' || page <= pageCount) return
+    setParams((previous) => {
+      const next = new URLSearchParams(previous)
+      if (pageCount === 1) next.delete('page')
+      else next.set('page', String(pageCount))
+      return next
+    }, { replace: true })
+  }, [page, pageCount, state.status, setParams])
+
+  useEffect(() => {
+    if (activeId !== null && active < 0 && state.status === 'success') setActiveId(null)
+  }, [activeId, active, state.status])
+
+  useEffect(() => {
+    if (active < 0) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+      event.preventDefault()
+      const next = active + (event.key === 'ArrowLeft' ? -1 : 1)
+      if (next >= 0 && next < photos.length) setActiveId(photos[next].id)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [active, photos.length])
+  }, [active, photos])
 
   if (state.status === 'loading') return <div className="photos" aria-busy="true" />
   if (state.status === 'error') return <EmptyState title="Không tải được ảnh." />
   if (photos.length === 0)
-    return <EmptyState title="Hiện tại chưa có ảnh nào TT.  " />
+    return <EmptyState title="Hiện tại chưa có ảnh." />
 
-  const cur = active !== null ? photos[active] : null
 
   return (
     <div className="photos">
@@ -110,74 +123,28 @@ export function Photos() {
           <button
             type="button"
             className="photos__item"
-            key={`${p.url}-${i}`}
+            key={p.id}
             style={{ animationDelay: `${(i % PER_PAGE) * 45}ms` }}
-            onClick={() => setActive(start + i)}
+            onClick={() => setActiveId(p.id)}
             aria-label={p.caption ?? p.postTitle}
           >
-            {p.url ? <MediaImage media={p.media} alt={p.alt} /> : <span>Xem ảnh</span>}
+            <MediaImage media={p.media} alt={p.alt} loading={i < 4 ? 'eager' : 'lazy'} />
             <span className="photos__frame" aria-hidden="true" />
             {p.caption && <span className="photos__cap">{p.caption}</span>}
           </button>
         ))}
       </div>
 
-      {pageCount > 1 && (
-        <nav className="photos__pager" aria-label="Phân trang ảnh">
-          <button
-            type="button"
-            className="photos__pager-arrow"
-            onClick={() => goPage(Math.max(0, safePage - 1))}
-            disabled={safePage === 0}
-            aria-label="Trang trước"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <polyline points="15,4 7,12 15,20" fill="none" stroke="currentColor" strokeWidth="2" />
-            </svg>
-          </button>
-
-          {pageList(safePage + 1, pageCount).map((p, i) =>
-            p === null ? (
-              <span key={`gap-${i}`} className="photos__pager-gap">…</span>
-            ) : (
-              <button
-                key={p}
-                type="button"
-                className={
-                  p === safePage + 1
-                    ? 'photos__pager-num photos__pager-num--active'
-                    : 'photos__pager-num'
-                }
-                onClick={() => goPage(p - 1)}
-                aria-current={p === safePage + 1 ? 'page' : undefined}
-              >
-                {p}
-              </button>
-            ),
-          )}
-
-          <button
-            type="button"
-            className="photos__pager-arrow"
-            onClick={() => goPage(Math.min(pageCount - 1, safePage + 1))}
-            disabled={safePage === pageCount - 1}
-            aria-label="Trang sau"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <polyline points="9,4 17,12 9,20" fill="none" stroke="currentColor" strokeWidth="2" />
-            </svg>
-          </button>
-        </nav>
-      )}
+      <Pagination page={safePage} pages={pageCount} label="Phân trang ảnh" onChange={goPage} />
 
       {cur && (
-        <Modal onClose={() => setActive(null)} variant="bare" showClose>
+        <Modal onClose={() => setActiveId(null)} variant="bare" showClose>
           <figure className="photos__viewer">
-            {active !== null && active > 0 && (
+            {active > 0 && (
               <button
                 type="button"
                 className="photos__nav photos__nav--prev"
-                onClick={() => setActive((i) => (i === null ? i : i - 1))}
+                onClick={() => setActiveId(photos[active - 1].id)}
                 aria-label="Ảnh trước"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -186,11 +153,11 @@ export function Photos() {
               </button>
             )}
             <MediaImage key={cur.url} className="photos__viewer-img" media={cur.media} original alt={cur.alt} loading="eager" />
-            {active !== null && active < photos.length - 1 && (
+            {active < photos.length - 1 && (
               <button
                 type="button"
                 className="photos__nav photos__nav--next"
-                onClick={() => setActive((i) => (i === null ? i : i + 1))}
+                onClick={() => setActiveId(photos[active + 1].id)}
                 aria-label="Ảnh sau"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -206,7 +173,7 @@ export function Photos() {
                 {cur.author}
                 {cur.date && <> · {fmtDate(cur.date)}</>}
                 {' · '}
-                {(active ?? 0) + 1}/{photos.length}
+                {active + 1}/{photos.length}
               </span>
             </figcaption>
           </figure>
