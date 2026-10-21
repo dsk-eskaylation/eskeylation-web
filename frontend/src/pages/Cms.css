@@ -355,10 +355,24 @@
 }
 .cms-credits__row {
   display: grid;
-  grid-template-columns: 160px 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
 }
+.cms-credit-group {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+.cms-credit-person { display: grid; gap: 8px; border-top: 1px solid var(--color-border); padding-top: 12px; }
+.cms-credit-member { min-width: 0; display: grid; gap: 8px; }
+.cms-credit-member__image { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.cms-credit-member__image img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
+.cms-credit-group .cms-field { min-width: 0; }
+.cms-media-item { min-width: 0; display: grid; align-content: start; gap: 8px; }
 .cms-credits__row input {
   padding: 9px 14px;
   border: 0.5px solid var(--color-border-strong);
@@ -423,6 +437,8 @@
   justify-content: space-between;
   font-size: 13px;
   color: var(--color-text-muted);
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .cms-editor__upload {
   position: relative;

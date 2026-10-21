@@ -155,6 +155,7 @@ async def seed(password: str, tag: str) -> None:
 
 def check_ui(password: str, tag: str) -> None:
     from scripts.cms_browser_checks import check_cms_mapping
+    from scripts.cms_field_browser_checks import check_cms_fields
     from scripts.design_browser_checks import check_design_flows
 
     checks = []
@@ -336,7 +337,7 @@ def check_ui(password: str, tag: str) -> None:
             page.get_by_role("button", name="+ Nội dung mới", exact=True).click()
             dialog = page.get_by_role("dialog")
             title = "Browser created " + tag
-            dialog.get_by_label("Tiêu đề", exact=True).fill(title)
+            dialog.get_by_label("Tên bài hát", exact=True).fill(title)
             dialog.get_by_label("Nghệ sĩ", exact=True).fill("Browser artist")
             # Valid MPEG-1 silent frames; upload uses real CMS validation/storage.
             dialog.locator('input[type="file"]').set_input_files(
@@ -500,6 +501,8 @@ def check_ui(password: str, tag: str) -> None:
             )
             assert response.status == 204
             revision = "after-music-delete"
+            live_page.bring_to_front()
+            live_page.evaluate("window.dispatchEvent(new Event('focus'))")
             expect(live_page.locator(".music__row")).to_have_count(23, timeout=22000)
             live_page.wait_for_function("()=>document.querySelector('audio').paused")
             live_page.get_by_role("button", name="Hàng chờ", exact=True).click()
@@ -509,6 +512,7 @@ def check_ui(password: str, tag: str) -> None:
             admin_context.close()
             member_context.close()
             check_cms_mapping(BASE, context, login, passed)
+            check_cms_fields(BASE, context, login, passed, EVIDENCE)
             check_design_flows(BASE, context, login, passed, EVIDENCE)
             for role in ["author", "editor", "member"]:
                 ctx = context()

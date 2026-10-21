@@ -16,7 +16,7 @@ import {
 import { logout as apiLogout } from '../api/auth'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
-import { MUSIC_GENRES } from '../genres'
+import { creditGroups, creditMember, type CreditMember, type CreditGroup } from '../homepage'
 import { UnsavedChangesModal } from '../components/UnsavedChangesModal'
 import { FormError } from '../components/FormError'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -70,26 +70,57 @@ function fmtTime(iso: string) {
 interface EditorMedia extends ContentMediaIn {
   url: string
   mime_type: string
+  purpose?: 'avatar'
 }
 
-/** Form tạo/sửa nội dung trong Modal. Music có field riêng; loại khác sửa body JSON. */
+const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
+const UPLOADS: Record<ContentType, { accept: string; label: string }> = {
+  music: { accept: `${IMAGE_ACCEPT},audio/mpeg,.mp3`, label: 'Tải nhạc/ảnh bìa' },
+  video: { accept: `${IMAGE_ACCEPT},video/mp4,video/webm`, label: 'Tải video/poster' },
+  gallery: { accept: IMAGE_ACCEPT, label: 'Tải ảnh' },
+  community: { accept: `${IMAGE_ACCEPT},video/mp4,video/webm`, label: 'Tải ảnh/video' },
+  homepage: { accept: IMAGE_ACCEPT, label: 'Tải ảnh đầu trang' },
+}
+
+function CreditMemberFields({ member, label, media, busy, onChange, onUpload }: {
+  member: CreditMember; label: string; media: EditorMedia[]; busy: boolean
+  onChange: (member: CreditMember) => void
+  onUpload: (files: FileList | null) => void
+}) {
+  const image = media.find((asset) => asset.media_id === member.media_id)
+  return <div className="cms-credit-member">
+    <label className="cms-field"><span>{label}</span>
+      <input value={member.name} disabled={busy} maxLength={255} onChange={(event) => onChange({ ...member, name: event.target.value })} />
+    </label>
+    <div className="cms-credit-member__image">
+      {image && <img src={image.url} alt={`Ảnh ${member.name || label}`} />}
+      <label className="cms-pill cms-editor__upload">{image ? 'Đổi ảnh' : 'Thêm ảnh'}
+        <input type="file" aria-label={`Ảnh ${label}`} accept={IMAGE_ACCEPT} disabled={busy} onChange={(event) => { onUpload(event.target.files); event.target.value = '' }} />
+      </label>
+      {image && <button type="button" className="cms-pill" disabled={busy} onClick={() => onChange({ name: member.name })}>Gỡ ảnh</button>}
+    </div>
+  </div>
+}
+
+/** Fields map to the public page for each content type. */
 function Editor({
   initial,
+  defaultType,
   onClose,
   onSaved,
 }: {
   initial: ContentAdmin | null // null = tạo mới
+  defaultType: ContentType
   onClose: () => void
   onSaved: (message?: string) => void
 }) {
   const b = (initial?.body ?? {}) as Record<string, unknown>
   const bstr = (k: string) => (typeof b[k] === 'string' ? (b[k] as string) : '')
 
-  const [type, setType] = useState<ContentType>(initial?.type ?? 'music')
+  const [type, setType] = useState<ContentType>(initial?.type ?? defaultType)
   const [title, setTitle] = useState(initial?.title ?? '')
   const [summary, setSummary] = useState(initial?.summary ?? '')
   const [artist, setArtist] = useState(bstr('artist'))
-  const [category, setCategory] = useState(bstr('category'))
   const [audioUrl, setAudioUrl] = useState(bstr('audio_url'))
   const [lyrics, setLyrics] = useState(bstr('lyrics'))
   const [embedUrl, setEmbedUrl] = useState(bstr('embed_url'))
@@ -99,14 +130,13 @@ function Editor({
   const [maintainText, setMaintainText] = useState(
     Array.isArray(b.maintain) ? (b.maintain as string[]).join('\n') : '',
   )
-  const [credits, setCredits] = useState<{ role: string; names: string }[]>(
-    Array.isArray(b.credits)
-      ? (b.credits as { role?: string; names?: string[] }[]).map((c) => ({
-          role: c.role ?? '',
-          names: Array.isArray(c.names) ? c.names.join(', ') : '',
-        }))
-      : [],
-  )
+  const [credits, setCredits] = useState<CreditGroup[]>(() => creditGroups(b.credits))
+  const [leader, setLeader] = useState<CreditMember>(() =>
+    creditMember(b.leader) ?? { name: Object.hasOwn(b, 'leader') ? '' : 'Cỏ nhỏ' })
+  const originalAvatarIds = new Set([
+    creditMember(b.leader)?.media_id,
+    ...creditGroups(b.credits).flatMap((group) => group.members.map((member) => member.media_id)),
+  ])
   const [media, setMedia] = useState<EditorMedia[]>(
     (initial?.media ?? []).map((m) => ({
       media_id: m.media_id,
@@ -115,26 +145,32 @@ function Editor({
       position: m.position,
       is_primary: m.is_primary,
       caption: m.caption,
+      purpose: originalAvatarIds.has(m.media_id) ? 'avatar' : undefined,
     })),
   )
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const draft = JSON.stringify({ type, title, summary, artist, category, audioUrl, lyrics, embedUrl, author, intro, maintainText, credits, media })
+  const draft = JSON.stringify({ type, title, summary, artist, audioUrl, lyrics, embedUrl, author, intro, maintainText, credits, leader, media })
   const [initialDraft] = useState(draft)
 
   // Cập nhật một nhóm credits của trang chủ
   const setCredit = (
     i: number,
-    patch: Partial<{ role: string; names: string }>,
+    patch: Partial<CreditGroup>,
   ) =>
     setCredits((prev) =>
       prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)),
     )
 
-  const upload = async (files: FileList | null) => {
+  const upload = async (files: FileList | null, avatar?: (member: number) => void) => {
     if (!files?.length) return
     setError(null)
+    const allowed = avatar ? IMAGE_ACCEPT : UPLOADS[type].accept
+    if (Array.from(files).some((file) => !allowed.split(',').includes(file.type))) {
+      setError('Định dạng file không phù hợp với mục này. Hãy chọn đúng loại file được hướng dẫn.')
+      return
+    }
     setBusy(true)
     try {
       for (const file of Array.from(files)) {
@@ -146,9 +182,11 @@ function Editor({
             url: up.url,
             mime_type: up.mime_type,
             position: prev.length,
-            is_primary: prev.length === 0,
+            is_primary: !avatar && !prev.some((asset) => !asset.purpose),
+            purpose: avatar ? 'avatar' : undefined,
           },
         ])
+        avatar?.(up.id)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload lỗi')
@@ -171,6 +209,7 @@ function Editor({
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (busy) return
     setError(null)
 
     // Dựng body từ các trường CỤ THỂ theo loại. Bắt đầu từ body cũ để KHÔNG
@@ -182,10 +221,8 @@ function Editor({
     }
     if (type === 'music') {
       set('artist', artist)
-      set('category', category)
       set('audio_url', audioUrl)
       set('lyrics', lyrics)
-      set('embed_url', embedUrl)
     } else if (type === 'video') {
       set('artist', artist)
       set('embed_url', embedUrl)
@@ -202,34 +239,40 @@ function Editor({
       const cr = credits
         .map((c) => ({
           role: c.role.trim(),
-          names: c.names
-            .split(',')
-            .map((n) => n.trim())
-            .filter(Boolean),
+          members: c.members.filter((member) => member.name.trim()).map((member) => ({ ...member, name: member.name.trim() })),
         }))
-        .filter((c) => c.role || c.names.length)
+        .filter((c) => c.role && c.members.length)
+        .map((c) => ({ ...c, names: c.members.map((member) => member.name) }))
       if (cr.length) body.credits = cr
       else delete body.credits
+      body.leader = leader.name.trim() ? { ...leader, name: leader.name.trim() } : null
       // New homepage forms must provide the sections required by publishing.
       // Existing structured sections are preserved when editing older records.
       if (!Array.isArray(body.sections) || body.sections.length === 0) {
         body.sections = [
           ...(intro.trim() ? [{ type: 'intro', text: intro.trim() }] : []),
+          ...(leader.name.trim() ? [{ type: 'leader' }] : []),
+          ...(media.some((asset) => !asset.purpose) ? [{ type: 'hero' }] : []),
           ...(cr.length ? [{ type: 'credits', groups: cr }] : []),
           ...(lines.length ? [{ type: 'support', items: lines }] : []),
         ]
       }
     }
 
+    const savedTitle = type === 'homepage' ? initial?.title || 'Trang chủ' : title
+    const avatarIds = new Set(type === 'homepage' ? [
+      ...(leader.name.trim() ? [leader.media_id] : []),
+      ...credits.filter((group) => group.role.trim()).flatMap((group) => group.members.filter((member) => member.name.trim()).map((member) => member.media_id)),
+    ] : [])
     const payload = {
-      title,
+      title: savedTitle,
       summary: summary || null,
       body,
-      media: media.map(({ media_id, position, is_primary, caption }) => ({
+      media: media.filter((m) => !m.purpose || avatarIds.has(m.media_id)).map(({ media_id, position, is_primary, caption }) => ({
         media_id,
         position,
-        is_primary,
-        caption,
+        is_primary: !avatarIds.has(media_id) && is_primary,
+        caption: caption?.trim() || null,
       })),
     }
 
@@ -237,10 +280,10 @@ function Editor({
     try {
       if (initial) {
         await adminApi.update(initial.id, payload)
-        onSaved(`Đã cập nhật “${title}”`)
+        onSaved(`Đã cập nhật “${savedTitle}”`)
       } else {
         await adminApi.create({ ...payload, type })
-        onSaved(`Đã tạo “${title}”`)
+        onSaved(`Đã tạo “${savedTitle}”`)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lưu thất bại')
@@ -267,6 +310,7 @@ function Editor({
                   type === t.value ? 'cms-pill cms-pill--active' : 'cms-pill'
                 }
                 onClick={() => setType(t.value)}
+                disabled={busy}
                 aria-pressed={type === t.value}
               >
                 {t.label}
@@ -275,24 +319,24 @@ function Editor({
           </div>
         )}
 
-        <label className="cms-field">
-          <span>Tiêu đề</span>
+        {type !== 'homepage' && <label className="cms-field">
+          <span>{type === 'music' ? 'Tên bài hát' : type === 'gallery' ? 'Tên bộ ảnh' : 'Tiêu đề'}</span>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
             maxLength={255}
           />
-        </label>
+        </label>}
 
-        <label className="cms-field">
-          <span>Mô tả ngắn</span>
+        {(type === 'video' || type === 'community') && <label className="cms-field">
+          <span>{type === 'community' ? 'Nội dung bài viết' : 'Mô tả ngắn'}</span>
           <textarea
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             rows={3}
           />
-        </label>
+        </label>}
 
         {type === 'music' && (
           <>
@@ -304,29 +348,7 @@ function Editor({
                   onChange={(e) => setArtist(e.target.value)}
                 />
               </label>
-              <label className="cms-field">
-                <span>Thể loại</span>
-                <select
-                  className="cms-field__select"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                >
-                  <option value="">— Chọn thể loại —</option>
-                  {/* Giữ giá trị cũ không nằm trong danh sách chuẩn (dữ liệu cũ) */}
-                  {category &&
-                    !(MUSIC_GENRES as readonly string[]).includes(category) && (
-                      <option value={category}>{category}</option>
-                    )}
-                  {MUSIC_GENRES.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </select>
-                <small className="cms-field__hint">
-                  Metadata tùy chọn trong kho CMS.
-                </small>
-              </label>
+
             </div>
             <label className="cms-field">
               <span>Link nhạc có sẵn (tùy chọn)</span>
@@ -350,14 +372,7 @@ function Editor({
                 maxLength={8000}
               />
             </label>
-            <label className="cms-field">
-              <span>Link video (YouTube/Vimeo) — tùy chọn</span>
-              <input
-                value={embedUrl}
-                onChange={(e) => setEmbedUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
-              />
-            </label>
+
           </>
         )}
 
@@ -416,48 +431,28 @@ function Editor({
               />
             </label>
             <div className="cms-field">
-              <span>Nhóm đóng góp (SHOUT OUT)</span>
-              <small className="cms-field__hint">
-                Mỗi nhóm gồm vai trò và danh sách tên (cách nhau bằng dấu phẩy).
-              </small>
+              <span>SHOUT OUT</span>
+              <small className="cms-field__hint">Mỗi người có tên và ảnh riêng. Bỏ trống ảnh để hiển thị chữ cái tên.</small>
+              <CreditMemberFields member={leader} label="Tên Leader" media={media} busy={busy}
+                onChange={setLeader} onUpload={(files) => void upload(files, (id) => setLeader((prev) => ({ ...prev, media_id: id })))} />
               <div className="cms-credits">
-                {credits.map((c, i) => (
-                  <div className="cms-credits__row" key={i}>
-                    <input
-                      className="cms-credits__role"
-                      aria-label={`Vai trò nhóm ${i + 1}`}
-                      value={c.role}
-                      onChange={(e) => setCredit(i, { role: e.target.value })}
-                      placeholder="Vai trò (VD: DESIGN)"
-                    />
-                    <input
-                      className="cms-credits__names"
-                      aria-label={`Thành viên nhóm ${i + 1}`}
-                      value={c.names}
-                      onChange={(e) => setCredit(i, { names: e.target.value })}
-                      placeholder="Tên 1, Tên 2, …"
-                    />
-                    <button
-                      type="button"
-                      className="cms-credits__del"
-                      onClick={() =>
-                        setCredits((prev) => prev.filter((_, idx) => idx !== i))
-                      }
-                      aria-label="Xoá nhóm"
-                    >
-                      ✕
-                    </button>
+                {credits.map((group, i) => <fieldset className="cms-credit-group" key={i} disabled={busy}>
+                  <legend>Nhóm {i + 1}</legend>
+                  <div className="cms-credits__row">
+                    <label className="cms-field"><span>Vai trò nhóm {i + 1}</span>
+                      <input value={group.role} onChange={(event) => setCredit(i, { role: event.target.value })} placeholder="VD: DESIGN" required={group.members.some((member) => Boolean(member.name.trim()))} />
+                    </label>
+                    <button type="button" className="cms-pill" onClick={() => setCredits((prev) => prev.filter((_, index) => index !== i))}>Xoá nhóm {i + 1}</button>
                   </div>
-                ))}
-                <button
-                  type="button"
-                  className="cms-pill"
-                  onClick={() =>
-                    setCredits((prev) => [...prev, { role: '', names: '' }])
-                  }
-                >
-                  + Thêm nhóm
-                </button>
+                  {group.members.map((member, j) => <div className="cms-credit-person" key={j}>
+                    <CreditMemberFields member={member} label={`Tên thành viên ${j + 1} nhóm ${i + 1}`} media={media} busy={busy}
+                      onChange={(value) => setCredit(i, { members: group.members.map((person, index) => index === j ? value : person) })}
+                      onUpload={(files) => void upload(files, (id) => setCredits((prev) => prev.map((entry, index) => index !== i ? entry : { ...entry, members: entry.members.map((person, index) => index === j ? { ...person, media_id: id } : person) })))} />
+                    <button type="button" className="cms-pill" aria-label={`Xoá thành viên ${j + 1} nhóm ${i + 1}`} onClick={() => setCredit(i, { members: group.members.filter((_, index) => index !== j) })}>Xoá người</button>
+                  </div>)}
+                  <button type="button" className="cms-pill" onClick={() => setCredit(i, { members: [...group.members, { name: '' }] })}>+ Thêm người nhóm {i + 1}</button>
+                </fieldset>)}
+                <button type="button" className="cms-pill" disabled={busy} onClick={() => setCredits((prev) => [...prev, { role: '', members: [{ name: '' }] }])}>+ Thêm nhóm</button>
               </div>
             </div>
           </>
@@ -466,12 +461,12 @@ function Editor({
         <div className="cms-editor__media">
           {type === 'homepage' && <p className="cms-field__hint">Ảnh tải lên sẽ thay dải ảnh đầu trang. Nếu không có ảnh, website dùng bộ ảnh mặc định.</p>}
           <div className="cms-editor__media-head">
-            <span>Media ({media.length})</span>
+            <span>{type === 'homepage' ? 'Ảnh đầu trang' : type === 'music' ? 'Âm thanh và ảnh bìa' : 'Media'} ({media.filter((m) => !m.purpose).length})</span>
             <label className="cms-pill cms-editor__upload">
-              + Tải ảnh/video/nhạc
+              + {UPLOADS[type].label}
               <input
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,audio/mpeg,.mp3"
+                accept={UPLOADS[type].accept}
                 disabled={busy}
                 multiple
                 onChange={(e) => {
@@ -481,11 +476,11 @@ function Editor({
               />
             </label>
           </div>
-          {media.length > 0 && (
+          {media.some((m) => !m.purpose) && (
             <div className="cms-editor__thumbs">
-              {media.map((m) => (
+              {media.filter((m) => !m.purpose).map((m, index) => (
+                <div className="cms-media-item" key={m.media_id}>
                 <div
-                  key={m.media_id}
                   className={
                     m.is_primary ? 'cms-thumb cms-thumb--primary' : 'cms-thumb'
                   }
@@ -500,6 +495,7 @@ function Editor({
                   <div className="cms-thumb__actions">
                     <button
                       type="button"
+                      disabled={busy}
                       onClick={() => setPrimary(m.media_id)}
                       title="Đặt làm media chính"
                     >
@@ -507,12 +503,18 @@ function Editor({
                     </button>
                     <button
                       type="button"
+                      disabled={busy}
                       onClick={() => removeMedia(m.media_id)}
                       title="Gỡ khỏi nội dung"
                     >
                       ✕
                     </button>
                   </div>
+                </div>
+                {type === 'gallery' && <label className="cms-field">
+                  <span>Chú thích ảnh {index + 1}</span>
+                  <textarea aria-label={`Chú thích ảnh ${index + 1}`} rows={2} value={m.caption ?? ''} onChange={(event) => setMedia((prev) => prev.map((asset) => asset.media_id === m.media_id ? { ...asset, caption: event.target.value } : asset))} />
+                </label>}
                 </div>
               ))}
             </div>
@@ -1301,6 +1303,7 @@ export function Cms() {
       {(creating || editing) && (
         <Editor
           initial={editing}
+          defaultType={type ?? 'music'}
           onClose={() => {
             setCreating(false)
             setEditing(null)

@@ -6,6 +6,7 @@ from app.models.enums import ContentType
 
 
 class MediaOut(BaseModel):
+    media_id: int | None = None
     url: str
     preview_url: str | None = None
     stream_url: str | None = None

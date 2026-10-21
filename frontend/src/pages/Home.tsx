@@ -1,6 +1,8 @@
 import { useId, useState } from 'react'
 import { api } from '../api/client'
 import { useLiveApi } from '../api/useLiveApi'
+import { creditGroups, creditMember, type CreditMember } from '../homepage'
+import type { MediaOut } from '../api/types'
 import hero1 from '../assets/figma/hero-1-4ee723.png'
 import hero2 from '../assets/figma/hero-2-25801d.png'
 import hero3 from '../assets/figma/hero-3-5a4166.png'
@@ -16,8 +18,6 @@ const DEFAULT_INTRO =
   'Âm nhạc của anh là một người bạn đồng hành trong cuộc sống của chúng tôi, ' +
   'ít nhất là một giai đoạn nào đó trong đời. Website này do cộng đồng thành ' +
   'lập nhằm lưu giữ kỉ niệm.'
-
-type Credit = { role: string; names: string[] }
 
 const DEFAULT_MAINTAIN = [
   'Quỹ: Forever Eskay',
@@ -53,34 +53,43 @@ function Marquee({ reverse = false }: { reverse?: boolean }) {
 }
 
 /* Show the main member and expand the remaining names without placeholder rows. */
-function RoleColumn({ role, names }: { role: string; names: string[] }) {
+function MemberAvatar({ member, media, className }: { member: CreditMember; media: MediaOut[]; className: string }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const image = media.find((asset) => asset.media_id === member.media_id && asset.mime_type.startsWith('image/'))
+  const url = image?.original_url || image?.url
+  return <span className={className} aria-hidden="true">
+    {url && url !== failedUrl ? <img src={url} alt="" loading="lazy" onError={() => setFailedUrl(url)} /> : initials(member.name)}
+  </span>
+}
+
+function RoleColumn({ role, members, media }: { role: string; members: CreditMember[]; media: MediaOut[] }) {
   const [expanded, setExpanded] = useState(false)
   const membersId = useId()
-  const main = names[0]
-  const rest = names.slice(1)
+  const main = members[0]
+  const rest = members.slice(1)
   return (
     <div className="home__role">
       <h3 className="home__role-title">{role}</h3>
       <div className="home__role-members">
         <div className="home__member">
           <div className="home__member-text">
-            <span className="home__member-name">{main}</span>
+            <span className="home__member-name">{main.name}</span>
             <span className="home__member-sub">{role}</span>
           </div>
-          <span className="home__member-avatar" aria-hidden="true">{initials(main)}</span>
+          <MemberAvatar className="home__member-avatar" member={main} media={media} />
         </div>
         <div id={membersId} className="home__role-members" hidden={!expanded}>
-          {rest.map((name, index) => <div className="home__member" key={`${name}-${index}`}>
+          {rest.map((member, index) => <div className="home__member" key={`${member.name}-${index}`}>
           <div className="home__member-text">
             <span className="home__member-name home__member-name--sm">
-              {name}
+              {member.name}
             </span>
             <span className="home__member-sub home__member-sub--sm">{role}</span>
           </div>
-          <span
+          <MemberAvatar
             className="home__member-avatar home__member-avatar--sm"
-            aria-hidden="true"
-          >{initials(name)}</span>
+            member={member} media={media}
+          />
           </div>)}
         </div>
         {rest.length > 0 && (
@@ -119,14 +128,17 @@ export function Home() {
   >
 
   const intro = typeof body.intro === 'string' && body.intro.trim() ? body.intro : DEFAULT_INTRO
-  const uploadedImages = state.status === 'success'
-    ? state.data.media.filter((m) => m.mime_type.startsWith('image/') && m.url).map((m) => m.url)
-    : []
+  const media = state.status === 'success' ? state.data.media : []
+  const credits = creditGroups(body.credits)
+    .map((group) => ({ role: group.role.trim(), members: group.members.filter((member) => member.name.trim()) }))
+    .filter((group) => group.role && group.members.length > 0)
+  const leader = Object.hasOwn(body, 'leader') ? creditMember(body.leader) : { name: 'Cỏ nhỏ' }
+  const avatarIds = new Set([
+    leader?.media_id,
+    ...credits.flatMap((group) => group.members.map((member) => member.media_id)),
+  ].filter((id) => id !== undefined))
+  const uploadedImages = media.filter((m) => m.mime_type.startsWith('image/') && m.url && (m.media_id == null || !avatarIds.has(m.media_id))).map((m) => m.original_url || m.url)
   const heroImages = uploadedImages.length ? uploadedImages : HERO_IMAGES
-  const credits: Credit[] = (Array.isArray(body.credits) ? body.credits : [])
-    .filter((group): group is Credit => group && typeof group.role === 'string' && Array.isArray(group.names))
-    .map((group) => ({ role: group.role.trim(), names: group.names.filter((name): name is string => typeof name === 'string' && Boolean(name.trim())).map((name) => name.trim()) }))
-    .filter((group) => group.role && group.names.length > 0)
   const maintain = Array.isArray(body.maintain)
     ? (body.maintain as string[])
     : DEFAULT_MAINTAIN
@@ -208,17 +220,17 @@ export function Home() {
         </header>
 
         <div className="home__credits-body">
-          <div className="home__leader">
+          {leader?.name.trim() && <div className="home__leader">
             <div className="home__leader-text">
-              <span className="home__leader-name">Cỏ nhỏ</span>
+              <span className="home__leader-name">{leader.name}</span>
               <span className="home__leader-role">Leader</span>
             </div>
-            <span className="home__avatar" aria-hidden="true">CN</span>
-          </div>
+            <MemberAvatar className="home__avatar" member={leader} media={media} />
+          </div>}
 
           {credits.length > 0 && <div className="home__roles">
-            {credits.map((c) => (
-              <RoleColumn key={c.role} role={c.role} names={c.names} />
+            {credits.map((c, index) => (
+              <RoleColumn key={`${c.role}-${index}`} role={c.role} members={c.members} media={media} />
             ))}
           </div>}
         </div>

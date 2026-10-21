@@ -77,7 +77,7 @@ def check_design_flows(base, context, login, passed, evidence):
         passed("CMS tab and content filters survive reload through URL state")
 
         page.get_by_role("button", name="+ Nội dung mới", exact=True).click()
-        title = page.get_by_role("dialog").get_by_label("Tiêu đề", exact=True)
+        title = page.get_by_role("dialog").get_by_label("Tên bài hát", exact=True)
         title.fill("Bản nháp giả chưa lưu")
         # A dismissed reload warning leaves the draft intact.
         dialogs = []

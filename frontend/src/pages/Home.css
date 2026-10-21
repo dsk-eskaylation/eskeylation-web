@@ -462,6 +462,14 @@
   background: #303030;
   flex-shrink: 0;
 }
+.home__avatar img,
+.home__member-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .home__member-avatar--sm {
   width: 62px;
   height: 63px;

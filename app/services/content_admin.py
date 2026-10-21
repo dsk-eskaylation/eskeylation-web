@@ -82,10 +82,49 @@ async def _replace_media(
         )
 
 
+async def _validate_homepage_avatars(
+    session: AsyncSession, body: dict, attached_ids: set[int]
+) -> None:
+    """An avatar must be an image attached to this homepage, never an external URL."""
+    people = []
+    leader = body.get("leader")
+    if isinstance(leader, dict):
+        people.append(leader)
+    credits = body.get("credits")
+    if isinstance(credits, list):
+        for group in credits:
+            if isinstance(group, dict) and isinstance(group.get("members"), list):
+                people.extend(group["members"])
+    refs = []
+    for person in people:
+        if not isinstance(person, dict) or person.get("media_id") is None:
+            continue
+        ref = person["media_id"]
+        if type(ref) is not int or ref <= 0 or ref not in attached_ids:
+            raise HTTPException(422, "Ảnh shout out phải được gắn vào Trang chủ")
+        refs.append(ref)
+    if refs:
+        images = set(
+            (
+                await session.scalars(
+                    select(Media.id).where(
+                        Media.id.in_(refs), Media.mime_type.startswith("image/")
+                    )
+                )
+            ).all()
+        )
+        if set(refs) != images:
+            raise HTTPException(422, "Ảnh shout out cần là file ảnh hợp lệ")
+
+
 async def create_content(
     session: AsyncSession, data: ContentCreate, author_id: int
 ) -> Content:
     validate_embeds(data.body)
+    if data.type == ContentType.homepage:
+        await _validate_homepage_avatars(
+            session, data.body, {m.media_id for m in data.media}
+        )
     # Chặn từ ngữ không phù hợp trong mô tả + body (kiểm duyệt)
     await moderation.assert_clean(session, summary=data.summary, body=data.body)
     content = Content(
@@ -116,6 +155,15 @@ async def update_content(
     session: AsyncSession, content: Content, data: ContentUpdate
 ) -> Content:
     fields = data.model_dump(exclude_unset=True)
+    if content.type == ContentType.homepage:
+        attached_ids = (
+            {m.media_id for m in (data.media or [])}
+            if "media" in fields
+            else {link.media_id for link in content.media_links}
+        )
+        await _validate_homepage_avatars(
+            session, fields.get("body", content.body), attached_ids
+        )
     # Chặn từ ngữ không phù hợp trong các trường được sửa (kiểm duyệt)
     await moderation.assert_clean(
         session,

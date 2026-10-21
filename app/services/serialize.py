@@ -8,6 +8,7 @@ def content_to_out(content: Content) -> ContentOut:
     storage = get_storage()
     media = [
         MediaOut(
+            media_id=link.media_id,
             url=storage.url(link.media.storage_key),
             caption=link.caption,
             alt_text=link.media.alt_text,

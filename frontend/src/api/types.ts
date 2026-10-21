@@ -1,6 +1,7 @@
 export type ContentType = 'music' | 'gallery' | 'community' | 'homepage' | 'video'
 
 export interface MediaOut {
+  media_id?: number | null
   url: string
   preview_url?: string | null
   stream_url?: string | null
