@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models.content import Content
-from app.models.enums import ContentStatus
+from app.models.enums import ContentStatus, ContentType
 from app.models.interaction_target import InteractionTarget
 from app.models.media import ContentMedia
 from app.services import drive_media
@@ -64,6 +64,9 @@ async def migrated_media(content_id: int, *, image: bool = False) -> Response | 
         assets = content_to_out(content).media
         if image:
             assets = [m for m in assets if m.mime_type.startswith("image/")]
+        elif content.type in {ContentType.music, ContentType.video}:
+            prefix = "audio/" if content.type == ContentType.music else "video/"
+            assets = [m for m in assets if m.mime_type.startswith(prefix)]
         asset = next((m for m in assets if m.is_primary), assets[0] if assets else None)
         if asset is None:
             raise HTTPException(404, "Không tìm thấy tư liệu")

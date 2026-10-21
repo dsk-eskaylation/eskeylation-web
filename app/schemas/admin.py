@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
@@ -44,6 +44,14 @@ class ContentUpdate(BaseModel):
     summary: str | None = None
     body: dict | None = None
     media: list[ContentMediaIn] | None = None
+
+    @field_validator("title", "body")
+    @classmethod
+    def reject_explicit_null(cls, value: str | dict | None) -> str | dict:
+        # Omission leaves the stored value unchanged; explicit null is not a delete.
+        if value is None:
+            raise ValueError("Không được đặt tiêu đề hoặc nội dung thành null")
+        return value
 
 
 class ContentAdminRead(BaseModel):

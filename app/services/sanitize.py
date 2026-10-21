@@ -97,10 +97,16 @@ def _walk_embeds(value) -> None:
 
 
 def _check_embed_url(key: str, url) -> None:
-    parsed = urlparse(str(url))
-    host = (parsed.hostname or "").lower()
-    allowed = host in settings.allowed_embed_hosts
-    if parsed.scheme not in ("http", "https") or not allowed:
+    try:
+        parsed = urlparse(str(url))
+        host = (parsed.hostname or "").lower()
+        allowed = host in settings.allowed_embed_hosts and parsed.scheme in {
+            "http",
+            "https",
+        }
+    except ValueError:
+        allowed = False
+    if not allowed:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
