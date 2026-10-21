@@ -108,14 +108,15 @@ export function Photos() {
     return () => window.removeEventListener('keydown', onKey)
   }, [active, photos])
 
-  if (state.status === 'loading') return <div className="photos" aria-busy="true" />
-  if (state.status === 'error') return <EmptyState title="Không tải được ảnh." />
+  if (state.status === 'loading') return <div className="photos" aria-busy="true"><h1 className="sr-only">Thư viện ảnh</h1><p role="status">Đang tải ảnh…</p></div>
+  if (state.status === 'error') return <div className="photos"><h1 className="sr-only">Thư viện ảnh</h1><EmptyState title="Không tải được ảnh." /></div>
   if (photos.length === 0)
-    return <EmptyState title="Hiện tại chưa có ảnh." />
+    return <div className="photos"><h1 className="sr-only">Thư viện ảnh</h1><EmptyState title="Hiện tại chưa có ảnh." /></div>
 
 
   return (
     <div className="photos">
+      <h1 className="sr-only">Thư viện ảnh</h1>
       <div ref={topRef} className="photos__anchor" aria-hidden="true" />
       <div className="photos__grid">
         {pagePhotos.map((p, i) => (
@@ -136,7 +137,7 @@ export function Photos() {
       <Pagination page={safePage} pages={pageCount} label="Phân trang ảnh" onChange={goPage} />
 
       {cur && (
-        <Modal onClose={() => setActiveId(null)} variant="bare" showClose>
+        <Modal onClose={() => setActiveId(null)} label="Xem ảnh" variant="bare" showClose>
           <figure className="photos__viewer">
             {active > 0 && (
               <button

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getSession, login } from '../api/auth'
+import { FormError } from '../components/FormError'
 import './Login.css'
 
 /** Trang đăng nhập CMS — theo design language Figma "bàn giao DEV":
@@ -28,23 +29,28 @@ export function Login() {
   }
 
   return (
-    <div className="login">
+    <main className="login">
       <span className="login__orb" aria-hidden="true" />
 
       <form className="login__card page-enter" onSubmit={onSubmit}>
         <Link to="/" className="login__brand">
           ESKAYLATION
         </Link>
-        <p className="login__sub">Đăng nhập Eskaylation</p>
+        <h1 className="login__sub">Đăng nhập Eskaylation</h1>
 
         <label className="login__field">
           <span className="login__label">Email</span>
           <input
+            id="login-email"
+            name="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@eskaylation.com"
             autoComplete="username"
+            spellCheck={false}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? 'login-error' : undefined}
             required
           />
         </label>
@@ -52,20 +58,20 @@ export function Login() {
         <label className="login__field">
           <span className="login__label">Mật khẩu</span>
           <input
+            name="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete="current-password"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? 'login-error' : undefined}
             required
           />
         </label>
 
         {error && (
-          <p className="login__error">
-            <span>*</span>
-            {error}
-          </p>
+          <FormError id="login-error" message={error} fieldId="login-email" className="login__error" />
         )}
 
         <button type="submit" className="login__submit" disabled={busy}>
@@ -76,6 +82,6 @@ export function Login() {
           ‹ Về trang chủ
         </Link>
       </form>
-    </div>
+    </main>
   )
 }

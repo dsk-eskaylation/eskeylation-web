@@ -54,6 +54,7 @@ export function Community() {
 
   return (
     <div className="community">
+      <h1 className="sr-only">Cộng đồng Eskaylation</h1>
       <div ref={topRef} className="community__anchor" aria-hidden="true" />
       {state.status === 'loading' && (
         <div className="community__feed" aria-busy="true" />

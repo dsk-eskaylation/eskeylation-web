@@ -1,20 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useDebounced } from '../api/useApi'
 import { useLiveApi } from '../api/useLiveApi'
+import { useLibraryParams } from '../api/useLibraryParams'
+import { Pagination } from '../components/Pagination'
+import { LibraryFeedback } from '../components/LibraryFeedback'
 import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
 import { MusicCard } from '../components/MusicCard'
 import { VideoModal } from '../components/VideoModal'
-import { EmptyState } from '../components/EmptyState'
 import { usePlayer, audioUrl } from '../player/PlayerContext'
 import './MusicAll.css'
 
 export function MusicAll() {
-  const [q, setQ] = useState('')
+  const { q, page, setPage, setQuery } = useLibraryParams()
   const debouncedQ = useDebounced(q) // tránh gọi API theo từng phím gõ
-  const [page, setPage] = useState(1)
+  const [attempt, setAttempt] = useState(0)
   const [selected, setSelected] = useState<ContentOut | null>(null)
   const player = usePlayer()
   const state = useLiveApi(
@@ -24,12 +26,18 @@ export function MusicAll() {
         pageSize: 60,
         page,
       }),
-    [debouncedQ, page],
+    [debouncedQ, page, attempt],
   )
   const items = state.status === 'success' ? state.data.items : []
+  const pages = state.status === 'success' ? Math.max(1, state.data.pages) : 1
+  const busy = state.status === 'success' && state.data.page !== page
+  useEffect(() => {
+    if (state.status === 'success' && state.data.page === page && page > pages) setPage(pages, true)
+  }, [state, page, pages, setPage])
 
   return (
     <div className="music-all">
+      <h1 className="page-heading">Thư viện nhạc dạng lưới</h1>
       {/* Header (Figma #1:1385): Quay về | pills | search */}
       <header className="music-all__head">
         <Link to="/music" className="music-all__back">
@@ -46,22 +54,15 @@ export function MusicAll() {
 
         <SearchBar
           value={q}
-          onChange={(value) => {
-            setQ(value)
-            setPage(1)
-          }}
-          onClear={() => {
-            setQ('')
-            setPage(1)
-          }}
+          onChange={setQuery}
+          onClear={() => setQuery('')}
         />
       </header>
 
-      {state.status === 'success' && items.length === 0 && (
-        <EmptyState title="Hiện tại chưa có bài hát nào TT.  " />
-      )}
+      <LibraryFeedback status={state.status} empty={items.length === 0} query={q} noun="bài hát"
+        onRetry={() => setAttempt((value) => value + 1)} onClear={() => setQuery('')} />
 
-      <div className="music-all__grid">
+      <div className="music-all__grid" aria-busy={state.status === 'loading' || busy}>
         {items.map((item, i) => (
           <div
             className="music-all__cell"
@@ -78,27 +79,8 @@ export function MusicAll() {
         ))}
       </div>
 
-      {state.status === 'success' && state.data.pages > 1 ? (
-        <nav className="music-all__pagination" aria-label="Phân trang nhạc">
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            Trang trước
-          </button>
-          <span>
-            Trang {page}/{state.data.pages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= state.data.pages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Trang sau
-          </button>
-        </nav>
-      ) : null}
+      {state.status === 'success' && <Pagination page={Math.min(page, pages)} pages={pages}
+        label="Phân trang nhạc" busy={busy} onChange={(next) => { setPage(next); window.scrollTo({ top: 0, behavior: 'instant' }) }} />}
 
       {selected && (
         <VideoModal content={selected} onClose={() => setSelected(null)} />

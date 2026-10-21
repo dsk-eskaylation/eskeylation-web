@@ -388,7 +388,7 @@ export function CommunityPost({
       )}
 
       {viewingMedia && (
-        <Modal onClose={() => setViewingMedia(false)} showClose>
+        <Modal onClose={() => setViewingMedia(false)} label="Ảnh và video bài viết" showClose>
           <PostGallery content={content} />
         </Modal>
       )}

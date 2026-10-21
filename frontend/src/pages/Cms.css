@@ -25,6 +25,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .cms__brand {
@@ -42,7 +43,12 @@
 .cms__topbar-actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
+
+.cms__main { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.cms__title { margin: 0; font-size: 26px; color: var(--color-text-bright); }
 
 /* ---- Pill dùng chung trong CMS ---- */
 .cms-pill {
@@ -90,7 +96,7 @@
 /* Nút xác nhận nguy hiểm (trong hộp xác nhận): tô đỏ đặc để nổi bật */
 .cms-pill--danger-solid {
   border-color: var(--color-error);
-  background: var(--color-error);
+  background: var(--color-danger-bg);
   color: #fff;
   font-weight: 600;
 }
@@ -337,7 +343,7 @@
   font-size: 12px;
   line-height: 1.4;
   color: var(--color-text-muted);
-  opacity: 0.85;
+  opacity: 1;
 }
 
 /* Editor "Nhóm đóng góp" của trang chủ: hàng [vai trò | tên | xoá] */
@@ -555,11 +561,14 @@
 }
 .cms-chip button:hover {
   color: #fff;
-  background: var(--color-error);
+  background: var(--color-danger-bg);
 }
 
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
+  .cms__topbar { flex-direction: column; align-items: flex-start; }
+  .cms__topbar-actions { gap: 8px; width: 100%; }
+  .cms-editor__foot { flex-wrap: wrap; }
   .cms {
     padding: 24px var(--space-4) 60px;
   }

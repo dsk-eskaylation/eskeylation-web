@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   AdminApiError,
   adminApi,
@@ -17,7 +17,8 @@ import { logout as apiLogout } from '../api/auth'
 import { api } from '../api/client'
 import { useApi } from '../api/useApi'
 import { MUSIC_GENRES } from '../genres'
-import { Modal } from '../components/Modal'
+import { UnsavedChangesModal } from '../components/UnsavedChangesModal'
+import { FormError } from '../components/FormError'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useToast } from '../components/Toast'
 import { Dashboard } from './Dashboard'
@@ -118,6 +119,9 @@ function Editor({
   )
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  const draft = JSON.stringify({ type, title, summary, artist, category, audioUrl, lyrics, embedUrl, author, intro, maintainText, credits, media })
+  const [initialDraft] = useState(draft)
 
   // Cập nhật một nhóm credits của trang chủ
   const setCredit = (
@@ -246,8 +250,9 @@ function Editor({
   }
 
   return (
-    <Modal onClose={onClose}>
-      <form className="cms-editor" onSubmit={onSubmit}>
+    <UnsavedChangesModal onClose={onClose} dirty={draft !== initialDraft} busy={busy} label={initial ? `Sửa: ${initial.title}` : 'Nội dung mới'}>
+      {(requestClose) => (
+      <form className="cms-editor" onSubmit={onSubmit} aria-describedby={error ? 'cms-editor-error' : undefined} aria-busy={busy}>
         <h2 className="cms-editor__title">
           {initial ? `Sửa: ${initial.title}` : 'Nội dung mới'}
         </h2>
@@ -262,6 +267,7 @@ function Editor({
                   type === t.value ? 'cms-pill cms-pill--active' : 'cms-pill'
                 }
                 onClick={() => setType(t.value)}
+                aria-pressed={type === t.value}
               >
                 {t.label}
               </button>
@@ -419,12 +425,14 @@ function Editor({
                   <div className="cms-credits__row" key={i}>
                     <input
                       className="cms-credits__role"
+                      aria-label={`Vai trò nhóm ${i + 1}`}
                       value={c.role}
                       onChange={(e) => setCredit(i, { role: e.target.value })}
                       placeholder="Vai trò (VD: DESIGN)"
                     />
                     <input
                       className="cms-credits__names"
+                      aria-label={`Thành viên nhóm ${i + 1}`}
                       value={c.names}
                       onChange={(e) => setCredit(i, { names: e.target.value })}
                       placeholder="Tên 1, Tên 2, …"
@@ -512,14 +520,11 @@ function Editor({
         </div>
 
         {error && (
-          <p className="cms-error">
-            <span>*</span>
-            {error}
-          </p>
+          <FormError id="cms-editor-error" message={error} className="cms-error" />
         )}
 
         <div className="cms-editor__foot">
-          <button type="button" className="cms-pill" onClick={onClose}>
+          <button type="button" className="cms-pill" onClick={requestClose} disabled={busy}>
             Huỷ
           </button>
           <button
@@ -531,7 +536,8 @@ function Editor({
           </button>
         </div>
       </form>
-    </Modal>
+      )}
+    </UnsavedChangesModal>
   )
 }
 
@@ -573,8 +579,9 @@ function NewUserForm({
   }
 
   return (
-    <Modal onClose={onClose}>
-      <form className="cms-editor" onSubmit={onSubmit}>
+    <UnsavedChangesModal onClose={onClose} dirty={Boolean(email || password || role !== 'member')} busy={busy} label="Thêm tài khoản">
+      {(requestClose) => (
+      <form className="cms-editor" onSubmit={onSubmit} aria-describedby={error ? 'cms-user-error' : undefined} aria-busy={busy}>
         <h2 className="cms-editor__title">Thêm tài khoản</h2>
         <label className="cms-field">
           <span>Email</span>
@@ -606,6 +613,7 @@ function NewUserForm({
                   role === r.value ? 'cms-pill cms-pill--active' : 'cms-pill'
                 }
                 onClick={() => setRole(r.value)}
+                aria-pressed={role === r.value}
               >
                 {r.label}
               </button>
@@ -613,13 +621,10 @@ function NewUserForm({
           </div>
         </div>
         {error && (
-          <p className="cms-error">
-            <span>*</span>
-            {error}
-          </p>
+          <FormError id="cms-user-error" message={error} className="cms-error" />
         )}
         <div className="cms-editor__foot">
-          <button type="button" className="cms-pill" onClick={onClose}>
+          <button type="button" className="cms-pill" onClick={requestClose} disabled={busy}>
             Huỷ
           </button>
           <button
@@ -631,7 +636,8 @@ function NewUserForm({
           </button>
         </div>
       </form>
-    </Modal>
+      )}
+    </UnsavedChangesModal>
   )
 }
 
@@ -1076,17 +1082,30 @@ export function Cms() {
   const navigate = useNavigate()
   const { notify } = useToast()
   const [me, setMe] = useState<AdminUser | null>(null)
-  const [view, setView] = useState<
-    'content' | 'users' | 'dashboard' | 'moderation'
-  >('content')
-  const [type, setType] = useState<ContentType | null>(null)
-  const [status, setStatus] = useState<ContentStatus | null>(null)
+  const [params, setParams] = useSearchParams()
+  const isAdmin = me?.role === 'admin'
+  const requestedView = params.get('tab')
+  const view = isAdmin && (requestedView === 'users' || requestedView === 'dashboard' || requestedView === 'moderation') ? requestedView : 'content'
+  const type = TYPES.find((item) => item.value === params.get('type'))?.value ?? null
+  const status = STATUSES.find((item) => item.value === params.get('status'))?.value ?? null
+  const requestedPage = Number(params.get('page') ?? 1)
+  const pageNumber = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+  const updateParams = useCallback((patch: Record<string, string | null>, replace = false) => {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous)
+      Object.entries(patch).forEach(([key, value]) => { if (value === null) next.delete(key); else next.set(key, value) })
+      return next
+    }, { replace })
+  }, [setParams])
+  const setView = (value: string) => updateParams({ tab: value === 'content' ? null : value })
+  const setType = (value: ContentType | null) => updateParams({ type: value, page: null })
+  const setStatus = (value: ContentStatus | null) => updateParams({ status: value, page: null })
+  const setPageNumber = useCallback((value: number) => updateParams({ page: value <= 1 ? null : String(value) }), [updateParams])
   const [items, setItems] = useState<ContentAdmin[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<ContentAdmin | null>(null)
   const [creating, setCreating] = useState(false)
-  const [pageNumber, setPageNumber] = useState(1)
   const [pages, setPages] = useState(1)
   const loadGeneration = useRef(0)
 
@@ -1100,7 +1119,6 @@ export function Cms() {
           navigate('/login', { replace: true })
       })
   }, [navigate])
-  const isAdmin = me?.role === 'admin'
 
   const load = useCallback(async () => {
     const generation = ++loadGeneration.current
@@ -1128,7 +1146,7 @@ export function Cms() {
     } finally {
       if (generation === loadGeneration.current) setLoading(false)
     }
-  }, [type, status, navigate, notify, pageNumber])
+  }, [type, status, navigate, notify, pageNumber, setPageNumber])
 
   useEffect(() => {
     if (view === 'content') void load()
@@ -1176,6 +1194,7 @@ export function Cms() {
 
   return (
     <div className="cms">
+      <a className="skip-link" href="#cms-main">Bỏ qua điều hướng quản trị</a>
       <header className="cms__topbar">
         <span className="cms__brand">
           ESKAYLATION <em>CMS</em>
@@ -1189,6 +1208,7 @@ export function Cms() {
                 view === 'dashboard' ? 'cms-pill cms-pill--active' : 'cms-pill'
               }
               onClick={() => setView('dashboard')}
+              aria-pressed={view === 'dashboard'}
             >
               Tổng quan
             </button>
@@ -1199,6 +1219,7 @@ export function Cms() {
               view === 'content' ? 'cms-pill cms-pill--active' : 'cms-pill'
             }
             onClick={() => setView('content')}
+            aria-pressed={view === 'content'}
           >
             Nội dung
           </button>
@@ -1209,6 +1230,7 @@ export function Cms() {
                 view === 'moderation' ? 'cms-pill cms-pill--active' : 'cms-pill'
               }
               onClick={() => setView('moderation')}
+              aria-pressed={view === 'moderation'}
             >
               Kiểm duyệt
             </button>
@@ -1220,6 +1242,7 @@ export function Cms() {
                 view === 'users' ? 'cms-pill cms-pill--active' : 'cms-pill'
               }
               onClick={() => setView('users')}
+              aria-pressed={view === 'users'}
             >
               Tài khoản
             </button>
@@ -1237,6 +1260,8 @@ export function Cms() {
         </div>
       </header>
 
+      <main id="cms-main" tabIndex={-1} className="cms__main">
+      <h1 className="cms__title">{view === 'dashboard' ? 'Tổng quan' : view === 'moderation' ? 'Kiểm duyệt' : view === 'users' ? 'Tài khoản' : 'Nội dung'}</h1>
       {source.status === 'success' &&
         source.data.body.source === 'google_drive' && (
           <p className="cms__source-note">
@@ -1256,15 +1281,9 @@ export function Cms() {
       ) : (
         <CmsContent
           type={type}
-          setType={(value) => {
-            setType(value)
-            setPageNumber(1)
-          }}
+          setType={setType}
           status={status}
-          setStatus={(value) => {
-            setStatus(value)
-            setPageNumber(1)
-          }}
+          setStatus={setStatus}
           items={items}
           total={total}
           loading={loading}
@@ -1277,6 +1296,7 @@ export function Cms() {
           onPage={setPageNumber}
         />
       )}
+      </main>
 
       {(creating || editing) && (
         <Editor
@@ -1347,6 +1367,7 @@ function CmsContent({
             type="button"
             className={type === null ? 'cms-pill cms-pill--active' : 'cms-pill'}
             onClick={() => setType(null)}
+            aria-pressed={type === null}
           >
             Tất cả
           </button>
@@ -1358,6 +1379,7 @@ function CmsContent({
                 type === t.value ? 'cms-pill cms-pill--active' : 'cms-pill'
               }
               onClick={() => setType(type === t.value ? null : t.value)}
+              aria-pressed={type === t.value}
             >
               {t.label}
             </button>
@@ -1373,6 +1395,7 @@ function CmsContent({
                 status === s.value ? 'cms-pill cms-pill--active' : 'cms-pill'
               }
               onClick={() => setStatus(status === s.value ? null : s.value)}
+              aria-pressed={status === s.value}
             >
               {s.label}
             </button>

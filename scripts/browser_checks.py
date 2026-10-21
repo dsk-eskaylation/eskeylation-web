@@ -155,6 +155,7 @@ async def seed(password: str, tag: str) -> None:
 
 def check_ui(password: str, tag: str) -> None:
     from scripts.cms_browser_checks import check_cms_mapping
+    from scripts.design_browser_checks import check_design_flows
 
     checks = []
 
@@ -508,6 +509,7 @@ def check_ui(password: str, tag: str) -> None:
             admin_context.close()
             member_context.close()
             check_cms_mapping(BASE, context, login, passed)
+            check_design_flows(BASE, context, login, passed, EVIDENCE)
             for role in ["author", "editor", "member"]:
                 ctx = context()
                 page = ctx.new_page()

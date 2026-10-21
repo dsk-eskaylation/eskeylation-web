@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { api } from '../api/client'
 import { useLiveApi } from '../api/useLiveApi'
 import hero1 from '../assets/figma/hero-1-4ee723.png'
@@ -17,11 +17,7 @@ const DEFAULT_INTRO =
   'ít nhất là một giai đoạn nào đó trong đời. Website này do cộng đồng thành ' +
   'lập nhằm lưu giữ kỉ niệm.'
 
-const DEFAULT_CREDITS = [
-  { role: 'DESIGN', names: [] as string[] },
-  { role: 'Development', names: [] as string[] },
-  { role: 'Editor', names: [] as string[] },
-]
+type Credit = { role: string; names: string[] }
 
 const DEFAULT_MAINTAIN = [
   'Quỹ: Forever Eskay',
@@ -56,39 +52,36 @@ function Marquee({ reverse = false }: { reverse?: boolean }) {
   )
 }
 
-/* Cột vai trò (Figma #1:321): thành viên đầu rõ, hàng dưới mờ 0.22, chevron mở rộng */
+/* Show the main member and expand the remaining names without placeholder rows. */
 function RoleColumn({ role, names }: { role: string; names: string[] }) {
   const [expanded, setExpanded] = useState(false)
+  const membersId = useId()
   const main = names[0]
   const rest = names.slice(1)
   return (
     <div className="home__role">
-      <span className="home__role-title">{role}</span>
+      <h3 className="home__role-title">{role}</h3>
       <div className="home__role-members">
         <div className="home__member">
           <div className="home__member-text">
-            <span className="home__member-name">{main ?? '—'}</span>
+            <span className="home__member-name">{main}</span>
             <span className="home__member-sub">{role}</span>
           </div>
-          <span className="home__member-avatar" aria-hidden="true" />
+          <span className="home__member-avatar" aria-hidden="true">{initials(main)}</span>
         </div>
-        <div
-          className={
-            expanded
-              ? 'home__member home__member--dim home__member--open'
-              : 'home__member home__member--dim'
-          }
-        >
+        <div id={membersId} className="home__role-members" hidden={!expanded}>
+          {rest.map((name, index) => <div className="home__member" key={`${name}-${index}`}>
           <div className="home__member-text">
             <span className="home__member-name home__member-name--sm">
-              {rest[0] ?? main ?? '—'}
+              {name}
             </span>
             <span className="home__member-sub home__member-sub--sm">{role}</span>
           </div>
           <span
             className="home__member-avatar home__member-avatar--sm"
             aria-hidden="true"
-          />
+          >{initials(name)}</span>
+          </div>)}
         </div>
         {rest.length > 0 && (
           <button
@@ -96,6 +89,8 @@ function RoleColumn({ role, names }: { role: string; names: string[] }) {
             className="home__role-chevron"
             onClick={() => setExpanded((v) => !v)}
             aria-label={expanded ? 'Thu gọn' : 'Xem thêm'}
+            aria-expanded={expanded}
+            aria-controls={membersId}
           >
             <svg viewBox="0 0 20 10" className={expanded ? 'is-flipped' : ''}>
               <polyline
@@ -112,6 +107,10 @@ function RoleColumn({ role, names }: { role: string; names: string[] }) {
   )
 }
 
+function initials(name: string) {
+  return name.trim().split(/\s+/u).map((part) => part[0]).slice(-2).join('').toLocaleUpperCase('vi')
+}
+
 export function Home() {
   const state = useLiveApi(() => api.homepage())
   const body = (state.status === 'success' ? state.data.body : {}) as Record<
@@ -124,9 +123,10 @@ export function Home() {
     ? state.data.media.filter((m) => m.mime_type.startsWith('image/') && m.url).map((m) => m.url)
     : []
   const heroImages = uploadedImages.length ? uploadedImages : HERO_IMAGES
-  const credits = Array.isArray(body.credits)
-    ? (body.credits as typeof DEFAULT_CREDITS)
-    : DEFAULT_CREDITS
+  const credits: Credit[] = (Array.isArray(body.credits) ? body.credits : [])
+    .filter((group): group is Credit => group && typeof group.role === 'string' && Array.isArray(group.names))
+    .map((group) => ({ role: group.role.trim(), names: group.names.filter((name): name is string => typeof name === 'string' && Boolean(name.trim())).map((name) => name.trim()) }))
+    .filter((group) => group.role && group.names.length > 0)
   const maintain = Array.isArray(body.maintain)
     ? (body.maintain as string[])
     : DEFAULT_MAINTAIN
@@ -213,14 +213,14 @@ export function Home() {
               <span className="home__leader-name">Cỏ nhỏ</span>
               <span className="home__leader-role">Leader</span>
             </div>
-            <span className="home__avatar" aria-hidden="true" />
+            <span className="home__avatar" aria-hidden="true">CN</span>
           </div>
 
-          <div className="home__roles">
+          {credits.length > 0 && <div className="home__roles">
             {credits.map((c) => (
               <RoleColumn key={c.role} role={c.role} names={c.names} />
             ))}
-          </div>
+          </div>}
         </div>
       </section>
 

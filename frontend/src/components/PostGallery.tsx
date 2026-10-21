@@ -18,7 +18,7 @@ export function PostGallery({ content }: { content: ContentOut }) {
     typeof content.body.author === 'string' ? content.body.author : content.title
   return (
     <div className="post-gallery">
-      <header className="post-gallery__head">
+      <div className="post-gallery__head">
         <span className="post-gallery__avatar" aria-hidden="true" />
         <div className="post-gallery__id">
           <span className="post-gallery__name">{author}</span>
@@ -28,7 +28,7 @@ export function PostGallery({ content }: { content: ContentOut }) {
             <span>Admin</span>
           </div>
         </div>
-      </header>
+      </div>
 
       {content.summary && <p className="post-gallery__caption">{content.summary}</p>}
 

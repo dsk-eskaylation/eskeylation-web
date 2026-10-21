@@ -33,7 +33,7 @@ export function ConfirmDialog({
   }
 
   return (
-    <Modal onClose={onClose} showClose={false}>
+    <Modal onClose={() => { if (!busy) onClose() }} label={title} showClose={false}>
       <div className="cms-confirm">
         <h2 className="cms-editor__title">{title}</h2>
         <p className="cms-confirm__msg">{message}</p>

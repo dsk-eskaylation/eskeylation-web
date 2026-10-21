@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useDebounced } from '../api/useApi'
 import { useLiveApi } from '../api/useLiveApi'
 import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
-import { EmptyState } from '../components/EmptyState'
+import { LibraryFeedback } from '../components/LibraryFeedback'
+import { Pagination } from '../components/Pagination'
+import { useLibraryParams } from '../api/useLibraryParams'
 import './Video.css'
 
 function poster(c: ContentOut) {
@@ -18,18 +20,24 @@ function artistOf(c: ContentOut) {
 /** Trang Xem tất cả video — toàn bộ kho, có tìm kiếm. Bấm một video sẽ về
     /video và phát ngay trên trang (qua ?v=id). */
 export function VideoAll() {
-  const [q, setQ] = useState('')
+  const { q, page, setPage, setQuery } = useLibraryParams()
   const debouncedQ = useDebounced(q)
-  const [page, setPage] = useState(1)
+  const [attempt, setAttempt] = useState(0)
   const navigate = useNavigate()
   const state = useLiveApi(
     () => api.list('video', { q: debouncedQ || undefined, pageSize: 60, page }),
-    [debouncedQ, page],
+    [debouncedQ, page, attempt],
   )
   const items = state.status === 'success' ? state.data.items : []
+  const pages = state.status === 'success' ? Math.max(1, state.data.pages) : 1
+  const busy = state.status === 'success' && state.data.page !== page
+  useEffect(() => {
+    if (state.status === 'success' && state.data.page === page && page > pages) setPage(pages, true)
+  }, [state, page, pages, setPage])
 
   return (
     <div className="video-all">
+      <h1 className="page-heading">Thư viện video</h1>
       <header className="video-all__head">
         <Link to="/video" className="video-all__back">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -37,14 +45,13 @@ export function VideoAll() {
           </svg>
           Quay về
         </Link>
-        <SearchBar value={q} placeholder="Tìm kiếm video" onChange={(value) => { setQ(value); setPage(1) }} onClear={() => { setQ(''); setPage(1) }} />
+        <SearchBar value={q} placeholder="Tìm kiếm video" onChange={setQuery} onClear={() => setQuery('')} />
       </header>
 
-      {state.status === 'success' && items.length === 0 && (
-        <EmptyState title="Không tìm thấy video nào TT.  " />
-      )}
+      <LibraryFeedback status={state.status} empty={items.length === 0} query={q} noun="video"
+        onRetry={() => setAttempt((value) => value + 1)} onClear={() => setQuery('')} />
 
-      <div className="video-grid">
+      <div className="video-grid" aria-busy={state.status === 'loading' || busy}>
         {items.map((item, i) => {
           const media = poster(item)
           return (
@@ -80,13 +87,8 @@ export function VideoAll() {
         })}
       </div>
 
-      {state.status === 'success' && state.data.pages > 1 && (
-        <nav aria-label="Phân trang video">
-          <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>Trang trước</button>
-          <span> {page} / {state.data.pages} </span>
-          <button type="button" disabled={page >= state.data.pages} onClick={() => setPage(page + 1)}>Trang sau</button>
-        </nav>
-      )}
+      {state.status === 'success' && <Pagination page={Math.min(page, pages)} pages={pages}
+        label="Phân trang video" busy={busy} onChange={(next) => { setPage(next); window.scrollTo({ top: 0, behavior: 'instant' }) }} />}
     </div>
   )
 }

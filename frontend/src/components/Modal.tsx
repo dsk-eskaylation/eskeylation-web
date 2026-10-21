@@ -35,6 +35,10 @@ export function Modal({
         : null
     const previousOverflow = document.body.style.overflow
     const root = rootRef.current
+    const siblings = [...document.body.children].filter(
+      (element): element is HTMLElement => element instanceof HTMLElement && !element.contains(root),
+    ).map((element) => ({ element, inert: element.inert }))
+    siblings.forEach(({ element }) => { element.inert = true })
     const focusable = () =>
       [
         ...(root?.querySelectorAll<HTMLElement>(
@@ -43,6 +47,7 @@ export function Modal({
       ].filter((element) => element.getClientRects().length > 0)
     ;(focusable()[0] ?? root)?.focus({ preventScroll: true })
     const onKey = (e: KeyboardEvent) => {
+      if ([...document.querySelectorAll('.modal')].at(-1) !== root) return
       if (e.key === 'Escape') {
         e.preventDefault()
         onCloseRef.current()
@@ -70,6 +75,7 @@ export function Modal({
     return () => {
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = previousOverflow
+      siblings.forEach(({ element, inert }) => { element.inert = inert })
       if (previousFocus?.isConnected)
         previousFocus.focus({ preventScroll: true })
     }

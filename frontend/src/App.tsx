@@ -16,6 +16,7 @@ const Community = lazy(() => import('./pages/Community').then((m) => ({ default:
 const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })))
 const Register = lazy(() => import('./pages/Register').then((m) => ({ default: m.Register })))
 const Cms = lazy(() => import('./pages/Cms').then((m) => ({ default: m.Cms })))
+const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })))
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="video/all" element={<VideoAll />} />
           <Route path="photos" element={<Photos />} />
           <Route path="community" element={<Community />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
 
         {/* Khu vực quản trị — không dùng PillNav public */}

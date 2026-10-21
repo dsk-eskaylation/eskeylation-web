@@ -15,6 +15,7 @@ export function Layout() {
   }, [location.pathname])
   return (
     <div className={hasPlayer ? 'layout layout--with-player' : 'layout'}>
+      <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
       {createPortal(
         <header className="layout__nav">
           {/* Wordmark neo góc trái, đối xứng với nút tài khoản góc phải */}
@@ -29,7 +30,7 @@ export function Layout() {
         document.body,
       )}
       {/* key theo pathname -> mỗi lần đổi trang chạy lại animation vào trang */}
-      <main className="layout__main page-enter" key={location.pathname}>
+      <main id="main-content" tabIndex={-1} className="layout__main page-enter" key={location.pathname}>
         <Suspense
           fallback={
             <div className="route-loading" role="status">

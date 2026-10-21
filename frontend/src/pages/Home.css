@@ -372,10 +372,14 @@
   color: var(--color-text-muted);
 }
 .home__avatar {
+  display: grid;
+  place-items: center;
+  color: var(--color-text-bright);
+  font-size: 28px;
   width: 100px;
   height: 99px;
   border-radius: 25px;
-  background: var(--color-text);
+  background: #303030;
 }
 
 .home__roles {
@@ -393,6 +397,8 @@
   width: min(360px, 100%);
 }
 .home__role-title {
+  margin: 0;
+  font-weight: 400;
   font-size: 40px; /* Figma style_537afd4e */
   letter-spacing: -0.02em;
   color: var(--color-text-muted);
@@ -420,6 +426,8 @@
 }
 
 .home__member-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -444,10 +452,14 @@
 }
 
 .home__member-avatar {
+  display: grid;
+  place-items: center;
+  color: var(--color-text-bright);
+  font-size: 20px;
   width: 80px;
   height: 80px;
   border-radius: 14px;
-  background: var(--color-text);
+  background: #303030;
   flex-shrink: 0;
 }
 .home__member-avatar--sm {

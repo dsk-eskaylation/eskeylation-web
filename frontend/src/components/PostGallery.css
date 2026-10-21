@@ -39,7 +39,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #7b7676; /* Figma fill_d11b7cf0 */
+  color: var(--color-text-muted);
 }
 
 .post-gallery__dot {

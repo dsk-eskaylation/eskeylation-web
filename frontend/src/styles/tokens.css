@@ -5,11 +5,12 @@
   --color-surface: #101010;
   --color-overlay: rgba(0, 0, 0, 0.8);
 
-  /* Chữ (Figma: chính #C9C8C8, nhấn #FFFFFF, phụ #807F7F) */
+  /* Chữ phụ và lỗi tăng tương phản trên nền tối; giữ đỏ đậm cho nút nguy hiểm. */
   --color-text: #c9c8c8;
   --color-text-bright: #ffffff;
-  --color-text-muted: #807f7f;
-  --color-error: #af0a0a;
+  --color-text-muted: #a09f9f;
+  --color-error: #ff9292;
+  --color-danger-bg: #af0a0a;
 
   /* Viền & nét */
   --color-border: rgba(255, 255, 255, 0.1);

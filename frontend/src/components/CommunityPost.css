@@ -186,6 +186,10 @@
 }
 
 /* Picker cảm xúc */
+.cpost__react-wrap, .ccmt__react-wrap { display: flex; align-items: center; min-width: 0; }
+.reaction-picker-trigger { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 28px; min-height: 36px; padding: 4px; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.reaction-picker-trigger:hover:not(:disabled) { color: #fff; background: #292929; }
+.reaction-picker-trigger:disabled { opacity: .5; cursor: default; }
 .cpost__picker {
   position: absolute;
   bottom: calc(100% + 6px);
