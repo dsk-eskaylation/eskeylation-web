@@ -60,8 +60,8 @@ export const community = {
     fetch(`${base(id)}/interactions`, { credentials: 'include' }).then((r) =>
       toJson<InteractionOut>(r),
     ),
-  comments: (id: number, page = 1) =>
-    fetch(`${base(id)}/comments?page=${page}&page_size=50`, {
+  comments: (id: number, page = 1, afterId?: number) =>
+    fetch(`${base(id)}/comments?page=${page}&page_size=50${afterId ? `&after_id=${afterId}` : ''}`, {
       credentials: 'include',
     }).then((r) => toJson<Page<CommentOut>>(r)),
   addComment: (id: number, body: string) =>

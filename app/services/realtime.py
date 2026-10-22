@@ -13,6 +13,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import random
 
 from app.config import get_settings
 
@@ -44,6 +45,8 @@ def can_register() -> bool:
 
 
 def register(content_id: int) -> asyncio.Queue[str]:
+    if not can_register():
+        raise RuntimeError("WebSocket capacity exhausted")
     q: asyncio.Queue[str] = asyncio.Queue(maxsize=100)
     _hub.setdefault(content_id, set()).add(q)
     return q
@@ -69,7 +72,8 @@ async def publish(content_id: int, event: dict) -> None:
     data = json.dumps({"cid": content_id, "event": event})
     if _redis_alive and _redis is not None:
         try:
-            await _redis.publish(_CHANNEL, data)
+            async with asyncio.timeout(2):
+                await _redis.publish(_CHANNEL, data)
             return  # listener sẽ fan-out cục bộ khi nhận lại từ Redis
         except Exception:
             logger.warning("Redis publish lỗi — fan-out cục bộ")
@@ -80,36 +84,45 @@ async def _listener() -> None:
     global _redis_alive, _redis
     import redis.asyncio as aioredis
 
-    _redis = aioredis.from_url(settings.redis_url, decode_responses=True)
-    pubsub = _redis.pubsub()
-    try:
-        await pubsub.subscribe(_CHANNEL)
-        _redis_alive = True
-        logger.info("Realtime: đã kết nối Redis pub/sub (%s)", _CHANNEL)
-        async for msg in pubsub.listen():
-            if msg.get("type") != "message":
-                continue
-            try:
-                payload = json.loads(msg["data"])
-                _fanout_local(int(payload["cid"]), json.dumps(payload["event"]))
-            except (ValueError, KeyError, TypeError):
-                continue
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        _redis_alive = False
-        logger.warning(
-            "Realtime: Redis không sẵn sàng — chạy hub cục bộ (1 tiến trình)"
+    delay = 1.0
+    while True:
+        client = aioredis.from_url(
+            settings.redis_url, decode_responses=True, socket_connect_timeout=2
         )
-    finally:
-        with contextlib.suppress(Exception):
-            await pubsub.aclose()
+        _redis = client
+        pubsub = client.pubsub()
+        try:
+            await pubsub.subscribe(_CHANNEL)
+            _redis_alive = True
+            delay = 1.0
+            logger.info("Realtime: đã kết nối Redis pub/sub (%s)", _CHANNEL)
+            async for msg in pubsub.listen():
+                if msg.get("type") != "message":
+                    continue
+                try:
+                    payload = json.loads(msg["data"])
+                    _fanout_local(int(payload["cid"]), json.dumps(payload["event"]))
+                except (ValueError, KeyError, TypeError):
+                    continue
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("Realtime: Redis lỗi — hub cục bộ, sẽ tự kết nối lại")
+        finally:
+            _redis_alive = False
+            _redis = None
+            with contextlib.suppress(Exception):
+                await pubsub.aclose()
+            with contextlib.suppress(Exception):
+                await client.aclose()
+        await asyncio.sleep(delay + random.uniform(0, delay / 4))
+        delay = min(delay * 2, 30)
 
 
 async def start() -> None:
     """Khởi động task lắng nghe Redis (gọi ở startup của app)."""
     global _listener_task
-    if _listener_task is None:
+    if _listener_task is None or _listener_task.done():
         _listener_task = asyncio.create_task(_listener())
 
 

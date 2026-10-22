@@ -1,6 +1,7 @@
 from app.models.content import Content
 from app.models.enums import ContentType
 from app.schemas.public import ContentOut, MediaOut
+from app.services.sanitize import restore_plain_values
 from app.services.storage import get_storage
 
 
@@ -24,7 +25,7 @@ def content_to_out(content: Content) -> ContentOut:
         (m.url for m in media if m.mime_type.startswith("image/") and m.is_primary),
         next((m.url for m in media if m.mime_type.startswith("image/")), ""),
     )
-    body = dict(content.body)
+    body = restore_plain_values(content.body)
     if content.type == ContentType.music:
         audio = next((m for m in media if m.mime_type.startswith("audio/")), None)
         if audio:

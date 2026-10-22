@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
+from app.services.sanitize import restore_plain_values
 from app.services.storage import get_storage
 
 
@@ -44,6 +45,7 @@ class ContentUpdate(BaseModel):
     summary: str | None = None
     body: dict | None = None
     media: list[ContentMediaIn] | None = None
+    expected_updated_at: datetime | None = None
 
     @field_validator("title", "body")
     @classmethod
@@ -95,7 +97,7 @@ class ContentAdminRead(BaseModel):
             slug=content.slug,
             status=content.status,
             summary=content.summary,
-            body=content.body,
+            body=restore_plain_values(content.body),
             author_id=content.author_id,
             published_at=content.published_at,
             created_at=content.created_at,

@@ -70,7 +70,10 @@ async def delete_media(
     session: AsyncSession = Depends(get_session),
     _: object = Depends(_editor),
 ) -> None:
-    media = await session.get(Media, media_id)
+    # Serialize deletion with attachments' FOR KEY SHARE locks until commit.
+    media = await session.scalar(
+        select(Media).where(Media.id == media_id).with_for_update()
+    )
     if media is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy media"

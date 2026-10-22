@@ -279,7 +279,7 @@ function Editor({
     setBusy(true)
     try {
       if (initial) {
-        await adminApi.update(initial.id, payload)
+        await adminApi.update(initial.id, { ...payload, expected_updated_at: initial.updated_at })
         onSaved(`Đã cập nhật “${savedTitle}”`)
       } else {
         await adminApi.create({ ...payload, type })
@@ -1190,8 +1190,12 @@ export function Cms() {
   }
 
   const logout = async () => {
-    await apiLogout()
-    navigate('/login', { replace: true })
+    try {
+      await apiLogout()
+      navigate('/login', { replace: true })
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Chưa đăng xuất được. Hãy thử lại.', { tone: 'error' })
+    }
   }
 
   return (

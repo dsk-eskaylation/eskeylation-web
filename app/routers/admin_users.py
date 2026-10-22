@@ -1,7 +1,7 @@
 """Quản lý tài khoản — CHỈ admin. Không có đăng ký công khai (by design)."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
@@ -9,6 +9,7 @@ from starlette.concurrency import run_in_threadpool
 from app.db import get_session
 from app.dependencies import require_role
 from app.models.enums import UserRole
+from app.models.session import UserSession
 from app.models.user import User
 from app.schemas.users import UserCreate, UserRead, UserUpdate
 from app.services import activity
@@ -64,7 +65,12 @@ async def update_user(
     admin: User = Depends(_admin),
 ) -> UserRead:
     """Duyệt tài khoản đăng ký (is_active=True) hoặc đổi role."""
-    user = await session.get(User, user_id)
+    user = await session.scalar(
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tài khoản"
@@ -82,6 +88,10 @@ async def update_user(
     changes: dict = {}
     if "is_active" in fields and fields["is_active"] is not None:
         user.is_active = fields["is_active"]
+        if not user.is_active:
+            await session.execute(
+                delete(UserSession).where(UserSession.user_id == user.id)
+            )
         # Phân biệt duyệt tài khoản với khoá -> nhãn rõ ràng ở nhật ký
         changes["is_active"] = fields["is_active"]
     if "role" in fields and fields["role"] is not None:

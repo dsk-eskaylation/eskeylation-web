@@ -89,6 +89,11 @@ export function CommunityPost({
   const [editDraft, setEditDraft] = useState("");
   const [viewingMedia, setViewingMedia] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
+  const [hasMoreComments, setHasMoreComments] = useState(false);
+  const [commentsBusy, setCommentsBusy] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const commentsCursor = useRef<number | undefined>(undefined);
+  const commentsLoading = useRef(false);
   const seenComments = useRef(new Set<number>());
   const removedComments = useRef(new Set<number>());
 
@@ -124,42 +129,54 @@ export function CommunityPost({
   useEffect(() => {
     if (!expanded) return;
     let alive = true;
-    community
-      .comments(id)
-      .then((page) => {
-        if (!alive) return;
-        seenComments.current = new Set(page.items.map((comment) => comment.id));
-        setComments(page.items);
-      })
-      .catch(() => {});
+    setCommentsBusy(true);
+    setCommentsError(null);
+    commentsLoading.current = true;
+    community.comments(id).then((page) => {
+      if (!alive) return;
+      commentsCursor.current = page.items.at(-1)?.id;
+      setHasMoreComments(page.items.length === 50);
+      page.items.forEach((comment) => seenComments.current.add(comment.id));
+      setComments((current) => mergeComments(current, page.items));
+    }).catch(() => {
+      if (alive) setCommentsError("Chưa tải được bình luận. Hãy thử lại.");
+    }).finally(() => {
+      if (alive) { setCommentsBusy(false); commentsLoading.current = false; }
+    });
 
     const ws = new WebSocket(communityWsUrl(id));
     // Keep comments current when the reverse proxy cannot upgrade WebSocket.
-    // Poll only the expanded thread, while visible, and without a live socket.
+    // Reconcile while visible, including events missed during a Redis outage.
     let refreshing = false;
     const poll = window.setInterval(() => {
       if (
         !alive ||
         refreshing ||
         document.hidden ||
-        ws.readyState === WebSocket.OPEN
+        commentsLoading.current
       )
         return;
       refreshing = true;
-      void Promise.all([community.comments(id), community.interactions(id)])
-        .then(([page, summary]) => {
-          if (alive) {
-            seenComments.current = new Set(
-              page.items.map((comment) => comment.id),
-            );
-            setComments(page.items);
-            setInter(summary);
-          }
-        })
-        .catch(() => {})
-        .finally(() => {
-          refreshing = false;
-        });
+      const refresh = async () => {
+        const boundary = commentsCursor.current;
+        const loaded: CommentOut[] = [];
+        let cursor: number | undefined;
+        do {
+          const page = await community.comments(id, 1, cursor);
+          loaded.push(...page.items);
+          cursor = page.items.at(-1)?.id;
+          if (page.items.length < 50 || cursor === undefined) break;
+        } while (boundary !== undefined && cursor < boundary);
+        const summary = await community.interactions(id);
+        if (!alive) return;
+        loaded.forEach((comment) => seenComments.current.add(comment.id));
+        // Preserve socket comments newer than the fetched boundary.
+        const last = loaded.at(-1)?.id ?? 0;
+        setComments((current) => mergeComments(current.filter((c) => c.id > Math.max(boundary ?? 0, last)), loaded));
+        setInter(summary);
+      };
+      void refresh().catch(() => {}).finally(() => { refreshing = false; });
+
     }, 15000);
     ws.onmessage = (e) => {
       if (!alive) return;
@@ -203,9 +220,35 @@ export function CommunityPost({
       alive = false;
       window.clearInterval(poll);
       ws.close();
+      commentsLoading.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, id]);
+
+  function mergeComments(current: CommentOut[], incoming: CommentOut[]) {
+    const byId = new Map(current.map((c) => [c.id, c]));
+    incoming.forEach((c) => { if (!removedComments.current.has(c.id)) byId.set(c.id, c); });
+    return [...byId.values()].sort((a, b) => a.id - b.id);
+  }
+
+  async function loadMoreComments() {
+    if (commentsLoading.current) return;
+    commentsLoading.current = true;
+    setCommentsBusy(true);
+    setCommentsError(null);
+    try {
+      const page = await community.comments(id, 1, commentsCursor.current);
+      commentsCursor.current = page.items.at(-1)?.id ?? commentsCursor.current;
+      setHasMoreComments(page.items.length === 50);
+      page.items.forEach((comment) => seenComments.current.add(comment.id));
+      setComments((current) => mergeComments(current, page.items));
+    } catch {
+      setCommentsError("Chưa tải được bình luận. Hãy thử lại.");
+    } finally {
+      commentsLoading.current = false;
+      setCommentsBusy(false);
+    }
+  }
 
   function appendComment(c: CommentOut) {
     if (removedComments.current.has(c.id)) return;
@@ -446,7 +489,7 @@ export function CommunityPost({
       {/* Khu bình luận */}
       {expanded && (
         <div className="cpost__comments">
-          {comments.length === 0 && (
+          {comments.length === 0 && !commentsBusy && !commentsError && (
             <p className="cpost__comments-empty">
               Chưa có bình luận. Hãy là người đầu tiên!
             </p>
@@ -554,6 +597,10 @@ export function CommunityPost({
             </div>
           ))}
 
+          {commentsBusy && <p role="status">Đang tải bình luận…</p>}
+          {commentsError && <p role="alert">{commentsError}</p>}
+          {(hasMoreComments || commentsError) && <button type="button" className="cpost__act" disabled={commentsBusy}
+            onClick={() => void loadMoreComments()}>{commentsError ? 'Thử lại bình luận' : 'Xem thêm bình luận'}</button>}
           {loggedIn ? (
             <form className="cpost__form" onSubmit={submitComment}>
               <input

@@ -81,7 +81,10 @@ async def login(
     await check_rate(f"login:{ip}:{form.username}", limit=5)
     await check_rate(f"login-ip:{ip}", limit=60)
 
-    result = await session.execute(select(User).where(User.email == form.username))
+    # Serialize issuing a session with admin lock/revocation on this user.
+    result = await session.execute(
+        select(User).where(User.email == form.username).with_for_update()
+    )
     user = result.scalar_one_or_none()
     hashed = user.hashed_password if user else _DUMMY_HASH
     valid, upgraded = await run_in_threadpool(verify_and_upgrade, form.password, hashed)

@@ -140,7 +140,7 @@ export function Home() {
   const uploadedImages = media.filter((m) => m.mime_type.startsWith('image/') && m.url && (m.media_id == null || !avatarIds.has(m.media_id))).map((m) => m.original_url || m.url)
   const heroImages = uploadedImages.length ? uploadedImages : HERO_IMAGES
   const maintain = Array.isArray(body.maintain)
-    ? (body.maintain as string[])
+    ? body.maintain.filter((line): line is string => typeof line === 'string')
     : DEFAULT_MAINTAIN
 
   return (

@@ -13,6 +13,7 @@ from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
 from app.models.media import ContentMedia, Media
 from app.schemas.admin import ContentCreate, ContentMediaIn, ContentUpdate
+from app.schemas.content_body import validate_content_body
 from app.services import moderation
 from app.services.sanitize import (
     playable_video_embed,
@@ -23,12 +24,16 @@ from app.services.sanitize import (
 from app.services.slug import unique_slug
 
 
-async def get_with_media(session: AsyncSession, content_id: int) -> Content | None:
+async def get_with_media(
+    session: AsyncSession, content_id: int, *, lock: bool = False
+) -> Content | None:
     stmt = (
         select(Content)
         .where(Content.id == content_id)
         .options(selectinload(Content.media_links).selectinload(ContentMedia.media))
     )
+    if lock:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     return await session.scalar(stmt)
 
 
@@ -57,7 +62,14 @@ async def _replace_media(
     if media_in:
         ids = [m.media_id for m in media_in]
         found = set(
-            (await session.scalars(select(Media.id).where(Media.id.in_(ids)))).all()
+            (
+                await session.scalars(
+                    select(Media.id)
+                    .where(Media.id.in_(ids))
+                    .order_by(Media.id)
+                    .with_for_update(read=True, key_share=True)
+                )
+            ).all()
         )
         missing = sorted(set(ids) - found)
         if missing:
@@ -120,6 +132,7 @@ async def _validate_homepage_avatars(
 async def create_content(
     session: AsyncSession, data: ContentCreate, author_id: int
 ) -> Content:
+    validate_content_body(data.type, data.body)
     validate_embeds(data.body)
     if data.type == ContentType.homepage:
         await _validate_homepage_avatars(
@@ -155,6 +168,12 @@ async def update_content(
     session: AsyncSession, content: Content, data: ContentUpdate
 ) -> Content:
     fields = data.model_dump(exclude_unset=True)
+    expected = fields.pop("expected_updated_at", None)
+    if expected is not None and expected != content.updated_at:
+        raise HTTPException(
+            409,
+            "Bài đã được cập nhật. Hãy giữ bản nháp và mở lại bài để đối chiếu.",
+        )
     if content.type == ContentType.homepage:
         attached_ids = (
             {m.media_id for m in (data.media or [])}
@@ -175,10 +194,13 @@ async def update_content(
     if "summary" in fields:
         content.summary = sanitize_summary(fields["summary"])
     if "body" in fields:
+        validate_content_body(content.type, fields["body"])
         validate_embeds(fields["body"])
         content.body = sanitize_body(fields["body"])
     if "media" in fields:
         await _replace_media(session, content, data.media or [])
+    # Media-only changes must also invalidate editor versions and catalog revision.
+    content.updated_at = datetime.now(UTC)
     if content.status == ContentStatus.published:
         await session.flush()
         session.expire(content, ["media_links"])
@@ -198,6 +220,7 @@ async def delete_content(session: AsyncSession, content: Content) -> None:
 def validate_for_publish(content: Content) -> None:
     """Chặn publish nếu thiếu media/metadata bắt buộc theo loại."""
     errors: list[str] = []
+    validate_content_body(content.type, content.body)
     mimes = [link.media.mime_type for link in content.media_links]
     if content.type == ContentType.music:
         artist = content.body.get("artist")

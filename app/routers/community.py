@@ -11,6 +11,7 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Query,
     WebSocket,
     WebSocketDisconnect,
     status,
@@ -134,12 +135,17 @@ async def get_interactions(
 async def list_comments(
     content_id: int,
     pagination: PaginationParams = Depends(),
+    after_id: int | None = Query(None, gt=0),
     user: User | None = Depends(get_current_user_optional),
     session: AsyncSession = Depends(get_session),
 ) -> Page[CommentOut]:
     await _ensure_post(session, content_id)
     items, total = await community.list_comments(
-        session, content_id, page=pagination.page, page_size=pagination.page_size
+        session,
+        content_id,
+        page=pagination.page,
+        page_size=pagination.page_size,
+        after_id=after_id,
     )
     # Nạp gọn cảm xúc cho cả trang trong 2 query (tránh N+1)
     reactions = await community.comment_reactions_bulk(
@@ -358,41 +364,45 @@ async def community_ws(websocket: WebSocket, content_id: int) -> None:
     if origin and origin not in settings.cors_origins:
         await websocket.close(code=1008)
         return
-    # Giới hạn tổng số kết nối WS -> chống cạn kiệt tài nguyên (DoS).
+    # Reserve capacity synchronously, before any database/accept await.
     if not realtime.can_register():
-        await websocket.close(code=1013)  # 1013 = try again later
+        await websocket.close(code=1013)
         return
-    # Kiểm bài tồn tại trước khi accept
-    async with SessionLocal() as session:
-        post = await community.get_published_community(session, content_id)
-    if post is None:
-        await websocket.close(code=1008)
-        return
-
-    await websocket.accept()
     queue = realtime.register(content_id)
-
-    async def _drain_incoming() -> None:
-        # Đọc để phát hiện client đóng kết nối; nội dung bỏ qua (WS read-only)
-        try:
-            while True:
-                await websocket.receive_text()
-        except Exception:
-            pass
-
-    recv = asyncio.create_task(_drain_incoming())
+    recv = None
+    get_task = None
     try:
+        async with SessionLocal() as session:
+            post = await community.get_published_community(session, content_id)
+        if post is None:
+            await websocket.close(code=1008)
+            return
+        await websocket.accept()
+
+        async def drain_incoming() -> None:
+            try:
+                while True:
+                    await websocket.receive_text()
+            except Exception:
+                pass
+
+        recv = asyncio.create_task(drain_incoming())
         while True:
-            get_task = asyncio.ensure_future(queue.get())
+            get_task = asyncio.create_task(queue.get())
             done, _ = await asyncio.wait(
                 {get_task, recv}, return_when=asyncio.FIRST_COMPLETED
             )
             if recv in done:
-                get_task.cancel()
                 break
             await websocket.send_text(get_task.result())
     except (WebSocketDisconnect, RuntimeError):
         pass
     finally:
-        recv.cancel()
+        for task in (recv, get_task):
+            if task is not None:
+                task.cancel()
+        await asyncio.gather(
+            *(task for task in (recv, get_task) if task is not None),
+            return_exceptions=True,
+        )
         realtime.unregister(content_id, queue)

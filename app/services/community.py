@@ -102,16 +102,23 @@ async def interaction_overview(
 
 # ---- Bình luận ----
 async def list_comments(
-    session: AsyncSession, content_id: int, *, page: int, page_size: int
+    session: AsyncSession,
+    content_id: int,
+    *,
+    page: int,
+    page_size: int,
+    after_id: int | None = None,
 ) -> tuple[list[Comment], int]:
     # Gộp ĐẾM TỔNG vào cùng query lấy dữ liệu (window count) — bớt 1 round-trip
     stmt = (
         select(Comment, func.count().over().label("total"))
         .where(Comment.content_id == content_id)
-        .order_by(Comment.created_at.asc(), Comment.id.asc())
+        .order_by(Comment.id.asc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
+    if after_id is not None:
+        stmt = stmt.where(Comment.id > after_id)
     rows = (await session.execute(stmt)).unique().all()
     items = [r[0] for r in rows]
     if rows:
@@ -308,9 +315,12 @@ async def is_saved(session: AsyncSession, content_id: int, user_id: int) -> bool
 
 
 async def save_post(session: AsyncSession, content_id: int, user_id: int) -> None:
-    if not await is_saved(session, content_id, user_id):
-        session.add(SavedPost(content_id=content_id, user_id=user_id))
-        await session.commit()
+    await session.execute(
+        pg_insert(SavedPost)
+        .values(content_id=content_id, user_id=user_id)
+        .on_conflict_do_nothing()
+    )
+    await session.commit()
 
 
 async def unsave_post(session: AsyncSession, content_id: int, user_id: int) -> None:

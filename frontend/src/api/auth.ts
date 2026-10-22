@@ -25,19 +25,24 @@ export function csrfHeaders(): Record<string, string> {
 
 // ---- Session cache: /auth/me chỉ gọi 1 lần, mọi nơi dùng chung ----
 let sessionCache: Promise<SessionUser | null> | null = null
+let sessionExpires = 0
 
 export function getSession(): Promise<SessionUser | null> {
+  if (Date.now() >= sessionExpires) sessionCache = null
+  if (!sessionCache) sessionExpires = Date.now() + 30000
   sessionCache ??= fetch('/auth/session', { credentials: 'include' })
     .then(async (res) => {
+      if (!res.ok) throw new Error('Không kiểm tra được phiên đăng nhập')
       const body = await res.json().catch(() => null)
       return res.ok ? body as SessionUser : null
     })
-    .catch(() => null)
+    .catch(() => { clearSessionCache(); return null })
   return sessionCache
 }
 
 export function clearSessionCache(): void {
   sessionCache = null
+  sessionExpires = 0
 }
 
 /** POST /auth/login (OAuth2 form: username = email). Server set cookie phiên. */
@@ -59,11 +64,12 @@ export async function login(email: string, password: string): Promise<void> {
 
 /** POST /auth/logout — server xoá cookie phiên. */
 export async function logout(): Promise<void> {
-  await fetch('/auth/logout', {
+  const res = await fetch('/auth/logout', {
     method: 'POST',
     credentials: 'include',
     headers: csrfHeaders(),
-  }).catch(() => null)
+  })
+  if (!res.ok) throw new Error('Chưa đăng xuất được. Vui lòng thử lại.')
   clearSessionCache()
 }
 

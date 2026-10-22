@@ -64,6 +64,7 @@ export interface ContentMediaIn {
 }
 
 export interface ContentPayload {
+  expected_updated_at?: string
   title?: string
   summary?: string | null
   body?: Record<string, unknown>

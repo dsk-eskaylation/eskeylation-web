@@ -22,8 +22,10 @@ _editor = require_role(UserRole.admin, UserRole.editor, UserRole.author)
 _publisher = require_role(UserRole.admin, UserRole.editor)
 
 
-async def _load(content_id: int, session: AsyncSession) -> Content:
-    content = await content_admin.get_with_media(session, content_id)
+async def _load(
+    content_id: int, session: AsyncSession, *, lock: bool = False
+) -> Content:
+    content = await content_admin.get_with_media(session, content_id, lock=lock)
     if content is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy nội dung"
@@ -131,7 +133,7 @@ async def update_content(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(_editor),
 ) -> ContentAdminRead:
-    content = await _load(content_id, session)
+    content = await _load(content_id, session, lock=True)
     _ensure_can_edit(content, user)
     # Chụp giá trị CŨ trước khi sửa -> log được "cũ → mới" cho tiêu đề
     if user.role == UserRole.author and content.status == ContentStatus.published:
@@ -168,7 +170,7 @@ async def delete_content(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(_publisher),
 ) -> None:
-    content = await _load(content_id, session)
+    content = await _load(content_id, session, lock=True)
     # Chụp lại title/id/type TRƯỚC khi xóa để log còn đọc được
     title, cid, ctype = content.title, content.id, content.type.value
     await content_admin.delete_content(session, content)
@@ -189,7 +191,7 @@ async def publish_content(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(_publisher),
 ) -> ContentAdminRead:
-    content = await _load(content_id, session)
+    content = await _load(content_id, session, lock=True)
     published = await content_admin.publish(session, content)
     await activity.log(
         session,
@@ -208,7 +210,7 @@ async def unpublish_content(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(_publisher),
 ) -> ContentAdminRead:
-    content = await _load(content_id, session)
+    content = await _load(content_id, session, lock=True)
     updated = await content_admin.set_status(session, content, ContentStatus.draft)
     await activity.log(
         session,
@@ -227,7 +229,7 @@ async def archive_content(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(_publisher),
 ) -> ContentAdminRead:
-    content = await _load(content_id, session)
+    content = await _load(content_id, session, lock=True)
     updated = await content_admin.set_status(session, content, ContentStatus.archived)
     await activity.log(
         session,
@@ -250,7 +252,7 @@ async def duplicate_content(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(_editor),
 ) -> ContentAdminRead:
-    content = await _load(content_id, session)
+    content = await _load(content_id, session, lock=True)
     _ensure_can_edit(content, user)
     copy = await content_admin.duplicate(session, content, user.id)
     await activity.log(

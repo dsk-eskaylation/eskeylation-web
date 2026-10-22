@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getSession, logout, type SessionUser } from '../api/auth'
 import './AuthButtons.css'
+import { useToast } from './Toast'
 
 /** Nút tài khoản góc phải mọi trang public: icon tròn kính mờ, bấm xổ dropdown.
     Trạng thái đăng nhập lấy từ /auth/me (phiên cookie httpOnly).
     Chưa đăng nhập: Đăng nhập / Đăng ký. Đã đăng nhập: CMS / Đăng xuất. */
 export function AuthButtons() {
   const navigate = useNavigate()
+  const { notify } = useToast()
   const [user, setUser] = useState<SessionUser | null>(null)
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -39,10 +41,14 @@ export function AuthButtons() {
   }, [open])
 
   const onLogout = async () => {
-    await logout()
-    setUser(null)
-    setOpen(false)
-    navigate('/', { replace: true })
+    try {
+      await logout()
+      setUser(null)
+      setOpen(false)
+      navigate('/', { replace: true })
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Chưa đăng xuất được. Hãy thử lại.', { tone: 'error' })
+    }
   }
 
   return (

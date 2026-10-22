@@ -1,6 +1,7 @@
 """Chống XSS (bleach) cho rich text và whitelist host cho embed (chống SSRF)."""
 
 import re
+from html import unescape
 from urllib.parse import parse_qs, urlparse
 
 import bleach
@@ -12,6 +13,17 @@ settings = get_settings()
 
 # Key trong body được coi là URL embed video — phải nằm trong host whitelist.
 _EMBED_KEYS = ("embed_url", "video_url")
+_URL_KEYS = {"audio_url", "embed_url", "video_url"}
+_TEXT_KEYS = {
+    "artist",
+    "author",
+    "lyrics",
+    "intro",
+    "name",
+    "role",
+    "names",
+    "maintain",
+}
 
 
 def playable_video_embed(value: object) -> bool:
@@ -47,7 +59,7 @@ def sanitize_summary(text: str | None) -> str | None:
     """Summary là plain text — bỏ toàn bộ tag HTML."""
     if text is None:
         return None
-    return bleach.clean(text, tags=[], attributes={}, strip=True)
+    return unescape(bleach.clean(text, tags=[], attributes={}, strip=True))
 
 
 def sanitize_html(value: str) -> str:
@@ -65,13 +77,33 @@ def sanitize_body(body: dict) -> dict:
     return _clean_value(body)
 
 
-def _clean_value(value):
+def restore_plain_values(value, key: str = ""):
+    """Read legacy entity-encoded fields without rewriting stored content."""
+    if isinstance(value, str) and key in _URL_KEYS:
+        return value.replace("&amp;", "&")
+    if isinstance(value, str) and key in _TEXT_KEYS:
+        return (
+            unescape(value) if re.search(r"&(?:amp|lt|gt|quot|#\w+);", value) else value
+        )
+    if isinstance(value, dict):
+        return {k: restore_plain_values(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [restore_plain_values(v, key) for v in value]
+    return value
+
+
+def _clean_value(value, key: str = ""):
     if isinstance(value, str):
+        if key in _URL_KEYS:
+            # URLs are data, never HTML. Publication separately validates sources.
+            return value.strip()
+        if key in _TEXT_KEYS:
+            return sanitize_summary(value)
         return sanitize_html(value)
     if isinstance(value, dict):
-        return {k: _clean_value(v) for k, v in value.items()}
+        return {k: _clean_value(v, k) for k, v in value.items()}
     if isinstance(value, list):
-        return [_clean_value(v) for v in value]
+        return [_clean_value(v, key) for v in value]
     return value
 
 

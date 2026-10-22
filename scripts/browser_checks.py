@@ -514,6 +514,9 @@ def check_ui(password: str, tag: str) -> None:
             check_cms_mapping(BASE, context, login, passed)
             check_cms_fields(BASE, context, login, passed, EVIDENCE)
             check_design_flows(BASE, context, login, passed, EVIDENCE)
+            from scripts.review_browser_checks import check_review_fixes
+
+            check_review_fixes(BASE, context, login, passed, EVIDENCE)
             for role in ["author", "editor", "member"]:
                 ctx = context()
                 page = ctx.new_page()
