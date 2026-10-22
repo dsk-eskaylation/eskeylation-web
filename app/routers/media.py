@@ -4,18 +4,23 @@ from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db import get_session
 from app.dependencies import PaginationParams, require_role
 from app.models.enums import UserRole
 from app.models.media import ContentMedia, Media
+from app.models.user import User
 from app.schemas.media import MediaRead
 from app.schemas.pagination import Page
 from app.services import media as media_service
+from app.services import media_jobs
+from app.services.ratelimit import check_rate
 
 router = APIRouter(prefix="/admin/media", tags=["media"])
 
 # Ai cũng trong nhóm biên tập đều được quản lý media.
 _editor = require_role(UserRole.admin, UserRole.editor, UserRole.author)
+_processor = require_role(UserRole.admin, UserRole.editor)
 
 
 @router.post("", response_model=MediaRead, status_code=status.HTTP_201_CREATED)
@@ -48,6 +53,81 @@ async def list_media(
         page=pagination.page,
         page_size=pagination.page_size,
     )
+
+
+@router.get("/jobs")
+async def media_jobs_status(
+    session: AsyncSession = Depends(get_session),
+    _: object = Depends(_processor),
+) -> dict:
+    from redis.asyncio import Redis
+
+    settings = get_settings()
+    counts = dict(
+        (
+            await session.execute(
+                select(Media.processing_status, func.count()).group_by(
+                    Media.processing_status
+                )
+            )
+        ).all()
+    )
+    rows = await session.scalars(
+        select(Media)
+        .where(Media.processing_status != "ready")
+        .order_by(
+            (Media.processing_status == "skipped").asc(),
+            Media.updated_at.desc(),
+            Media.id.desc(),
+        )
+        .limit(20)
+    )
+    items = [MediaRead.from_model(media).model_dump(mode="json") for media in rows]
+    # Release the DB connection before optional Redis I/O.
+    await session.commit()
+    worker_online = False
+    if settings.media_processing_enabled:
+        try:
+            async with Redis.from_url(
+                settings.redis_url, socket_connect_timeout=1, socket_timeout=1
+            ) as redis:
+                worker_online = bool(await redis.exists(media_jobs.HEARTBEAT_KEY))
+        except Exception:
+            pass
+    return {
+        "enabled": settings.media_processing_enabled,
+        "worker_online": worker_online,
+        "counts": counts,
+        "items": items,
+    }
+
+
+@router.post("/{media_id}/process", response_model=MediaRead, status_code=202)
+async def process_media(
+    media_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(_processor),
+) -> MediaRead:
+    from datetime import UTC, datetime
+
+    await check_rate(f"media-process:{user.id}", limit=20)
+    if not get_settings().media_processing_enabled:
+        raise HTTPException(503, "Xử lý media chưa được bật")
+    media = await session.scalar(
+        select(Media).where(Media.id == media_id).with_for_update()
+    )
+    if media is None:
+        raise HTTPException(404, "Không tìm thấy media")
+    if media.processing_status == "pending" or (
+        media.processing_status in {"queued", "processing"}
+        and media.processing_lease_until
+        and media.processing_lease_until > datetime.now(UTC)
+    ):
+        raise HTTPException(409, "Media đang chờ hoặc đang được xử lý")
+    media_jobs.queue(media)
+    await session.commit()
+    await session.refresh(media)
+    return MediaRead.from_model(media)
 
 
 @router.get("/{media_id}", response_model=MediaRead)

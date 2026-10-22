@@ -8,6 +8,7 @@ import {
   type DashboardStats,
 } from '../api/admin'
 import './Dashboard.css'
+import MediaJobsPanel from '../components/MediaJobsPanel'
 
 const REFRESH_MS = 15_000
 const ACTIVITY_PAGE_SIZE = 20
@@ -362,6 +363,7 @@ export function Dashboard() {
         </div>
       </div>
 
+      <MediaJobsPanel />
       <div className="dash__activity">
         <div className="dash__activity-head">
           <span className="dash__breakdown-title">Hoạt động gần đây</span>

@@ -103,6 +103,10 @@ def configure(path: Path = Path(".env")) -> None:
             min(current.drive_catalog_cache_seconds, 15)
         ),
         "JWT_SECRET": jwt,
+        "MEDIA_PROCESSING_ENABLED": os.environ.get(
+            "DEPLOY_MEDIA_PROCESSING_ENABLED", ""
+        ).strip()
+        or str(current.media_processing_enabled),
     }
     if backend == "s3":
         for name in (
@@ -220,18 +224,45 @@ def migrate(path: Path = Path(".env")) -> None:
 
 
 def restart(path: Path = Path(".env")) -> None:
+    settings = settings_from_env(path)
+    env = application_environment(settings)
+    if settings.media_processing_enabled:
+        import shutil
+
+        from redis import Redis
+
+        if not all(shutil.which(tool) for tool in ("ffmpeg", "ffprobe")):
+            raise ValueError("Media worker cần ffmpeg và ffprobe trước khi khởi động")
+        try:
+            with Redis.from_url(
+                settings.redis_url, socket_connect_timeout=2, socket_timeout=2
+            ) as redis:
+                redis.ping()
+        except Exception:
+            raise ValueError("Media worker chưa kết nối được Redis") from None
+        Path(".local/media-worker").mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
             "pm2",
             "startOrReload",
             "ecosystem.config.cjs",
             "--only",
-            "eskeylation-api",
+            "eskeylation-api,eskeylation-media-worker"
+            if settings.media_processing_enabled
+            else "eskeylation-api",
             "--update-env",
         ],
         check=True,
-        env=application_environment(settings_from_env(path)),
+        env=env,
     )
+    if not settings.media_processing_enabled:
+        # A rollback flag must also stop an already running worker/beat.
+        subprocess.run(
+            ["pm2", "delete", "eskeylation-media-worker"],
+            env=env,
+            capture_output=True,
+            check=False,
+        )
 
 
 def main() -> None:

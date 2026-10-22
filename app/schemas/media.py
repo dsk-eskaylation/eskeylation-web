@@ -19,6 +19,9 @@ class MediaRead(BaseModel):
     duration: float | None = None
     alt_text: str | None = None
     created_at: datetime
+    processing_status: str = "skipped"
+    processing_attempts: int = 0
+    processing_error_code: str | None = None
 
     @classmethod
     def from_model(cls, media) -> "MediaRead":
@@ -32,4 +35,7 @@ class MediaRead(BaseModel):
             duration=media.duration,
             alt_text=media.alt_text,
             created_at=media.created_at,
+            processing_status=media.processing_status,
+            processing_attempts=media.processing_attempts,
+            processing_error_code=media.processing_error_code,
         )

@@ -33,6 +33,13 @@ class Storage(ABC):
     def delete(self, key: str) -> None:
         """Xoá nội dung theo key (bỏ qua nếu không tồn tại)."""
 
+    def download(self, key: str, destination: Path, max_bytes: int) -> None:
+        """Bounded fallback for adapters; network adapters stream to disk."""
+        data = self.read(key)
+        if len(data) > max_bytes:
+            raise ValueError("Media exceeds processing limit")
+        destination.write_bytes(data)
+
 
 class LocalStorage(Storage):
     """Lưu file xuống thư mục cục bộ (chỉ dùng cho dev)."""
@@ -55,6 +62,12 @@ class LocalStorage(Storage):
 
     def delete(self, key: str) -> None:
         (self.root / key).unlink(missing_ok=True)
+
+    def download(self, key: str, destination: Path, max_bytes: int) -> None:
+        with (self.root / key).open("rb") as source:
+            _copy_chunks(
+                iter(lambda: source.read(1024 * 1024), b""), destination, max_bytes
+            )
 
 
 class SupabaseStorage(Storage):
@@ -101,6 +114,16 @@ class SupabaseStorage(Storage):
         )
         if resp.status_code != httpx.codes.NOT_FOUND:
             resp.raise_for_status()
+
+    def download(self, key: str, destination: Path, max_bytes: int) -> None:
+        with httpx.stream(
+            "GET",
+            f"{self._api}/object/{self._bucket}/{key}",
+            headers=self._headers,
+            timeout=30,
+        ) as response:
+            response.raise_for_status()
+            _copy_chunks(response.iter_bytes(1024 * 1024), destination, max_bytes)
 
 
 @lru_cache(maxsize=8)
@@ -198,6 +221,28 @@ class S3Storage(Storage):
     def delete(self, key: str) -> None:
         full_key = self._key(key)
         _s3_client(self.region).delete_object(Bucket=self.bucket, Key=full_key)
+
+    def download(self, key: str, destination: Path, max_bytes: int) -> None:
+        response = _s3_client(self.region).get_object(
+            Bucket=self.bucket, Key=self._key(key)
+        )
+        body = response["Body"]
+        try:
+            if response.get("ContentLength", 0) > max_bytes:
+                raise ValueError("Media exceeds processing limit")
+            _copy_chunks(body.iter_chunks(1024 * 1024), destination, max_bytes)
+        finally:
+            body.close()
+
+
+def _copy_chunks(chunks, destination: Path, max_bytes: int) -> None:
+    total = 0
+    with destination.open("wb") as output:
+        for chunk in chunks:
+            total += len(chunk)
+            if total > max_bytes:
+                raise ValueError("Media exceeds processing limit")
+            output.write(chunk)
 
 
 def get_storage() -> Storage:

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # Celery / Redis
     redis_url: str = "redis://localhost:6379/0"
+    media_processing_enabled: bool = False
 
     # JWT
     jwt_secret: str = "change-me-in-production"

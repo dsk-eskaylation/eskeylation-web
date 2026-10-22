@@ -1,0 +1,10 @@
+.media-jobs { padding: 1.25rem; border: 1px solid #ffffff20; border-radius: 12px; margin-block: 1.5rem; }
+.media-jobs__heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.media-jobs__heading h2 { font-size: 1.1rem; margin: 0; }
+.media-jobs p, .media-jobs__list span { color: #bbb; font-size: .875rem; }
+.media-jobs__counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: .75rem; }
+.media-jobs__counts dt { font-size: .8rem; color: #bbb; }
+.media-jobs__counts dd { margin: .25rem 0; font-size: 1.3rem; }
+.media-jobs__list { list-style: none; margin: 0; padding: 0; }
+.media-jobs__list li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: .75rem; border-top: 1px solid #ffffff15; overflow-wrap: anywhere; }
+.media-jobs__list button { flex-shrink: 0; min-height: 40px; }

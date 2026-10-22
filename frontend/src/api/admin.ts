@@ -163,6 +163,8 @@ function jsonInit(method: string, payload: unknown): RequestInit {
 }
 
 export const adminApi = {
+  mediaJobs: () => request<MediaJobs>('/admin/media/jobs'),
+  processMedia: (id: number) => request<MediaUploaded>(`/admin/media/${id}/process`, { method: 'POST' }),
   list: (params: { type?: ContentType; status?: ContentStatus; page?: number }) => {
     const sp = new URLSearchParams()
     if (params.type) sp.set('type', params.type)
@@ -240,4 +242,11 @@ export const adminApi = {
 
   deleteComment: (id: number) =>
     request<void>(`/admin/moderation/comments/${id}`, { method: 'DELETE' }),
+}
+
+export interface MediaJobs {
+  enabled: boolean
+  worker_online: boolean
+  counts: Record<string, number>
+  items: { id: number; mime_type: string; processing_status: string; processing_attempts: number; processing_error_code: string | null }[]
 }

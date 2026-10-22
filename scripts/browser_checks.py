@@ -517,6 +517,9 @@ def check_ui(password: str, tag: str) -> None:
             from scripts.review_browser_checks import check_review_fixes
 
             check_review_fixes(BASE, context, login, passed, EVIDENCE)
+            from scripts.media_worker_browser_checks import check_media_jobs
+
+            check_media_jobs(BASE, context, login, passed, EVIDENCE)
             for role in ["author", "editor", "member"]:
                 ctx = context()
                 page = ctx.new_page()

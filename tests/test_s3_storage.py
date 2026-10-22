@@ -77,6 +77,30 @@ def test_s3_access_denied_propagates_without_local_fallback(s3):
         backend.delete("file.mp3")
 
 
+@pytest.mark.parametrize(
+    "size,limit,accepted", [(1024, 1024, True), (1025, 1024, False)]
+)
+def test_s3_download_streams_with_size_limit_and_closes_body(
+    s3, tmp_path, size, limit, accepted
+):
+    backend, stubber = s3
+    raw = io.BytesIO(b"x" * size)
+    stubber.add_response(
+        "get_object",
+        {"Body": StreamingBody(raw, size), "ContentLength": size},
+        {"Bucket": BUCKET, "Key": "cms/file.mp4"},
+    )
+    destination = tmp_path / "download"
+    if accepted:
+        backend.download("file.mp4", destination, limit)
+        assert destination.read_bytes() == b"x" * size
+    else:
+        with pytest.raises(ValueError):
+            backend.download("file.mp4", destination, limit)
+        assert not destination.exists()
+    assert raw.closed
+
+
 def test_cdn_urls_never_resolve_credentials(monkeypatch):
     def unexpected_network(region):
         pytest.fail("Serializing a CDN URL must not initialize an SDK client")

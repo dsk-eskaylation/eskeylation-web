@@ -1,6 +1,17 @@
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -21,6 +32,40 @@ class Media(TimestampMixin, Base):
     height: Mapped[int | None] = mapped_column()
     duration: Mapped[float | None] = mapped_column()  # giây, cho video
     alt_text: Mapped[str | None] = mapped_column(Text)
+    variants: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
+    processing_status: Mapped[str] = mapped_column(
+        String(16), default="skipped", server_default="skipped"
+    )
+    processing_attempts: Mapped[int] = mapped_column(default=0, server_default="0")
+    processing_next_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    processing_lease_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    processing_token: Mapped[str | None] = mapped_column(String(36))
+    processing_error_code: Mapped[str | None] = mapped_column(String(32))
+
+    __table_args__ = (
+        CheckConstraint(
+            "processing_status IN "
+            "('skipped','pending','queued','processing','ready','failed')",
+            name="ck_media_processing_status",
+        ),
+        CheckConstraint(
+            "processing_attempts >= 0", name="ck_media_processing_attempts"
+        ),
+        CheckConstraint(
+            "jsonb_typeof(variants) = 'object'", name="ck_media_variants_object"
+        ),
+        Index(
+            "ix_media_processing_queue",
+            "processing_status",
+            "processing_next_at",
+            "processing_lease_until",
+            postgresql_where=text(
+                "processing_status IN ('pending','queued','processing')"
+            ),
+        ),
+    )
 
 
 class ContentMedia(Base):

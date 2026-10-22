@@ -13,6 +13,8 @@ from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
 from app.models.media import Media
+from app.services.media_jobs import queue
+from app.services.media_processing import cleanup, derived_keys
 from app.services.storage import get_storage
 
 settings = get_settings()
@@ -120,7 +122,11 @@ async def create_media(
         duration=duration,
         alt_text=alt_text,
     )
+    if settings.media_processing_enabled:
+        queue(media)
     session.add(media)
+    # A lost commit acknowledgement is ambiguous: keep the original rather
+    # than risk removing a file referenced by a successfully committed row.
     await session.commit()
     await session.refresh(media)
     return media
@@ -130,9 +136,7 @@ async def delete_media(session: AsyncSession, media: Media) -> None:
     """Xoá record DB TRƯỚC rồi mới xoá file storage — nếu xoá file lỗi thì chỉ
     orphan file (dễ dọn), không bao giờ có record trỏ tới file đã mất."""
     storage_key = media.storage_key
+    keys = derived_keys(media.variants or {}, media.id) | {storage_key}
     await session.delete(media)
     await session.commit()
-    try:
-        await run_in_threadpool(get_storage().delete, storage_key)
-    except Exception:
-        logger.warning("Không xoá được file storage %s (orphan)", storage_key)
+    await run_in_threadpool(cleanup, get_storage(), keys)

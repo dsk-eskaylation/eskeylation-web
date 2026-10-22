@@ -28,6 +28,7 @@ def environment(tmp_path, monkeypatch):
         "GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE",
         "GOOGLE_DRIVE_API_KEY",
         "JWT_SECRET",
+        "DEPLOY_MEDIA_PROCESSING_ENABLED",
     ):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("DEPLOY_GOOGLE_DRIVE_API_KEY", "test-drive-credential")
@@ -43,6 +44,15 @@ def environment(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     return path
+
+
+def test_media_worker_feature_flag_can_be_rolled_back(environment, monkeypatch):
+    monkeypatch.setenv("DEPLOY_MEDIA_PROCESSING_ENABLED", "true")
+    deploy.configure(environment)
+    assert deploy.settings_from_env(environment).media_processing_enabled
+    monkeypatch.setenv("DEPLOY_MEDIA_PROCESSING_ENABLED", "false")
+    deploy.configure(environment)
+    assert not deploy.settings_from_env(environment).media_processing_enabled
 
 
 def test_configure_preserves_database_and_backs_up_old_environment(
@@ -165,7 +175,12 @@ def test_restart_passes_configuration_as_environment_not_arguments(
     monkeypatch.setenv("JWT_SECRET", "stale-runner-value")
     monkeypatch.setenv("ACTIONS_RUNTIME_TOKEN", "temporary-actions-token")
     deploy.restart(environment)
-    args, kwargs = run.call_args
+    args, kwargs = run.call_args_list[0]
+    assert run.call_args_list[1].args[0] == [
+        "pm2",
+        "delete",
+        "eskeylation-media-worker",
+    ]
     assert args[0][0] == "pm2"
     assert args[0][-1] == "--update-env"
     assert kwargs["env"]["PUBLIC_CONTENT_SOURCE"] == "drive"

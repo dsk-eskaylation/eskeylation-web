@@ -32,6 +32,7 @@ os.environ.update(
         "GOOGLE_DRIVE_API_KEY": "",
         "GOOGLE_DRIVE_SERVICE_ACCOUNT_FILE": "",
         "STORAGE_BACKEND": "local",
+        "MEDIA_PROCESSING_ENABLED": "false",
         "AWS_ACCESS_KEY_ID": "",
         "AWS_SECRET_ACCESS_KEY": "",
         "AWS_EC2_METADATA_DISABLED": "true",
