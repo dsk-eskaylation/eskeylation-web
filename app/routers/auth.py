@@ -76,10 +76,15 @@ async def login(
     form: OAuth2PasswordRequestForm = Depends(),
     session: AsyncSession = Depends(get_session),
 ) -> Token:
+    # Bound attacker-controlled rate-limit keys and avoid hashing impossible
+    # credentials. The DB email column is 255 characters; legacy passwords
+    # already reject values longer than 1024 in verify_password().
+    if len(form.username) > 255 or len(form.password) > 1024:
+        raise HTTPException(401, "Email hoặc mật khẩu không đúng")
     # Chống brute-force: giới hạn theo (IP, email) và tổng theo IP
     ip = _client_ip(request)
-    await check_rate(f"login:{ip}:{form.username}", limit=5)
     await check_rate(f"login-ip:{ip}", limit=60)
+    await check_rate(f"login:{ip}:{form.username}", limit=5)
 
     # Serialize issuing a session with admin lock/revocation on this user.
     result = await session.execute(

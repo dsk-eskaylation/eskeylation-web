@@ -1,8 +1,9 @@
 """Quản trị media — upload/list/get/delete. Yêu cầu đăng nhập (RBAC)."""
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.datastructures import UploadFile
 
 from app.config import get_settings
 from app.db import get_session
@@ -15,6 +16,7 @@ from app.schemas.pagination import Page
 from app.services import media as media_service
 from app.services import media_jobs
 from app.services.ratelimit import check_rate
+from app.services.uploads import parse_upload
 
 router = APIRouter(prefix="/admin/media", tags=["media"])
 
@@ -23,15 +25,49 @@ _editor = require_role(UserRole.admin, UserRole.editor, UserRole.author)
 _processor = require_role(UserRole.admin, UserRole.editor)
 
 
-@router.post("", response_model=MediaRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=MediaRead,
+    status_code=status.HTTP_201_CREATED,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["file"],
+                        "properties": {
+                            "file": {"type": "string", "format": "binary"},
+                            "alt_text": {"type": "string", "maxLength": 1024},
+                        },
+                    }
+                }
+            },
+        }
+    },
+)
 async def upload_media(
-    file: UploadFile,
-    alt_text: str | None = Form(None),
+    request: Request,
     session: AsyncSession = Depends(get_session),
     _: object = Depends(_editor),
 ) -> MediaRead:
-    media = await media_service.create_media(session, file, alt_text)
-    return MediaRead.from_model(media)
+    # No File/Form parameters: FastAPI must resolve authorization before parsing
+    # and spooling the untrusted body, including anonymous and member requests.
+    form = await parse_upload(request)
+    try:
+        file = form.get("file")
+        alt_text = form.get("alt_text")
+        if not isinstance(file, UploadFile):
+            raise HTTPException(422, "Thiếu file upload")
+        if alt_text is not None and (
+            not isinstance(alt_text, str) or len(alt_text) > 1024
+        ):
+            raise HTTPException(422, "Mô tả ảnh không hợp lệ hoặc quá dài")
+        media = await media_service.create_media(session, file, alt_text or None)
+        return MediaRead.from_model(media)
+    finally:
+        await form.close()
 
 
 @router.get("", response_model=Page[MediaRead])

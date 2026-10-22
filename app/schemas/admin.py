@@ -6,13 +6,14 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
+from app.schemas.content_body import validate_body_budget
 from app.services.sanitize import restore_plain_values
 from app.services.storage import get_storage
 
 
 class ContentMediaIn(BaseModel):
     media_id: int
-    caption: str | None = None
+    caption: str | None = Field(default=None, max_length=2000)
     position: int = 0
     is_primary: bool = False
 
@@ -33,18 +34,23 @@ class ContentMediaOut(BaseModel):
 class ContentCreate(BaseModel):
     type: ContentType
     title: str = Field(min_length=1, max_length=255)
-    summary: str | None = None
+    summary: str | None = Field(default=None, max_length=20_000)
     body: dict = Field(default_factory=dict)
-    media: list[ContentMediaIn] = Field(default_factory=list)
+    media: list[ContentMediaIn] = Field(default_factory=list, max_length=500)
+
+    @field_validator("body")
+    @classmethod
+    def bounded_body(cls, value: dict) -> dict:
+        return validate_body_budget(value)
 
 
 class ContentUpdate(BaseModel):
     """Cập nhật một phần — chỉ field được gửi mới thay đổi."""
 
     title: str | None = Field(default=None, min_length=1, max_length=255)
-    summary: str | None = None
+    summary: str | None = Field(default=None, max_length=20_000)
     body: dict | None = None
-    media: list[ContentMediaIn] | None = None
+    media: list[ContentMediaIn] | None = Field(default=None, max_length=500)
     expected_updated_at: datetime | None = None
 
     @field_validator("title", "body")
@@ -54,6 +60,11 @@ class ContentUpdate(BaseModel):
         if value is None:
             raise ValueError("Không được đặt tiêu đề hoặc nội dung thành null")
         return value
+
+    @field_validator("body")
+    @classmethod
+    def bounded_body(cls, value: dict | None) -> dict | None:
+        return validate_body_budget(value) if value is not None else value
 
 
 class ContentAdminRead(BaseModel):

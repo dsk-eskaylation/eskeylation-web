@@ -6,6 +6,7 @@ from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,7 +15,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.db import engine
 from app.dependencies import CSRF_COOKIE, SESSION_COOKIE
-from app.middleware import TextCompression
+from app.middleware import RequestBodyLimit, TextCompression
 from app.routers import (
     admin_content,
     admin_lyrics,
@@ -69,6 +70,16 @@ app = FastAPI(
     redoc_url=None if settings.is_prod else "/redoc",
     openapi_url=None if settings.is_prod else "/openapi.json",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_request, exception: RequestValidationError):
+    # Never echo credentials or recursively serialize attacker-controlled input.
+    details = [
+        {"type": error["type"], "loc": error["loc"], "msg": error["msg"]}
+        for error in exception.errors()[:50]
+    ]
+    return JSONResponse(status_code=422, content={"detail": details})
 
 
 # CSP: script chỉ từ chính site; style/font cho Google Fonts; ảnh cho phép https
@@ -157,6 +168,7 @@ async def security_headers(request, call_next):
     return response
 
 
+app.add_middleware(RequestBodyLimit)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

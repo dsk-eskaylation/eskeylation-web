@@ -12,8 +12,8 @@ from uuid import uuid4
 INCLUDE = "include /etc/nginx/snippets/eskaylation-security.conf;"
 
 
-def secure_config(text: str) -> str:
-    """Find server/location blocks without treating quoted braces as syntax."""
+def config_blocks(text: str) -> list[dict]:
+    """Find blocks without treating quoted braces as syntax."""
     blocks = []
     stack = []
     boundary = 0
@@ -59,6 +59,12 @@ def secure_config(text: str) -> str:
             boundary = index + 1
     if stack or quote:
         raise ValueError("Incomplete Nginx config")
+    return blocks
+
+
+def secure_config(text: str) -> str:
+    """Cover the production vhost and all its response locations with headers."""
+    blocks = config_blocks(text)
     selected = []
     for block in blocks:
         if block["header"] != "server":
@@ -86,6 +92,45 @@ def secure_config(text: str) -> str:
     return text
 
 
+def streaming_upload_config(text: str) -> str:
+    """Forward uploads to the authorizing API without proxy disk buffering."""
+    blocks = config_blocks(text)
+    edits = []
+    for block in blocks:
+        if not block["header"].startswith("location "):
+            continue
+        server = block["parent"]
+        while server is not None and server["header"] != "server":
+            server = server["parent"]
+        if server is None:
+            continue
+        server_body = text[server["start"] + 1 : server["end"]]
+        names = re.findall(r"(?m)^\s*server_name\s+([^;]+);", server_body)
+        if not any("eskaylation.com" in name.split() for name in names):
+            continue
+        body = text[block["start"] + 1 : block["end"]]
+        if not re.search(r"\bproxy_pass\s+http://127\.0\.0\.1:8000\s*;", body):
+            continue
+        if any(child["parent"] is block for child in blocks):
+            raise ValueError("Review nested proxy locations before enabling streaming")
+        if not re.search(r"\bproxy_http_version\s+1\.1\s*;", body):
+            raise ValueError("Upload streaming requires an existing HTTP/1.1 upstream")
+        if re.search(r"\bproxy_request_buffering\s+", body):
+            body = re.sub(
+                r"\bproxy_request_buffering\s+\S+\s*;",
+                "proxy_request_buffering off;",
+                body,
+            )
+        else:
+            body = "\n        proxy_request_buffering off;" + body
+        edits.append((block["start"] + 1, block["end"], body))
+    if not edits:
+        raise ValueError("No production API proxy location found")
+    for start, end, body in sorted(edits, reverse=True):
+        text = text[:start] + body + text[end:]
+    return text
+
+
 def atomic_write(path: Path, data: bytes) -> None:
     mode = path.stat().st_mode & 0o777 if path.exists() else 0o644
     with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
@@ -98,7 +143,7 @@ def atomic_write(path: Path, data: bytes) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def install(config: Path, snippet: Path) -> None:
+def install(config: Path, snippet: Path, *, stream_uploads: bool = False) -> None:
     if os.name != "posix" or os.geteuid() != 0:
         raise ValueError("Run this installer as root on the VPS")
     config = config.resolve(strict=True)
@@ -106,6 +151,8 @@ def install(config: Path, snippet: Path) -> None:
         raise ValueError("Config must resolve inside /etc/nginx")
     original = config.read_bytes()
     updated = secure_config(original.decode()).encode()
+    if stream_uploads:
+        updated = streaming_upload_config(updated.decode()).encode()
     destination = Path("/etc/nginx/snippets/eskaylation-security.conf")
     previous = destination.read_bytes() if destination.exists() else None
     backup = Path("/var/backups/eskaylation") / ("nginx-" + uuid4().hex)
@@ -135,14 +182,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--stream-uploads", action="store_true")
     args = parser.parse_args()
     if args.apply:
         snippet = (
             Path(__file__).resolve().parents[1] / "deploy/nginx/security-headers.conf"
         )
-        install(args.config, snippet)
+        install(args.config, snippet, stream_uploads=args.stream_uploads)
     else:
-        print(secure_config(args.config.read_text()))
+        updated = secure_config(args.config.read_text())
+        print(streaming_upload_config(updated) if args.stream_uploads else updated)
 
 
 if __name__ == "__main__":
