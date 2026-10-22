@@ -1,0 +1,21 @@
+[Unit]
+Description=Eskaylation HTTPS TCP MSS compatibility for smaller client MTUs
+Wants=network-online.target
+After=network-online.target ufw.service docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/eskaylation-mss apply
+ExecReload=/usr/local/sbin/eskaylation-mss apply
+ExecStop=/usr/local/sbin/eskaylation-mss remove
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run
+PrivateTmp=yes
+CapabilityBoundingSet=CAP_NET_ADMIN
+RestrictAddressFamilies=AF_INET AF_NETLINK AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
