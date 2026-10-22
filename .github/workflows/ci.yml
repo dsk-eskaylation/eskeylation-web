@@ -77,6 +77,7 @@ jobs:
     if: github.event_name != 'workflow_dispatch'
     name: Backend — Lint & Unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       redis:
         image: redis:7-alpine
@@ -125,12 +126,17 @@ jobs:
       - name: Apply database migrations on isolated PostgreSQL
         run: uv run --locked alembic upgrade head
 
-      - name: Unit and integration tests
-        # FFmpeg runs only against generated fixtures and localhost services.
+      - name: Ensure FFmpeg for generated media fixtures
+        timeout-minutes: 8
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg
-          uv run --locked pytest
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 update -qq
+            sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y --no-install-recommends ffmpeg
+          fi
+
+      - name: Unit and integration tests
+        timeout-minutes: 5
+        run: uv run --locked pytest
 
       # Audit CVE dependency Python (theo đúng lockfile)
       - name: pip-audit
