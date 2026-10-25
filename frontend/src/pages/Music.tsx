@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useLiveApi } from "../api/useLiveApi";
 import type { ContentOut } from "../api/types";
+import { AlbumShelf, KIND_LABEL, SINGLES } from "../components/AlbumShelf";
 import { EmptyState } from "../components/EmptyState";
 import { SearchBar } from "../components/SearchBar";
 import {
@@ -22,22 +23,71 @@ const searchable = (text: string) =>
     .replace(/\p{Diacritic}/gu, "")
     .replace(/đ/g, "d");
 
-/** One library and a persistent player; no genre filters or Drive audio embeds. */
 export function Music() {
   const [query, setQuery] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [params, setParams] = useSearchParams();
+  const albumSlug = params.get("album");
+  const genre = params.get("genre");
   const player = usePlayer();
   const state = useLiveApi(() => api.listAll("music"), [attempt]);
+  const albums = useLiveApi(() => api.albums(), []);
+  const genres = useLiveApi(() => api.musicGenres(), []);
+  const albumDetail = useLiveApi(
+    () =>
+      albumSlug && albumSlug !== SINGLES
+        ? api.album(albumSlug)
+        : Promise.resolve(null),
+    [albumSlug],
+  );
   const library = state.status === "success" ? state.data.items : EMPTY_ITEMS;
+  const albumList = albums.status === "success" ? albums.data : [];
+  const activeGenres =
+    genres.status === "success" ? genres.data.filter((g) => g.count > 0) : [];
+  const album =
+    albumDetail.status === "success" ? albumDetail.data : null;
   const items = useMemo(() => {
+    const source =
+      albumSlug === SINGLES
+        ? library.filter((track) => !track.album)
+        : albumSlug
+          ? (album?.tracks ?? EMPTY_ITEMS)
+          : library;
     const needle = searchable(query.trim());
-    return needle
-      ? library.filter((track) =>
-          searchable(`${track.title} ${artistOf(track)}`).includes(needle),
-        )
-      : library;
-  }, [library, query]);
-  const featured = player.embed ?? player.current ?? library[0];
+    return source.filter(
+      (track) =>
+        (!genre || track.body.category === genre) &&
+        (!needle ||
+          searchable(`${track.title} ${artistOf(track)}`).includes(needle)),
+    );
+  }, [library, album, albumSlug, genre, query]);
+  const singles = useMemo(
+    () => library.filter((track) => !track.album).length,
+    [library],
+  );
+
+  function setFilter(key: "album" | "genre", value: string | null) {
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function playAll(shuffled: boolean) {
+    if (items.length === 0) return;
+    if (player.shuffle !== shuffled) player.toggleShuffle();
+    player.playQueue(
+      items,
+      shuffled ? Math.floor(Math.random() * items.length) : 0,
+    );
+  }
+
+  const featured = player.embed ?? player.current ?? items[0] ?? library[0];
   const isCurrent = (track: ContentOut) =>
     (player.embed ?? player.current)?.id === track.id;
 
@@ -71,6 +121,32 @@ export function Music() {
               : "Đang tải thư viện…"}
         </span>
       </header>
+      <AlbumShelf
+        albums={albumList}
+        singles={singles}
+        selected={albumSlug}
+        onSelect={(slug) => setFilter("album", slug)}
+      />
+      {activeGenres.length > 0 && (
+        <div className="music__topbar">
+          <div className="music__categories" role="group" aria-label="Thể loại">
+            {[null, ...activeGenres.map((g) => g.name)].map((name) => (
+              <button
+                key={name ?? "all"}
+                type="button"
+                className={
+                  genre === name ? "music__cat music__cat--active" : "music__cat"
+                }
+                aria-pressed={genre === name}
+                onClick={() => setFilter("genre", name)}
+              >
+                {name ?? "Tất cả"}
+                <span className="music__cat-line" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {state.status === "error" && (
         <div role="alert">
           <EmptyState title="Chưa tải được thư viện nhạc." />
@@ -140,6 +216,43 @@ export function Music() {
               onClear={() => setQuery("")}
               placeholder="Tìm bài hát hoặc nghệ sĩ"
             />
+            {albumSlug && (
+              <div className="music__album-head">
+                <strong>
+                  {albumSlug === SINGLES
+                    ? "Bài lẻ"
+                    : (album?.title ??
+                      (albumDetail.status === "error"
+                        ? "Không tìm thấy album"
+                        : "Đang tải album…"))}
+                </strong>
+                {album && (
+                  <span>
+                    {[KIND_LABEL[album.kind], album.year]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="music__album-actions">
+              <button
+                type="button"
+                className="page-action"
+                onClick={() => playAll(false)}
+                disabled={items.length === 0}
+              >
+                Phát tất cả
+              </button>
+              <button
+                type="button"
+                className="page-action"
+                onClick={() => playAll(true)}
+                disabled={items.length === 0}
+              >
+                Trộn bài
+              </button>
+            </div>
             <div className="music__side-head">
               <span className="music__side-label">{items.length} bài hát</span>
               <Link to="/music/all" className="music__see-all">
@@ -173,7 +286,7 @@ export function Music() {
                             <i />
                           </span>
                         ) : (
-                          index + 1
+                          (albumSlug && track.track_no) || index + 1
                         )}
                       </span>
                       {coverUrl(track) ? (

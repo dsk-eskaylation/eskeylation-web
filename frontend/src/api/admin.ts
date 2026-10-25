@@ -2,7 +2,7 @@
     (credentials: 'include'); request mutating kèm X-CSRF-Token. */
 
 import { clearSessionCache, csrfHeaders } from './auth'
-import type { Page } from './types'
+import type { AlbumOut, Page } from './types'
 
 export type ContentType =
   | 'music'
@@ -52,6 +52,8 @@ export interface ContentAdmin {
   source_provider: 'soundcloud' | 'youtube' | 'vimeo' | null
   player_url: string | null
   cover_url: string | null
+  album_id: number | null
+  track_no: number | null
 }
 
 export interface MediaUploaded {
@@ -67,6 +69,15 @@ export interface ContentMediaIn {
   is_primary?: boolean
 }
 
+export interface AlbumAdmin extends AlbumOut {
+  id: number
+  position: number
+}
+
+export type AlbumPayload = Partial<
+  Pick<AlbumAdmin, 'title' | 'kind' | 'year' | 'cover_url' | 'description' | 'position'>
+>
+
 export interface ContentPayload {
   expected_updated_at?: string
   title?: string
@@ -76,6 +87,8 @@ export interface ContentPayload {
   /** null clears; omitted keeps the stored value */
   source_url?: string | null
   cover_url?: string | null
+  album_id?: number | null
+  track_no?: number | null
 }
 
 export interface DashboardStats {
@@ -185,6 +198,14 @@ export const adminApi = {
     request<{ title: string; author: string; thumbnail_url: string | null }>(
       `/admin/content/oembed?url=${encodeURIComponent(url)}`,
     ),
+
+  albums: () => request<AlbumAdmin[]>('/admin/albums'),
+  createAlbum: (payload: AlbumPayload & { title: string }) =>
+    request<AlbumAdmin>('/admin/albums', jsonInit('POST', payload)),
+  updateAlbum: (id: number, payload: AlbumPayload) =>
+    request<AlbumAdmin>(`/admin/albums/${id}`, jsonInit('PATCH', payload)),
+  deleteAlbum: (id: number) =>
+    request<void>(`/admin/albums/${id}`, { method: 'DELETE' }),
 
   create: (payload: ContentPayload & { type: ContentType; title: string }) =>
     request<ContentAdmin>('/admin/content', jsonInit('POST', payload)),

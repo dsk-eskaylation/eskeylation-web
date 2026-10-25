@@ -1,4 +1,4 @@
-import type { ContentOut, Page } from './types'
+import type { AlbumDetail, AlbumOut, ContentOut, GenreCount, Page } from './types'
 
 const publicCache = new Map<string, { expires: number; value: Promise<unknown> }>()
 
@@ -74,4 +74,7 @@ export const api = {
     getJson<Page<ContentOut>>(`/api/${type}${buildQuery(params)}`),
   detail: (type: 'music' | 'photos' | 'community' | 'video', slug: string) =>
     getJson<ContentOut>(`/api/${type}/${slug}`),
+  albums: () => getJson<AlbumOut[]>('/api/albums'),
+  album: (slug: string) => getJson<AlbumDetail>(`/api/albums/${encodeURIComponent(slug)}`),
+  musicGenres: () => getJson<GenreCount[]>('/api/music/genres'),
 }

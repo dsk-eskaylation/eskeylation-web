@@ -4,6 +4,7 @@ import {
   AdminApiError,
   adminApi,
   type AdminUser,
+  type AlbumAdmin,
   type BannedWord,
   type ContentAdmin,
   type ContentMediaIn,
@@ -21,6 +22,7 @@ import { UnsavedChangesModal } from '../components/UnsavedChangesModal'
 import { FormError } from '../components/FormError'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useToast } from '../components/Toast'
+import { AlbumsPanel } from './CmsAlbums'
 import { Dashboard } from './Dashboard'
 import './Cms.css'
 
@@ -124,6 +126,25 @@ function Editor({
   const [audioUrl, setAudioUrl] = useState(bstr('audio_url'))
   const [lyrics, setLyrics] = useState(bstr('lyrics'))
   const [embedUrl, setEmbedUrl] = useState(bstr('embed_url'))
+  const [albumId, setAlbumId] = useState(initial?.album_id ? String(initial.album_id) : '')
+  const [trackNo, setTrackNo] = useState(initial?.track_no ? String(initial.track_no) : '')
+  const [category, setCategory] = useState(bstr('category'))
+  const [albumOptions, setAlbumOptions] = useState<AlbumAdmin[]>([])
+  const [genreOptions, setGenreOptions] = useState<string[]>([])
+  useEffect(() => {
+    if (type !== 'music') return
+    let alive = true
+    void Promise.all([adminApi.albums(), api.musicGenres()])
+      .then(([albums, genres]) => {
+        if (!alive) return
+        setAlbumOptions(albums)
+        setGenreOptions(genres.map((g) => g.name))
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [type])
   const [sourceUrl, setSourceUrl] = useState(initial?.source_url ?? '')
   const [coverLink, setCoverLink] = useState(initial?.cover_url ?? '')
   const [lookup, setLookup] = useState<'idle' | 'busy' | string>('idle')
@@ -225,6 +246,7 @@ function Editor({
     if (type === 'music') {
       set('artist', artist)
       set('audio_url', audioUrl)
+      set('category', category)
       set('lyrics', lyrics)
     } else if (type === 'video') {
       set('artist', artist)
@@ -278,7 +300,12 @@ function Editor({
         caption: caption?.trim() || null,
       })),
       ...(type === 'music'
-        ? { source_url: sourceUrl.trim() || null, cover_url: coverLink.trim() || null }
+        ? {
+            source_url: sourceUrl.trim() || null,
+            cover_url: coverLink.trim() || null,
+            album_id: albumId ? Number(albumId) : null,
+            track_no: albumId && trackNo ? Number(trackNo) : null,
+          }
         : {}),
     }
 
@@ -355,6 +382,42 @@ function Editor({
                 />
               </label>
 
+            </div>
+            <div className="cms-editor__row">
+              <label className="cms-field">
+                <span>Album</span>
+                <select value={albumId} onChange={(e) => setAlbumId(e.target.value)}>
+                  <option value="">— Bài lẻ (không thuộc album) —</option>
+                  {albumOptions.map((album) => (
+                    <option key={album.id} value={album.id}>
+                      {album.title}
+                      {album.year ? ` (${album.year})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="cms-field">
+                <span>Số thứ tự trong album</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={999}
+                  value={trackNo}
+                  onChange={(e) => setTrackNo(e.target.value)}
+                  disabled={!albumId}
+                />
+              </label>
+              <label className="cms-field">
+                <span>Thể loại</span>
+                <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                  <option value="">— Chưa phân loại —</option>
+                  {genreOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
             <div className="cms-field">
               <label htmlFor="cms-music-link">Link SoundCloud / YouTube (tùy chọn)</label>
@@ -1137,8 +1200,14 @@ export function Cms() {
   const [me, setMe] = useState<AdminUser | null>(null)
   const [params, setParams] = useSearchParams()
   const isAdmin = me?.role === 'admin'
+  const canManageAlbums = isAdmin || me?.role === 'editor'
   const requestedView = params.get('tab')
-  const view = isAdmin && (requestedView === 'users' || requestedView === 'dashboard' || requestedView === 'moderation') ? requestedView : 'content'
+  const view =
+    isAdmin && (requestedView === 'users' || requestedView === 'dashboard' || requestedView === 'moderation')
+      ? requestedView
+      : canManageAlbums && requestedView === 'albums'
+        ? 'albums'
+        : 'content'
   const type = TYPES.find((item) => item.value === params.get('type'))?.value ?? null
   const status = STATUSES.find((item) => item.value === params.get('status'))?.value ?? null
   const requestedPage = Number(params.get('page') ?? 1)
@@ -1280,6 +1349,16 @@ export function Cms() {
           >
             Nội dung
           </button>
+          {canManageAlbums && (
+            <button
+              type="button"
+              className={view === 'albums' ? 'cms-pill cms-pill--active' : 'cms-pill'}
+              onClick={() => setView('albums')}
+              aria-pressed={view === 'albums'}
+            >
+              Album
+            </button>
+          )}
           {isAdmin && (
             <button
               type="button"
@@ -1318,7 +1397,7 @@ export function Cms() {
       </header>
 
       <main id="cms-main" tabIndex={-1} className="cms__main">
-      <h1 className="cms__title">{view === 'dashboard' ? 'Tổng quan' : view === 'moderation' ? 'Kiểm duyệt' : view === 'users' ? 'Tài khoản' : 'Nội dung'}</h1>
+      <h1 className="cms__title">{view === 'dashboard' ? 'Tổng quan' : view === 'moderation' ? 'Kiểm duyệt' : view === 'users' ? 'Tài khoản' : view === 'albums' ? 'Album' : 'Nội dung'}</h1>
       {source.status === 'success' &&
         source.data.body.source === 'google_drive' && (
           <p className="cms__source-note">
@@ -1335,6 +1414,8 @@ export function Cms() {
         <Moderation />
       ) : view === 'users' && isAdmin ? (
         <UsersPanel meId={me?.id ?? null} />
+      ) : view === 'albums' ? (
+        <AlbumsPanel />
       ) : (
         <CmsContent
           type={type}
