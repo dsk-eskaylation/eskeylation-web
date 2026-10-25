@@ -130,5 +130,6 @@ Lần chạy CI đầu tiên của PR, job **Browser — Public & Admin flows** 
 
 Lỗi giao diện thật mà browser check phát hiện, đã sửa:
 - **Nút mở menu CMS bị bóp còn ~27px ở khổ 320px** (tiêu đề + nút "+ Thêm bài nhạc" chiếm chỗ), mất icon ☰ → `flex: none` cho `.cms-top__menu`.
+- **Nút "+ Thêm bài nhạc" tràn khỏi màn hình 7px ở khổ 320px** (chỉ thấy trên CI, font Linux rộng hơn macOS) → thanh tiêu đề CMS `flex-wrap: wrap`, nút xuống dòng khi không đủ chỗ.
 - **Hai nút cùng tên "Phát"** trên trang Nghe nhạc (nút phát cả danh sách và nút Phát của player) → trình đọc màn hình không phân biệt được. Đặt `aria-label` "Phát danh sách" / "Trộn danh sách" (chữ hiển thị giữ nguyên).
 
