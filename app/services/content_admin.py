@@ -26,6 +26,8 @@ from app.services.sanitize import (
 )
 from app.services.slug import unique_slug
 
+_CONFLICT = "Dữ liệu vừa bị thay đổi bởi thao tác khác — thử lại"
+
 
 async def get_with_media(
     session: AsyncSession, content_id: int, *, lock: bool = False
@@ -223,11 +225,10 @@ async def create_content(
         await _replace_media(session, content, data.media)
         await session.commit()
     except IntegrityError as exc:
-        # Hai request cùng title đua nhau qua unique_slug -> UNIQUE(type, slug)
+        # Races past the pre-checks: UNIQUE(type, slug), album FK, (album_id, track_no)
         await session.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Slug vừa bị chiếm bởi thao tác khác — thử lại",
+            status_code=status.HTTP_409_CONFLICT, detail=_CONFLICT
         ) from exc
     return await get_with_media(session, content.id)
 
@@ -275,25 +276,35 @@ async def update_content(
         for key, value in links.items():
             setattr(content, key, value)
     if "album_id" in fields or "track_no" in fields:
+        album_id = fields.get("album_id", content.album_id)
+        # A track number belongs to its album; moving without one starts unnumbered.
+        default_no = content.track_no if album_id == content.album_id else None
         placement = await _album_fields(
             session,
             content.type,
-            fields.get("album_id", content.album_id),
-            fields.get("track_no", content.track_no),
+            album_id,
+            fields.get("track_no", default_no),
             exclude_id=content.id,
         )
         for key, value in placement.items():
             setattr(content, key, value)
-    if "media" in fields:
-        await _replace_media(session, content, data.media or [])
-    # Media-only changes must also invalidate editor versions and catalog revision.
-    content.updated_at = datetime.now(UTC)
-    if content.status == ContentStatus.published:
-        await session.flush()
-        session.expire(content, ["media_links", "album"])
-        content = await get_with_media(session, content.id)
-        validate_for_publish(content)
-    await session.commit()
+    try:
+        if "media" in fields:
+            await _replace_media(session, content, data.media or [])
+        # Media-only changes must also invalidate editor versions and catalog revision.
+        content.updated_at = datetime.now(UTC)
+        if content.status == ContentStatus.published:
+            await session.flush()
+            session.expire(content, ["media_links", "album"])
+            content = await get_with_media(session, content.id)
+            validate_for_publish(content)
+        await session.commit()
+    except IntegrityError as exc:
+        # Races past _album_fields: album deleted or track_no taken mid-request
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_CONFLICT
+        ) from exc
     # expire_on_commit=False giữ media_links cũ trên object -> ép reload cho đúng
     session.expire(content, ["media_links", "album"])
     return await get_with_media(session, content.id)
@@ -408,7 +419,6 @@ async def duplicate(session: AsyncSession, content: Content, author_id: int) -> 
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Slug vừa bị chiếm bởi thao tác khác — thử lại",
+            status_code=status.HTTP_409_CONFLICT, detail=_CONFLICT
         ) from exc
     return await get_with_media(session, copy.id)

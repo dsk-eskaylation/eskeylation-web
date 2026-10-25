@@ -118,6 +118,23 @@ async def test_deleting_album_keeps_tracks(
     track_albums.remove(album["id"])
     after = await client.get(f"/admin/content/{track['id']}", headers=auth(token))
     assert after.json()["album_id"] is None
+    assert after.json()["track_no"] is None
+
+
+async def test_moving_track_without_number_resets_it(
+    client, make_user, track_content, track_albums
+):
+    token = await token_for(client, make_user, UserRole.admin)
+    first = await _album(client, token, track_albums, title="Album đầu")
+    second = await _album(client, token, track_albums, title="Album sau")
+    track = await _track(client, token, track_content, "Chuyển", first["id"], 3)
+    r = await client.patch(
+        f"/admin/content/{track['id']}",
+        json={"album_id": second["id"]},
+        headers=auth(token),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["album_id"] == second["id"] and r.json()["track_no"] is None
 
 
 async def test_album_admin_requires_publisher(client, make_user):

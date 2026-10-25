@@ -176,9 +176,16 @@ export function AlbumsPanel() {
           title="Xoá album?"
           message={`“${deleting.title}” sẽ bị xoá; ${deleting.track_count} bài trong album chuyển về “Bài lẻ”.`}
           onConfirm={async () => {
-            await adminApi.deleteAlbum(deleting.id)
-            notify(`Đã xoá album “${deleting.title}”`)
-            if (editingId === deleting.id) reset()
+            const album = deleting
+            setDeleting(null)
+            try {
+              await adminApi.deleteAlbum(album.id)
+            } catch (err) {
+              notify(err instanceof Error ? err.message : 'Không xoá được album', { tone: 'error' })
+              return
+            }
+            notify(`Đã xoá album “${album.title}”`)
+            if (editingId === album.id) reset()
             await load()
           }}
           onClose={() => setDeleting(null)}

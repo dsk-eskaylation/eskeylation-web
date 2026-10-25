@@ -183,7 +183,7 @@ function Editor({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const draft = JSON.stringify({ type, title, summary, artist, audioUrl, lyrics, embedUrl, author, intro, maintainText, credits, leader, media })
+  const draft = JSON.stringify({ type, title, summary, artist, audioUrl, lyrics, embedUrl, albumId, trackNo, category, sourceUrl, coverLink, author, intro, maintainText, credits, leader, media })
   const [initialDraft] = useState(draft)
 
   // Cập nhật một nhóm credits của trang chủ
@@ -1239,6 +1239,23 @@ export function Cms() {
   }, [setParams])
   const setView = (value: string) => updateParams({ tab: value === 'content' ? null : value })
   const [navOpen, setNavOpen] = useState(false)
+  const sideRef = useRef<HTMLElement>(null)
+  const menuRef = useRef<HTMLButtonElement>(null)
+  const closeNav = () => {
+    setNavOpen(false)
+    menuRef.current?.focus()
+  }
+  useEffect(() => {
+    if (!navOpen) return
+    sideRef.current?.querySelector<HTMLElement>('.cms-side__link')?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setNavOpen(false)
+      menuRef.current?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [navOpen])
   const viewItem = (id: string, label: string) => ({
     key: id,
     label,
@@ -1371,7 +1388,7 @@ export function Cms() {
   return (
     <div className={navOpen ? 'cms cms--nav-open' : 'cms'}>
       <a className="skip-link" href="#cms-main">Bỏ qua điều hướng quản trị</a>
-      <aside className="cms-side" aria-label="Điều hướng quản trị">
+      <aside className="cms-side" aria-label="Điều hướng quản trị" ref={sideRef}>
         <span className="cms__brand">
           ESKAYLATION <em>CMS</em>
         </span>
@@ -1411,12 +1428,13 @@ export function Cms() {
           </button>
         </div>
       </aside>
-      <div className="cms-scrim" aria-hidden="true" onClick={() => setNavOpen(false)} />
+      <div className="cms-scrim" aria-hidden="true" onClick={closeNav} />
 
       <main id="cms-main" tabIndex={-1} className="cms__main">
       <header className="cms-top">
         <button
           type="button"
+          ref={menuRef}
           className="cms-top__menu"
           aria-label="Mở menu quản trị"
           aria-expanded={navOpen}

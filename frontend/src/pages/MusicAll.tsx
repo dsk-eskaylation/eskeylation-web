@@ -45,23 +45,27 @@ export function MusicAll() {
       return next
     })
   const albums = useLiveApi(() => api.albums(), [])
+  // useLiveApi keeps the previous result while refetching; the key tells whether it is current.
+  const key = `${album}|${debouncedQ}|${page}`
   const state = useLiveApi(
     () =>
-      api.list('music', {
-        q: debouncedQ || undefined,
-        pageSize: 60,
-        page,
-        album: album && album !== SINGLES ? album : undefined,
-        singles: album === SINGLES,
-      }),
+      api
+        .list('music', {
+          q: debouncedQ || undefined,
+          pageSize: 60,
+          page,
+          album: album && album !== SINGLES ? album : undefined,
+          singles: album === SINGLES,
+        })
+        .then((list) => ({ key, list })),
     [debouncedQ, page, album, attempt],
   )
-  const items = state.status === 'success' ? state.data.items : []
-  const pages = state.status === 'success' ? Math.max(1, state.data.pages) : 1
-  const busy = state.status === 'success' && state.data.page !== page
+  const items = state.status === 'success' ? state.data.list.items : []
+  const pages = state.status === 'success' ? Math.max(1, state.data.list.pages) : 1
+  const busy = state.status === 'success' && state.data.key !== key
   useEffect(() => {
-    if (state.status === 'success' && state.data.page === page && page > pages) setPage(pages, true)
-  }, [state, page, pages, setPage])
+    if (state.status === 'success' && !busy && page > pages) setPage(pages, true)
+  }, [state, busy, page, pages, setPage])
 
   return (
     <div className="music-all">
@@ -130,7 +134,7 @@ export function MusicAll() {
       <LibraryFeedback status={state.status} empty={items.length === 0} query={q} noun="bài hát"
         onRetry={() => setAttempt((value) => value + 1)} onClear={() => setQuery('')} />
 
-      <div className="music-all__grid" aria-busy={state.status === 'loading' || busy}>
+      <div className="music-all__grid" aria-busy={state.status === 'loading' || busy} inert={busy}>
         {items.map((item, i) => (
           <div
             className="music-all__cell"

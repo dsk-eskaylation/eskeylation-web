@@ -177,6 +177,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const audio = audioRef.current
       const url = audioUrl(track)
       if (!audio || !url) return
+      // mp3 and an embedded player must never play together.
+      setEmbed(null)
       audio.volume = volume
       setError(null)
       if (audio.src !== new URL(url, location.href).href) {
@@ -215,7 +217,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       )
       historyRef.current = []
       setError(null)
-      setEmbed(null)
       setQueue(playable)
       setIndex(mapped)
       setIsPlaying(true)
@@ -234,7 +235,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setIsPlaying(false)
     } else {
       if (audio.error) audio.load()
-      setEmbed(null)
       startTrack(current)
       setIsPlaying(true)
     }
@@ -409,7 +409,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         ? [{ src: new URL(cover, location.origin).href }]
         : undefined,
     })
-    navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true))
+    navigator.mediaSession.setActionHandler('play', () => {
+      setEmbed(null)
+      setIsPlaying(true)
+    })
     navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false))
     navigator.mediaSession.setActionHandler('previoustrack', prev)
     navigator.mediaSession.setActionHandler('nexttrack', next)

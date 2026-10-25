@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import { useLiveApi } from "../api/useLiveApi";
 import type { ContentOut } from "../api/types";
 import { albumOptions, SINGLES } from "../albums";
@@ -34,10 +34,18 @@ export function Music() {
   const state = useLiveApi(() => api.listAll("music"), [attempt]);
   const albums = useLiveApi(() => api.albums(), []);
   const genres = useLiveApi(() => api.musicGenres(), []);
+  // Resolve 404 as a keyed miss: useLiveApi keeps the previous album's data on errors.
   const albumDetail = useLiveApi(
     () =>
       albumSlug && albumSlug !== SINGLES
-        ? api.album(albumSlug)
+        ? api.album(albumSlug).then(
+            (detail) => ({ slug: albumSlug, detail }),
+            (error: unknown) => {
+              if (error instanceof ApiError && error.status === 404)
+                return { slug: albumSlug, detail: null };
+              throw error;
+            },
+          )
         : Promise.resolve(null),
     [albumSlug],
   );
@@ -45,8 +53,15 @@ export function Music() {
   const albumList = albums.status === "success" ? albums.data : [];
   const activeGenres =
     genres.status === "success" ? genres.data.filter((g) => g.count > 0) : [];
-  const album =
-    albumDetail.status === "success" ? albumDetail.data : null;
+  const albumResult =
+    albumDetail.status === "success" && albumDetail.data?.slug === albumSlug
+      ? albumDetail.data
+      : null;
+  const album = albumResult?.detail ?? null;
+  const albumMissing =
+    albumDetail.status === "error" || (albumResult !== null && !album);
+  const albumPending =
+    Boolean(albumSlug && albumSlug !== SINGLES) && !albumResult && !albumMissing;
   const items = useMemo(() => {
     const source =
       albumSlug === SINGLES
@@ -243,7 +258,7 @@ export function Music() {
                 Trộn
               </button>
             </div>
-            {albumDetail.status === "error" && (
+            {albumMissing && (
               <p role="status">Không tìm thấy album này.</p>
             )}
             <div className="music__side-head">
@@ -257,8 +272,13 @@ export function Music() {
                 </Link>
               </span>
             </div>
-            {items.length === 0 && (
-              <p role="status">Không tìm thấy bài hát. Hãy thử từ khóa khác.</p>
+            {albumPending ? (
+              <p role="status">Đang tải album…</p>
+            ) : (
+              !albumMissing &&
+              items.length === 0 && (
+                <p role="status">Không tìm thấy bài hát. Hãy thử từ khóa khác.</p>
+              )
             )}
             <ol className="music__list">
               {items.map((track, index) => {

@@ -23,6 +23,8 @@ export function Dropdown({ label, value, options, onChange }: Props) {
   const listRef = useRef<HTMLUListElement>(null)
   const id = useId()
   const selected = options.find((o) => o.value === value) ?? options[0]
+  // Options can shrink while the list is open.
+  const current = Math.min(active, options.length - 1)
 
   useEffect(() => {
     if (!open) return
@@ -34,15 +36,17 @@ export function Dropdown({ label, value, options, onChange }: Props) {
   }, [open])
 
   useEffect(() => {
-    if (open) listRef.current?.children[active]?.scrollIntoView({ block: 'nearest' })
-  }, [open, active])
+    if (open) listRef.current?.children[current]?.scrollIntoView({ block: 'nearest' })
+  }, [open, current])
 
   const show = () => {
     setActive(Math.max(0, options.findIndex((o) => o.value === value)))
     setOpen(true)
   }
   const choose = (index: number) => {
-    onChange(options[index].value)
+    const option = options[index]
+    if (!option) return
+    onChange(option.value)
     setOpen(false)
   }
   const onKey = (e: KeyboardEvent) => {
@@ -58,16 +62,16 @@ export function Dropdown({ label, value, options, onChange }: Props) {
       setOpen(false)
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActive((i) => Math.min(options.length - 1, i + 1))
+      setActive(Math.min(options.length - 1, current + 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setActive((i) => Math.max(0, i - 1))
+      setActive(Math.max(0, current - 1))
     } else if (e.key === 'Home' || e.key === 'End') {
       e.preventDefault()
       setActive(e.key === 'Home' ? 0 : options.length - 1)
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
-      choose(active)
+      choose(current)
     }
   }
 
@@ -75,12 +79,13 @@ export function Dropdown({ label, value, options, onChange }: Props) {
     <div className="dropdown" ref={rootRef}>
       <button
         type="button"
+        role="combobox"
         className={open ? 'dropdown__trigger dropdown__trigger--open' : 'dropdown__trigger'}
         aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={id}
-        aria-activedescendant={open ? `${id}-${active}` : undefined}
+        aria-activedescendant={open && current >= 0 ? `${id}-${current}` : undefined}
         onClick={() => (open ? setOpen(false) : show())}
         onKeyDown={onKey}
       >
@@ -99,7 +104,7 @@ export function Dropdown({ label, value, options, onChange }: Props) {
               aria-selected={option.value === value}
               className={[
                 'dropdown__option',
-                index === active && 'dropdown__option--active',
+                index === current && 'dropdown__option--active',
                 option.value === value && 'dropdown__option--selected',
               ]
                 .filter(Boolean)

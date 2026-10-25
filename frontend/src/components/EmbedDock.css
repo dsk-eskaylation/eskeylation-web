@@ -1,9 +1,10 @@
-/* Must stay above PlayerBar (z-index 60) */
+/* Top-right under the fixed nav (~124px tall) so it never covers PlayerBar or its panels;
+   z-index below the nav (50) so the account menu opens over it. */
 .embed-dock {
   position: fixed;
+  top: 140px;
   right: 16px;
-  bottom: 112px;
-  z-index: 61;
+  z-index: 45;
   width: min(360px, calc(100vw - 32px));
   border: 1px solid var(--color-border-strong);
   border-radius: 16px;
@@ -63,4 +64,11 @@
 .embed-dock__frame--video {
   height: auto;
   aspect-ratio: 16 / 9;
+}
+
+/* Two-row nav (~152px) at this width. */
+@media (max-width: 1100px) {
+  .embed-dock {
+    top: 168px;
+  }
 }

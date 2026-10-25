@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from slugify import slugify
 from sqlalchemy import func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -153,5 +154,11 @@ async def update(
 
 
 async def delete(session: AsyncSession, album: Album) -> None:
+    # ON DELETE SET NULL only clears album_id; a stale track_no would leak to singles.
+    await session.execute(
+        sql_update(Content)
+        .where(Content.album_id == album.id)
+        .values(track_no=None, updated_at=func.now())
+    )
     await session.delete(album)
     await session.commit()

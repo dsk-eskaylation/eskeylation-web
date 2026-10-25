@@ -244,6 +244,14 @@ def downgrade():
         ),
         [dict(slug=s, old=o, new=n) for s, o, n in ARTISTS],
     )
+    # ON DELETE SET NULL leaves track_no behind; clear it with the album link.
+    conn.execute(
+        sa.text(
+            "UPDATE contents SET track_no = NULL, updated_at = now() "
+            "FROM albums a WHERE contents.album_id = a.id AND a.slug = ANY(:slugs)"
+        ),
+        dict(slugs=[a[0] for a in ALBUMS]),
+    )
     conn.execute(
         sa.text("DELETE FROM albums WHERE slug = ANY(:slugs)"),
         dict(slugs=[a[0] for a in ALBUMS]),

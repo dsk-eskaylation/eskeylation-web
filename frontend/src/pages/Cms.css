@@ -880,11 +880,16 @@
 }
 
 @media (max-width: 900px) {
+  /* Delay hiding until the slide-out ends; hidden keeps closed links out of tab order and AT. */
   .cms-side {
     transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
   }
   .cms--nav-open .cms-side {
     transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease;
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
   }
   .cms--nav-open .cms-scrim {
