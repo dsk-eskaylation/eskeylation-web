@@ -184,7 +184,9 @@ def check_cms_mapping(base, context_factory, login, passed):
         expect(public.locator(".pbpanel__lyrics")).to_have_text(
             "Fake contributed lyrics\nSecond line", timeout=6000
         )
-        section.get_by_label("Trạng thái lời nhạc").select_option("accepted")
+        section.get_by_role("group", name="Trạng thái lời nhạc").get_by_role(
+            "button", name="Đã duyệt", exact=True
+        ).click()
         expect(
             section.locator(".cms-lyrics__item").filter(has_text=song["title"])
         ).to_be_visible()
@@ -198,7 +200,9 @@ def check_cms_mapping(base, context_factory, login, passed):
             {"body": "Fake rejected lyrics"},
             201,
         )
-        section.get_by_label("Trạng thái lời nhạc").select_option("pending")
+        section.get_by_role("group", name="Trạng thái lời nhạc").get_by_role(
+            "button", name="Chờ duyệt", exact=True
+        ).click()
         item = section.locator(".cms-lyrics__item").filter(has_text=song["title"])
         item.get_by_role("button", name="Từ chối lời nhạc", exact=True).click()
         admin.get_by_role("dialog").get_by_role(
@@ -209,15 +213,19 @@ def check_cms_mapping(base, context_factory, login, passed):
             api("GET", f"/api/music/{song['slug']}")["body"]["lyrics"]
             == "Fake contributed lyrics\nSecond line"
         )
-        section.get_by_label("Trạng thái lời nhạc").select_option("rejected")
+        section.get_by_role("group", name="Trạng thái lời nhạc").get_by_role(
+            "button", name="Đã từ chối", exact=True
+        ).click()
         expect(section.locator(".cms-lyrics__body")).to_contain_text(
             "Fake rejected lyrics"
         )
         public.close()
         passed("Admin lyric rejection/history keeps current lyrics unchanged")
 
-        admin.get_by_role("button", name="Nội dung", exact=True).click()
-        row = admin.locator(".cms__row").filter(has_text=song["title"])
+        admin.get_by_role("complementary", name="Điều hướng quản trị").get_by_role(
+            "button", name="Nhạc", exact=True
+        ).click()
+        row = admin.locator(".cms-table tbody tr").filter(has_text=song["title"])
         row.get_by_role("button", name="Sửa", exact=True).click()
         dialog = admin.get_by_role("dialog")
         expect(dialog.get_by_label("Lời bài hát", exact=True)).to_have_value(

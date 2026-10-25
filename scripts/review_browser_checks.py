@@ -53,7 +53,7 @@ def check_review_fixes(base, context_factory, login, passed, evidence):
         )
         created.append(original["id"])
         page.goto(base + "/cms?type=community", wait_until="networkidle")
-        page.locator(".cms__row").filter(
+        page.locator(".cms-table tbody tr").filter(
             has=page.get_by_text(original["title"], exact=True)
         ).get_by_role("button", name="Sửa", exact=True).click()
         dialog = page.get_by_role("dialog")

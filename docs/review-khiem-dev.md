@@ -103,7 +103,7 @@ Phần schema đặt `SET LOCAL lock_timeout = '5s'` giống các migration trư
 | 6 | `Dropdown.tsx` | Trình đọc màn hình không đọc lựa chọn đang đứng (`aria-activedescendant` trên `<button>`); có thể crash nếu danh sách đổi lúc đang mở | `role="combobox"` cho nút; kẹp chỉ số đang chọn theo số lựa chọn, bỏ qua khi lựa chọn không còn | Trình duyệt: kiểm `role="combobox"`, chọn album bằng bàn phím |
 | 7 | `content_admin.py` | Hai người cùng gán một số thứ tự vào cùng album, hoặc album bị xoá giữa chừng → lỗi 500 | Bắt `IntegrityError` ở nhánh sửa bài → rollback + 409 với câu báo trung tính (dùng chung cho tạo/sửa/nhân bản) | Test hiện có; **chưa có test tái hiện race** |
 | 8 | `albums.py`, `content_admin.py`, migration `o4e6a8c0d2f3` | Xoá album để lại `track_no` trên bài (bài lẻ vẫn có số thứ tự; gán album mới báo trùng số khó hiểu) | Xoá album thì xoá `track_no` của các bài; đổi album mà không gửi `track_no` thì đặt lại về trống; `downgrade` của migration dữ liệu cũng xoá `track_no` trước | Test mới `test_moving_track_without_number_resets_it` + assert trong test xoá album; chạy lại `downgrade/upgrade` migration |
-| 9 | `Cms.tsx`, `Cms.css` (mobile) | Sidebar đã đóng vẫn Tab vào được link ẩn; Esc không đóng | Ẩn hẳn sidebar khi đóng (`visibility: hidden`); Esc đóng; mở thì focus link đầu, đóng bằng Esc/lớp phủ thì trả focus về nút menu | Typecheck/build; **chưa thử trên khổ hẹp thật** |
+| 9 | `Cms.tsx`, `Cms.css` (mobile) | Sidebar đã đóng vẫn Tab vào được link ẩn; Esc không đóng | Ẩn hẳn sidebar khi đóng (`visibility: hidden`); Esc đóng; mở thì focus link đầu, đóng bằng Esc/lớp phủ thì trả focus về nút menu | Browser check CI (mục 8) ở 320/390/768px: mở menu → focus link đầu, Esc → sidebar ẩn và focus về nút menu |
 
 ### Lỗi mức low chưa sửa (để lại cho vòng sau)
 - Đổi tên album làm slug đổi theo → link album đã chia sẻ thành 404 (content thì giữ slug khi đổi tên).
@@ -112,3 +112,23 @@ Phần schema đặt `SET LOCAL lock_timeout = '5s'` giống các migration trư
 - Trang lưới: chọn album từ lưới album rồi Back thì rời trang (đang dùng `replace`); lưới album chưa có trạng thái tải/lỗi.
 - Nút Phát/Trộn vẫn bật khi danh sách chỉ toàn bài dạng link.
 - Theo luật OCR: vài chỗ ternary lồng nhau và một inline style ở `Cms.tsx`.
+
+## 8. Cập nhật browser check của CI (`scripts/*browser_checks.py`)
+
+Lần chạy CI đầu tiên của PR, job **Browser — Public & Admin flows** đỏ vì các script Playwright vẫn kiểm giao diện cũ. Đã cập nhật theo giao diện mới và chạy lại đầy đủ trên máy (DB Postgres tạm, giống CI): **tất cả pass**.
+
+| Script | Kiểm cũ | Kiểm mới |
+|---|---|---|
+| `browser_checks.py` — trang Ảnh | 6 trang × 12 ảnh, nút "Trang sau", URL `?page=`, Back | Cuộn tới đáy tới khi đủ 62 ảnh, ảnh nào cũng tải được, không tràn ngang; viewer: phím → tới 62/62 và dừng ở ảnh cuối |
+| `browser_checks.py` — CMS | Bộ lọc loại `.cms__filters`, nút "+ Nội dung mới", nút Đăng/Gỡ/Xoá trên dòng | Sidebar "Nhạc", nút "+ Thêm bài nhạc", Đăng/Gỡ về nháp/Xoá trong menu ⋯ của dòng bảng |
+| `browser_checks.py` — quyền author | Đếm nút Đăng/Xoá trên trang (giờ luôn bằng 0 vì đã vào menu → kiểm rỗng) | Mở menu ⋯ của một dòng, kiểm không có mục Đăng/Xoá |
+| `cms_browser_checks.py` | `<select>` trạng thái lời nhạc, nút "Nội dung" | Nhóm nút Chờ duyệt/Đã duyệt/Đã từ chối, sidebar "Nhạc" |
+| `cms_field_browser_checks.py` | Form nhạc **không** có "Thể loại" | Form nhạc có Album, Số thứ tự trong album, Thể loại |
+| `design_browser_checks.py` | Nút "Tài khoản" luôn hiện ở mọi khổ | Khổ ≤ 900px: nút menu đủ 44px, mở drawer → focus link đầu, Esc → đóng và trả focus; mọi khổ: không tràn ngang |
+| `design_browser_checks.py` — lưới nhạc/video | — | Chặn `/api/catalog` trong fixture: lần làm mới nền có thể tự phục hồi trước khi test kịp bấm "Thử lại" (race của test, không phải lỗi app) |
+| `review_browser_checks.py` | `.cms__row` | Dòng bảng `.cms-table tbody tr` |
+
+Lỗi giao diện thật mà browser check phát hiện, đã sửa:
+- **Nút mở menu CMS bị bóp còn ~27px ở khổ 320px** (tiêu đề + nút "+ Thêm bài nhạc" chiếm chỗ), mất icon ☰ → `flex: none` cho `.cms-top__menu`.
+- **Hai nút cùng tên "Phát"** trên trang Nghe nhạc (nút phát cả danh sách và nút Phát của player) → trình đọc màn hình không phân biệt được. Đặt `aria-label` "Phát danh sách" / "Trộn danh sách" (chữ hiển thị giữ nguyên).
+

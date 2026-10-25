@@ -231,6 +231,7 @@ export function Music() {
               <button
                 type="button"
                 className="music__tool"
+                aria-label="Phát danh sách"
                 onClick={() => playAll(false)}
                 disabled={items.length === 0}
               >
@@ -242,6 +243,7 @@ export function Music() {
               <button
                 type="button"
                 className="music__tool"
+                aria-label="Trộn danh sách"
                 onClick={() => playAll(true)}
                 disabled={items.length === 0}
               >

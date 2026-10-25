@@ -222,45 +222,37 @@ def check_ui(password: str, tag: str) -> None:
                 page = ctx.new_page()
                 page.emulate_media(reduced_motion="reduce")
                 page.goto(BASE + "/photos", wait_until="networkidle")
-                pager = page.get_by_role("navigation", name="Phân trang ảnh")
-                titles = set()
-                for number in range(1, 7):
-                    expect(pager).to_contain_text(f"Trang {number} / 6")
-                    assert page.locator(".photos__item").evaluate_all(
-                        "es=>es.every(e=>getComputedStyle(e).opacity==='1')"
-                    ), "Photo tiles must not wait invisibly for entrance animations"
-                    expect(page.locator(".photos__item")).to_have_count(
-                        2 if number == 6 else 12
-                    )
-                    for image in page.locator(".photos__item img").all():
-                        image.scroll_into_view_if_needed()
-                        expect(image).to_be_visible()
-                        assert image.evaluate("i=>i.complete&&i.naturalWidth>0")
-                    titles.update(
-                        page.locator(".photos__item").evaluate_all(
-                            "es=>es.map(e=>e.getAttribute('aria-label'))"
-                        )
-                    )
-                    assert pager.locator("button").evaluate_all(
-                        "es=>es.every(e=>e.offsetWidth<=44&&e.offsetHeight<=44)"
-                    )
-                    assert page.evaluate(
-                        "document.documentElement.scrollWidth<=innerWidth"
-                    )
-                    if number < 6:
-                        pager.get_by_role(
-                            "button", name="Trang sau", exact=True
-                        ).click()
+                items = page.locator(".photos__item")
+                # The sentinel's 600px margin may already pull in a second batch.
+                expect(items.nth(11)).to_be_attached()
+                assert items.count() < 62
+                assert items.evaluate_all(
+                    "es=>es.every(e=>getComputedStyle(e).opacity==='1')"
+                ), "Photo tiles must not wait invisibly for entrance animations"
+                for _ in range(20):
+                    if items.count() == 62:
+                        break
+                    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+                    page.wait_for_timeout(150)
+                expect(items).to_have_count(62)
+                expect(page.locator(".photos__more")).to_have_count(0)
+                for image in page.locator(".photos__item img").all():
+                    image.scroll_into_view_if_needed()
+                    expect(image).to_be_visible()
+                    assert image.evaluate("i=>i.complete&&i.naturalWidth>0")
+                titles = set(
+                    items.evaluate_all("es=>es.map(e=>e.getAttribute('aria-label'))")
+                )
                 assert len(titles) == 62
-                page.reload(wait_until="networkidle")
-                expect(pager).to_contain_text("Trang 6 / 6")
-                page.locator(".photos__item").first.click()
+                assert page.evaluate("document.documentElement.scrollWidth<=innerWidth")
+                items.nth(60).click()
                 expect(page.get_by_role("dialog")).to_be_visible()
                 page.keyboard.press("ArrowRight")
                 expect(page.locator(".photos__viewer-sub")).to_contain_text("62/62")
+                page.keyboard.press("ArrowRight")
+                expect(page.locator(".photos__viewer-sub")).to_contain_text("62/62")
                 page.keyboard.press("Escape")
-                page.go_back(wait_until="networkidle")
-                expect(pager).to_contain_text("Trang 5 / 6")
+                expect(page.get_by_role("dialog")).to_have_count(0)
                 expect(
                     page.locator('link[rel="icon"][type="image/svg+xml"]')
                 ).to_have_attribute("href", "/favicon.svg")
@@ -270,8 +262,8 @@ def check_ui(password: str, tag: str) -> None:
                     .startswith(b"\x89PNG\r\n\x1a\n")
                 )
                 passed(
-                    f"{width}px all 62 photos across six compact pages, "
-                    "URL/back navigation, lightbox, E favicon"
+                    f"{width}px all 62 photos via infinite scroll, "
+                    "lightbox keyboard navigation, E favicon"
                 )
                 ctx.close()
 
@@ -330,11 +322,11 @@ def check_ui(password: str, tag: str) -> None:
             pager = page.get_by_role("navigation", name="Phân trang nội dung")
             pager.get_by_role("button", name="Trang sau").click()
             expect(pager).to_contain_text("Trang 2/")
-            page.locator(".cms__filters").get_by_role(
+            page.get_by_role("complementary", name="Điều hướng quản trị").get_by_role(
                 "button", name="Nhạc", exact=True
             ).click()
             expect(pager).to_contain_text("Trang 1/")
-            page.get_by_role("button", name="+ Nội dung mới", exact=True).click()
+            page.get_by_role("button", name="+ Thêm bài nhạc", exact=True).click()
             dialog = page.get_by_role("dialog")
             title = "Browser created " + tag
             dialog.get_by_label("Tên bài hát", exact=True).fill(title)
@@ -357,8 +349,13 @@ def check_ui(password: str, tag: str) -> None:
             )
             dialog.get_by_role("button", name="Lưu", exact=True).click()
             expect(dialog).to_have_count(0)
-            row = page.locator(".cms__row").filter(has_text=title)
-            row.get_by_role("button", name="Đăng", exact=True).click()
+            row = page.locator(".cms-table tbody tr").filter(has_text=title)
+
+            def row_action(name):
+                row.get_by_role("button", name=f"Thao tác khác cho “{title}”").click()
+                page.get_by_role("menuitem", name=name, exact=True).click()
+
+            row_action("Đăng")
             expect(row).to_contain_text("Đã đăng")
             public_music = page.request.get(
                 BASE + "/api/music", params={"q": title}
@@ -366,9 +363,9 @@ def check_ui(password: str, tag: str) -> None:
             assert len(public_music) == 1
             assert public_music[0]["body"]["audio_url"] == uploaded_audio_url
             passed("CMS MP3 upload, inline playback, published audio URL")
-            row.get_by_role("button", name="Gỡ", exact=True).click()
+            row_action("Gỡ về nháp")
             expect(row).to_contain_text("Nháp")
-            row.get_by_role("button", name="Xoá", exact=True).click()
+            row_action("Xoá")
             dialog.get_by_role("button", name="Xoá vĩnh viễn", exact=True).click()
             expect(row).to_have_count(0)
             page.get_by_role("button", name="Tổng quan", exact=True).click()
@@ -532,12 +529,14 @@ def check_ui(password: str, tag: str) -> None:
                         page.get_by_role("button", name="Tài khoản", exact=True)
                     ).to_have_count(0)
                     if role == "author":
-                        expect(
-                            page.get_by_role("button", name="Đăng", exact=True)
-                        ).to_have_count(0)
-                        expect(
-                            page.get_by_role("button", name="Xoá", exact=True)
-                        ).to_have_count(0)
+                        page.locator(".cms-table tbody tr").first.get_by_role(
+                            "button", name="Thao tác khác"
+                        ).click()
+                        expect(page.get_by_role("menu")).to_be_visible()
+                        for action in ["Đăng", "Xoá"]:
+                            expect(
+                                page.get_by_role("menuitem", name=action, exact=True)
+                            ).to_have_count(0)
                 passed(f"{role} UI permission boundary")
                 ctx.close()
         except BaseException:

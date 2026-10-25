@@ -42,41 +42,50 @@ def check_design_flows(base, context, login, passed, evidence):
     page = ctx.new_page()
     try:
         login(page, "admin")
+        side = page.get_by_role("complementary", name="Điều hướng quản trị")
+        menu = page.get_by_role("button", name="Mở menu quản trị")
         for width in [320, 390, 768, 1440]:
             page.set_viewport_size({"width": width, "height": 900})
-            expect(
-                page.get_by_role("button", name="Tài khoản", exact=True)
-            ).to_be_visible()
-            controls = page.locator(
-                ".cms__topbar-actions button, .cms__topbar-actions a"
-            )
-            for control in controls.all():
+            # Matches the drawer breakpoint in Cms.css.
+            narrow = width <= 900
+            if not narrow:
+                expect(menu).to_be_hidden()
+            if narrow:
+                assert menu.bounding_box()["width"] == 44, "Menu button must not shrink"
+                menu.click()
+                expect(side.get_by_role("button").first).to_be_focused()
+            accounts = side.get_by_role("button", name="Tài khoản", exact=True)
+            expect(accounts).to_be_visible()
+            side.evaluate("e=>Promise.all(e.getAnimations().map(a=>a.finished))")
+            for control in [*page.locator(".cms-top button:visible").all(), accounts]:
                 bounds = control.bounding_box()
                 assert (
                     bounds
                     and bounds["x"] >= 0
                     and bounds["x"] + bounds["width"] <= width
-                )
+                ), (width, control.inner_text(), bounds)
+            assert page.evaluate("document.documentElement.scrollWidth<=innerWidth")
             page.screenshot(path=str(evidence / f"cms-fixed-{width}.png"))
+            if narrow:
+                page.keyboard.press("Escape")
+                expect(accounts).to_be_hidden()
+                expect(menu).to_be_focused()
         passed("CMS navigation stays reachable at 320/390/768/1440px")
         page.get_by_role("button", name="Kiểm duyệt", exact=True).click()
         assert parse_qs(urlparse(page.url).query)["tab"] == ["moderation"]
         page.reload(wait_until="networkidle")
         expect(page.get_by_role("heading", level=1)).to_have_text("Kiểm duyệt")
-        page.get_by_role("button", name="Nội dung", exact=True).click()
-        page.locator(".cms__filters").get_by_role(
-            "button", name="Nhạc", exact=True
-        ).click()
-        page.locator(".cms__filters").get_by_role(
+        side.get_by_role("button", name="Nhạc", exact=True).click()
+        page.get_by_role("group", name="Lọc theo trạng thái").get_by_role(
             "button", name="Nháp", exact=True
         ).click()
         page.reload(wait_until="networkidle")
         params = parse_qs(urlparse(page.url).query)
         assert params["type"] == ["music"] and params["status"] == ["draft"]
-        expect(page.locator(".cms__row").first).to_be_visible()
+        expect(page.locator(".cms-table tbody tr").first).to_be_visible()
         passed("CMS tab and content filters survive reload through URL state")
 
-        page.get_by_role("button", name="+ Nội dung mới", exact=True).click()
+        page.get_by_role("button", name="+ Thêm bài nhạc", exact=True).click()
         title = page.get_by_role("dialog").get_by_label("Tên bài hát", exact=True)
         title.fill("Bản nháp giả chưa lưu")
         # A dismissed reload warning leaves the draft intact.
@@ -175,6 +184,9 @@ def check_design_flows(base, context, login, passed, evidence):
         expect(reaction.locator("button").first).to_contain_text(selected)
         passed("Reaction picker supports keyboard open, arrows, Escape and selection")
 
+        def frozen_catalog(route):
+            route.fulfill(json={"revision": None})
+
         for route_name, kind, noun in [
             ("/music/all", "music", "bài hát"),
             ("/video/all", "video", "video"),
@@ -184,6 +196,8 @@ def check_design_flows(base, context, login, passed, evidence):
             library = library_fixture(case, payload)
             pattern = f"**/api/{kind}?**"
             page.route(pattern, library)
+            # A background catalog refresh would recover before "Thử lại" is clicked.
+            page.route("**/api/catalog", frozen_catalog)
             page.goto(base + route_name, wait_until="domcontentloaded")
             expect(page.get_by_text(f"Đang tải {noun}…", exact=True)).to_be_visible()
             case["state"] = "error"
@@ -216,6 +230,7 @@ def check_design_flows(base, context, login, passed, evidence):
             page.get_by_role("button", name="Xóa tìm kiếm", exact=True).click()
             expect(page.get_by_text("Fake page 1", exact=False).first).to_be_visible()
             page.unroute(pattern, library)
+            page.unroute("**/api/catalog", frozen_catalog)
             passed(
                 f"{kind} grid: loading/error/retry, pagination, URL reload/back, search"
             )

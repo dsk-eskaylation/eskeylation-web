@@ -22,7 +22,7 @@ def check_cms_fields(base, context_factory, login, passed, evidence):
 
     def new(kind):
         admin.goto(base + "/cms?type=" + kind, wait_until="networkidle")
-        admin.get_by_role("button", name="+ Nội dung mới", exact=True).click()
+        admin.locator(".cms-top").get_by_role("button", name="+ Thêm").click()
         return admin.get_by_role("dialog")
 
     def save(dialog, creating=False):
@@ -43,7 +43,7 @@ def check_cms_fields(base, context_factory, login, passed, evidence):
 
     def edit(content):
         admin.goto(base + "/cms?type=" + content["type"], wait_until="networkidle")
-        admin.locator(".cms__row").filter(
+        admin.locator(".cms-table tbody tr").filter(
             has=admin.get_by_text(content["title"], exact=True)
         ).get_by_role("button", name="Sửa", exact=True).click()
         return admin.get_by_role("dialog")
@@ -74,7 +74,13 @@ def check_cms_fields(base, context_factory, login, passed, evidence):
                 ".cms-editor__media input[type=file]"
             ).get_attribute("accept")
             if kind == "music":
-                expect(dialog.get_by_label("Thể loại", exact=True)).to_have_count(0)
+                for field in ["Album", "Thể loại"]:
+                    expect(
+                        dialog.get_by_role("combobox", name=field, exact=True)
+                    ).to_be_visible()
+                expect(
+                    dialog.get_by_label("Số thứ tự trong album", exact=True)
+                ).to_be_visible()
                 expect(dialog.get_by_label("Mô tả ngắn", exact=True)).to_have_count(0)
                 expect(dialog.get_by_label("Link video", exact=False)).to_have_count(0)
                 assert "audio/mpeg" in accepted and "video/" not in accepted
