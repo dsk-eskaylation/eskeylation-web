@@ -75,7 +75,8 @@ def content_to_out(content: Content) -> ContentOut:
         source_url=content.source_url,
         source_provider=content.source_provider,
         player_url=player_url(content.source_url),
-        cover_url=content.cover_url,
+        cover_url=content.cover_url
+        or (content.album.cover_url if content.album else None),
         album=(
             AlbumRef(
                 slug=content.album.slug,

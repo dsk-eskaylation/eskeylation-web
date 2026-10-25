@@ -307,6 +307,17 @@
 .cms-field textarea:focus {
   border-color: var(--color-text);
 }
+.cms-field__inline {
+  display: flex;
+  gap: 10px;
+}
+.cms-field__inline input {
+  flex: 1;
+  min-width: 0;
+}
+.cms-field__inline .page-action {
+  flex: none;
+}
 .cms-field__json {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: 13px;

@@ -7,7 +7,7 @@ interface Props {
   children: ReactNode
   /** 'panel': khung nền #101010 bo góc (Figma xem full ảnh).
       'bare': không khung, nội dung nổi thẳng trên overlay (Figma video đã chọn). */
-  variant?: 'panel' | 'bare'
+  variant?: 'panel' | 'bare' | 'full'
   showClose?: boolean
   label?: string
 }
@@ -84,7 +84,7 @@ export function Modal({
   return createPortal(
     <div
       ref={rootRef}
-      className="modal"
+      className={variant === 'full' ? 'modal modal--full' : 'modal'}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -93,9 +93,7 @@ export function Modal({
     >
       <div
         className={
-          variant === 'bare'
-            ? 'modal__panel modal__panel--bare'
-            : 'modal__panel'
+          variant === 'panel' ? 'modal__panel' : `modal__panel modal__panel--${variant}`
         }
         onClick={(e) => e.stopPropagation()}
       >

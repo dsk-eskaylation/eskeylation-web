@@ -386,7 +386,7 @@ function Editor({
             <div className="cms-editor__row">
               <label className="cms-field">
                 <span>Album</span>
-                <select value={albumId} onChange={(e) => setAlbumId(e.target.value)}>
+                <select className="cms-field__select" value={albumId} onChange={(e) => setAlbumId(e.target.value)}>
                   <option value="">— Bài lẻ (không thuộc album) —</option>
                   {albumOptions.map((album) => (
                     <option key={album.id} value={album.id}>
@@ -409,7 +409,7 @@ function Editor({
               </label>
               <label className="cms-field">
                 <span>Thể loại</span>
-                <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                <select className="cms-field__select" value={category} onChange={(e) => setCategory(e.target.value)}>
                   <option value="">— Chưa phân loại —</option>
                   {genreOptions.map((name) => (
                     <option key={name} value={name}>
@@ -420,10 +420,11 @@ function Editor({
               </label>
             </div>
             <div className="cms-field">
-              <label htmlFor="cms-music-link">Link SoundCloud / YouTube (tùy chọn)</label>
-              <div className="cms-editor__row">
+              <span id="cms-music-link-label">Link SoundCloud / YouTube (tùy chọn)</span>
+              <div className="cms-field__inline">
                 <input
                   id="cms-music-link"
+                  aria-labelledby="cms-music-link-label"
                   value={sourceUrl}
                   onChange={(e) => setSourceUrl(e.target.value)}
                   placeholder="https://soundcloud.com/... hoặc https://youtu.be/..."

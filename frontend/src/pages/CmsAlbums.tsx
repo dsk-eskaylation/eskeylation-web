@@ -86,8 +86,8 @@ export function AlbumsPanel() {
   return (
     <div className="cms-mod">
       <section>
-        <p className="cms__section-label">{editingId ? 'Sửa album' : 'Tạo album'}</p>
         <form className="cms-editor" onSubmit={submit}>
+          <p className="cms__section-label">{editingId ? 'Sửa album' : 'Tạo album'}</p>
           <div className="cms-editor__row">
             <label className="cms-field">
               <span>Tên album</span>
@@ -95,7 +95,7 @@ export function AlbumsPanel() {
             </label>
             <label className="cms-field">
               <span>Loại</span>
-              <select {...field('kind')}>
+              <select className="cms-field__select" {...field('kind')}>
                 {(Object.keys(KIND_LABEL) as AlbumKind[]).map((kind) => (
                   <option key={kind} value={kind}>
                     {KIND_LABEL[kind]}
@@ -121,7 +121,7 @@ export function AlbumsPanel() {
             <textarea {...field('description')} rows={3} maxLength={5000} />
           </label>
           {error && <FormError id="cms-album-error" message={error} className="cms-error" />}
-          <div className="cms-editor__row">
+          <div className="cms-editor__foot">
             <button type="submit" className="cms-pill cms-pill--new" disabled={busy}>
               {busy ? 'Đang lưu…' : editingId ? 'Lưu album' : '+ Tạo album'}
             </button>

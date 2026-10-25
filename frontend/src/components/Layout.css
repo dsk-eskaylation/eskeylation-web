@@ -105,7 +105,9 @@
     align-items: center;
     row-gap: 12px;
     column-gap: 10px;
-    padding: 14px 16px 0;
+    padding: 14px 16px 16px;
+    /* Two rows here; the default 65% fade let page text show through the pill row. */
+    background: linear-gradient(#090909 82%, rgba(9, 9, 9, 0));
   }
   .layout__brand {
     grid-area: brand;

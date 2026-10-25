@@ -3,7 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useLiveApi } from "../api/useLiveApi";
 import type { ContentOut } from "../api/types";
-import { KIND_LABEL, SINGLES } from "../albums";
+import { SINGLES } from "../albums";
+import { AlbumBrowser } from "../components/AlbumBrowser";
 import { EmptyState } from "../components/EmptyState";
 import { SearchBar } from "../components/SearchBar";
 import {
@@ -27,6 +28,7 @@ export function Music() {
   const [query, setQuery] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [params, setParams] = useSearchParams();
+  const [browsing, setBrowsing] = useState(false);
   const albumSlug = params.get("album");
   const genre = params.get("genre");
   const player = usePlayer();
@@ -190,7 +192,7 @@ export function Music() {
               onClear={() => setQuery("")}
               placeholder="Tìm bài hát hoặc nghệ sĩ"
             />
-            <div className="music__filters">
+            <div className="music__toolbar">
               <select
                 aria-label="Lọc theo album"
                 value={albumSlug ?? ""}
@@ -199,16 +201,31 @@ export function Music() {
                 <option value="">Tất cả album</option>
                 {albumList.map((a) => (
                   <option key={a.slug} value={a.slug}>
-                    {a.title} ·{" "}
-                    {[KIND_LABEL[a.kind], a.year, `${a.track_count} bài`]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {a.year ? `${a.title} (${a.year})` : a.title}
                   </option>
                 ))}
                 {singles > 0 && (
                   <option value={SINGLES}>Bài lẻ · {singles} bài</option>
                 )}
               </select>
+              <button
+                type="button"
+                className="music__tool music__tool--icon"
+                onClick={() => setBrowsing(true)}
+                disabled={albumList.length === 0}
+                aria-label="Xem tất cả album"
+                title="Xem tất cả album"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
               {activeGenres.length > 0 && (
                 <select
                   aria-label="Lọc theo thể loại"
@@ -223,28 +240,39 @@ export function Music() {
                   ))}
                 </select>
               )}
+              <button
+                type="button"
+                className="music__tool"
+                onClick={() => playAll(false)}
+                disabled={items.length === 0}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 4.5v15l13-7.5z" fill="currentColor" />
+                </svg>
+                Phát
+              </button>
+              <button
+                type="button"
+                className="music__tool"
+                onClick={() => playAll(true)}
+                disabled={items.length === 0}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Trộn
+              </button>
             </div>
             {albumDetail.status === "error" && (
               <p role="status">Không tìm thấy album này.</p>
             )}
-            <div className="music__album-actions">
-              <button
-                type="button"
-                className="page-action"
-                onClick={() => playAll(false)}
-                disabled={items.length === 0}
-              >
-                Phát tất cả
-              </button>
-              <button
-                type="button"
-                className="page-action"
-                onClick={() => playAll(true)}
-                disabled={items.length === 0}
-              >
-                Trộn bài
-              </button>
-            </div>
             <div className="music__side-head">
               <span className="music__side-label">{items.length} bài hát</span>
               <Link to="/music/all" className="music__see-all">
@@ -310,6 +338,15 @@ export function Music() {
             </ol>
           </aside>
         </section>
+      )}
+      {browsing && (
+        <AlbumBrowser
+          albums={albumList}
+          singles={singles}
+          selected={albumSlug}
+          onSelect={(slug) => setFilter("album", slug)}
+          onClose={() => setBrowsing(false)}
+        />
       )}
     </div>
   );
