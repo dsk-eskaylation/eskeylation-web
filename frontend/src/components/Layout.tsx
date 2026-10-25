@@ -16,9 +16,6 @@ export function Layout() {
   }, [location.pathname])
   return (
     <div className={hasPlayer ? 'layout layout--with-player' : 'layout'}>
-      {/* Texture nền chung cho mọi trang public (trước đây chỉ có ở trang chủ) */}
-      <div className="layout__bg" aria-hidden="true" style={{ backgroundImage: `url(${bgTexture})` }} />
-      {/* Texture nền chung cho mọi trang public (trước đây chỉ có ở trang chủ) */}
       <div className="layout__bg" aria-hidden="true" style={{ backgroundImage: `url(${bgTexture})` }} />
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
       {createPortal(

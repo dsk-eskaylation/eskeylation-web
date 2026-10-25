@@ -3,7 +3,6 @@
   min-height: 100dvh; /* dvh: đúng chiều cao khả kiến trên di động (thanh công cụ động) */
 }
 
-/* Texture xám phủ viewport, giữ nguyên khi cuộn -> mọi trang cùng một nền */
 .layout__bg {
   position: fixed;
   inset: 0;
