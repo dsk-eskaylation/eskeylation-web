@@ -26,14 +26,6 @@
   z-index: -1;
 }
 
-.home__bg {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: top center;
-  opacity: 0.2; /* Figma image 11 opacity 0.2 */
-}
-
 .home__orb {
   position: absolute;
   width: 1106px;

@@ -8,7 +8,6 @@ import hero2 from '../assets/figma/hero-2-25801d.png'
 import hero3 from '../assets/figma/hero-3-5a4166.png'
 import hero4 from '../assets/figma/hero-4-575400.png'
 import hero5 from '../assets/figma/hero-5-1f00f4.png'
-import bgTexture from '../assets/figma/bg-texture.png'
 import './Home.css'
 
 const HERO_IMAGES = [hero1, hero2, hero3, hero4, hero5]
@@ -145,13 +144,9 @@ export function Home() {
 
   return (
     <div className="home">
-      {/* Lớp nền trang trí (texture + 2 đốm sáng blur) — bọc trong vùng CLIP
-          full-viewport để orbs/nền KHÔNG tràn ngang gây cuộn/xô layout. */}
+      {/* 2 đốm sáng blur (texture nền nằm ở Layout) — bọc trong vùng CLIP
+          full-viewport để orbs KHÔNG tràn ngang gây cuộn/xô layout. */}
       <div className="home__decor" aria-hidden="true">
-        <div
-          className="home__bg"
-          style={{ backgroundImage: `url(${bgTexture})` }}
-        />
         <span className="home__orb home__orb--soft" />
         <span className="home__orb home__orb--sharp" />
       </div>

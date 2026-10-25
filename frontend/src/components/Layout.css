@@ -3,6 +3,17 @@
   min-height: 100dvh; /* dvh: đúng chiều cao khả kiến trên di động (thanh công cụ động) */
 }
 
+/* Texture xám phủ viewport, giữ nguyên khi cuộn -> mọi trang cùng một nền */
+.layout__bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-size: cover;
+  background-position: top center;
+  opacity: 0.2; /* Figma image 11 opacity 0.2 */
+}
+
 /* Nav nổi ở y=50: grid 3 cột [brand | pill | auth] -> pill LUÔN căn giữa
    giữa brand và nút tài khoản (hai cột biên rộng bằng nhau = 1fr). */
 .layout__nav {
