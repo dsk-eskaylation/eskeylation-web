@@ -36,7 +36,7 @@ Phần schema đặt `SET LOCAL lock_timeout = '5s'` giống các migration trư
 
 ### Đã kiểm chứng
 - Chạy `upgrade → downgrade → upgrade` trên một DB có đúng 174 bài nhạc thật (slug/title/artist lấy từ API public): 118 bài vào đúng 13 album, mọi album có tracklist đều đủ số thứ tự và không trùng, 0 tên nghệ sĩ còn tag, downgrade trả về nguyên trạng.
-- 331 test backend xanh (`pytest`), `ruff check` xanh; frontend `tsc -b`, `oxlint`, `vite build` xanh.
+- 332 test backend xanh (`pytest`), `ruff check` xanh; frontend `tsc -b`, `oxlint` (0 lỗi), `vite build` xanh.
 
 ## 3. Trước khi migrate trên production (checklist)
 
@@ -84,3 +84,31 @@ Phần schema đặt `SET LOCAL lock_timeout = '5s'` giống các migration trư
 - Giao diện mobile của CMS và trang nhạc chưa kiểm trên khổ hẹp thật.
 - Upload file trong CMS (cần AWS key) và Celery worker.
 - Chế độ `PUBLIC_CONTENT_SOURCE=drive`: album/`singles` trả rỗng có chủ đích (catalog Drive không có album).
+
+## 7. Kết quả review code (Open Code Review, chế độ delegate)
+
+- **Phạm vi:** toàn bộ diff `main..khiem-dev`, 52 file (22 backend, 30 frontend), review theo bộ luật của OCR cho từng nhóm file. **Coverage 52/52 (100%)**, không file nào bỏ qua. 5 file bị OCR loại theo luật mặc định: 3 file test, `frontend/src/genres.ts` (đã xoá), `deploy/nginx/security-headers.conf`.
+- **Kết quả:** không có lỗi critical/high (không lỗ bảo mật, không mất dữ liệu ở mức nghiêm trọng). Có 9 lỗi medium, **đã sửa hết** trong commit "Fix album/music review findings".
+- **Đã kiểm và ổn:** tên index/constraint khớp giữa model và migration; downgrade đúng thứ tự; seed chạy lại không đổi kết quả; oEmbed chỉ gọi endpoint cố định (không SSRF, có timeout và rate limit); phân quyền album (tạo/sửa/xoá chỉ editor/admin); query tham số hoá (không SQL injection); CSP khớp ở cả 3 nơi; trang Ảnh (cuộn tải thêm, vuốt).
+
+### Lỗi đã phát hiện và cách sửa
+
+| # | Chỗ | Lỗi | Đã sửa | Kiểm chứng |
+|---|---|---|---|---|
+| 1 | `CmsAlbums.tsx` | Xoá album xong hộp xác nhận không đóng; bấm lại → 404 không báo; lỗi 403/500 không hiện | Đóng hộp ngay khi xác nhận; `try/catch` báo lỗi bằng toast | Trình duyệt: tạo album tạm → xoá → hộp đóng, album biến mất, có thông báo |
+| 2 | `Cms.tsx` (form sửa bài) | Chỉ đổi album/thể loại/link SoundCloud rồi đóng form → mất thay đổi, không cảnh báo | Thêm `albumId, trackNo, category, sourceUrl, coverLink` vào phần so sánh "có thay đổi chưa lưu" | Trình duyệt: đổi album → Esc → hiện "Thay đổi chưa lưu" |
+| 3 | `Music.tsx`, `MusicAll.tsx` | Đổi album nhanh: danh sách album cũ còn hiện, bấm Phát phát nhầm album cũ; album 404 không báo | Chỉ dùng dữ liệu khi khớp album đang chọn; lúc chờ hiện "Đang tải album…", khoá Phát/Trộn; lưới cũ `aria-busy` + `inert`; 404 hiện "Không tìm thấy album này." | Trình duyệt: Waking Life → Diss Tracks, album không tồn tại, đổi album trên trang lưới |
+| 4 | `PlayerContext.tsx` | Đang mở player SoundCloud mà bấm Next/Prev/phím media → mp3 và SoundCloud phát cùng lúc | Đóng player nhúng ngay trong `startTrack` (mọi đường phát mp3 đều qua đây) và trong handler `play` của MediaSession | Typecheck/build; **chưa thử trên trình duyệt** (dữ liệu local chưa có bài dạng link) |
+| 5 | `EmbedDock.css` | Khung player nhúng che panel lời/hàng chờ của PlayerBar và nút điều khiển trên màn nhỏ | Chuyển khung lên góc trên phải, ngay dưới thanh nav; `z-index` dưới nav để menu tài khoản không bị che | Tính từ CSS; **chưa đo trên trình duyệt** |
+| 6 | `Dropdown.tsx` | Trình đọc màn hình không đọc lựa chọn đang đứng (`aria-activedescendant` trên `<button>`); có thể crash nếu danh sách đổi lúc đang mở | `role="combobox"` cho nút; kẹp chỉ số đang chọn theo số lựa chọn, bỏ qua khi lựa chọn không còn | Trình duyệt: kiểm `role="combobox"`, chọn album bằng bàn phím |
+| 7 | `content_admin.py` | Hai người cùng gán một số thứ tự vào cùng album, hoặc album bị xoá giữa chừng → lỗi 500 | Bắt `IntegrityError` ở nhánh sửa bài → rollback + 409 với câu báo trung tính (dùng chung cho tạo/sửa/nhân bản) | Test hiện có; **chưa có test tái hiện race** |
+| 8 | `albums.py`, `content_admin.py`, migration `o4e6a8c0d2f3` | Xoá album để lại `track_no` trên bài (bài lẻ vẫn có số thứ tự; gán album mới báo trùng số khó hiểu) | Xoá album thì xoá `track_no` của các bài; đổi album mà không gửi `track_no` thì đặt lại về trống; `downgrade` của migration dữ liệu cũng xoá `track_no` trước | Test mới `test_moving_track_without_number_resets_it` + assert trong test xoá album; chạy lại `downgrade/upgrade` migration |
+| 9 | `Cms.tsx`, `Cms.css` (mobile) | Sidebar đã đóng vẫn Tab vào được link ẩn; Esc không đóng | Ẩn hẳn sidebar khi đóng (`visibility: hidden`); Esc đóng; mở thì focus link đầu, đóng bằng Esc/lớp phủ thì trả focus về nút menu | Typecheck/build; **chưa thử trên khổ hẹp thật** |
+
+### Lỗi mức low chưa sửa (để lại cho vòng sau)
+- Đổi tên album làm slug đổi theo → link album đã chia sẻ thành 404 (content thì giữ slug khi đổi tên).
+- `Content.album` dùng `lazy="selectin"` thêm một lượt query; có thể `joinedload` riêng cho các query danh sách công khai.
+- Trên iOS, menu/dropdown đóng bằng `mousedown` có thể không đóng khi chạm ra ngoài (nên dùng `pointerdown`); `RowMenu` khai báo `role="menu"` nhưng chưa có điều hướng bằng phím mũi tên.
+- Trang lưới: chọn album từ lưới album rồi Back thì rời trang (đang dùng `replace`); lưới album chưa có trạng thái tải/lỗi.
+- Nút Phát/Trộn vẫn bật khi danh sách chỉ toàn bài dạng link.
+- Theo luật OCR: vài chỗ ternary lồng nhau và một inline style ở `Cms.tsx`.
