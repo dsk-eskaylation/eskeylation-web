@@ -16,6 +16,7 @@
   flex-direction: column;
   gap: 24px;
   padding: 28px 16px 20px;
+  overflow-y: auto;
   border-right: 0.5px solid var(--color-border);
   background: #0b0b0b;
   transition: transform 0.2s ease;
@@ -25,10 +26,23 @@
   font-size: 20px;
 }
 .cms-side__nav,
+.cms-side__group,
 .cms-side__foot {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.cms-side__nav {
+  gap: 18px;
+}
+.cms-side__heading {
+  padding: 0 12px 6px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
 }
 .cms-side__foot {
   margin-top: auto;

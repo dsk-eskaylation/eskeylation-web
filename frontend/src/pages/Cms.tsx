@@ -60,6 +60,14 @@ const STATUS_LABEL: Record<ContentStatus, string> = {
   archived: 'Lưu trữ',
 }
 
+const ADD_LABEL: Record<ContentType, string> = {
+  music: '+ Thêm bài nhạc',
+  video: '+ Thêm video',
+  gallery: '+ Thêm album ảnh',
+  community: '+ Thêm bài viết',
+  homepage: '+ Thêm trang chủ',
+}
+
 function typeLabel(t: ContentType) {
   return TYPES.find((x) => x.value === t)?.label ?? t
 }
@@ -1218,7 +1226,7 @@ export function Cms() {
       : canManageAlbums && requestedView === 'albums'
         ? 'albums'
         : 'content'
-  const type = TYPES.find((item) => item.value === params.get('type'))?.value ?? null
+  const type = TYPES.find((item) => item.value === params.get('type'))?.value ?? 'music'
   const status = STATUSES.find((item) => item.value === params.get('status'))?.value ?? null
   const requestedPage = Number(params.get('page') ?? 1)
   const pageNumber = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
@@ -1231,18 +1239,38 @@ export function Cms() {
   }, [setParams])
   const setView = (value: string) => updateParams({ tab: value === 'content' ? null : value })
   const [navOpen, setNavOpen] = useState(false)
-  const navItems = [
-    ...(isAdmin ? [{ id: 'dashboard', label: 'Tổng quan' }] : []),
-    { id: 'content', label: 'Nội dung' },
-    ...(canManageAlbums ? [{ id: 'albums', label: 'Album' }] : []),
-    ...(isAdmin
-      ? [
-          { id: 'moderation', label: 'Kiểm duyệt' },
-          { id: 'users', label: 'Tài khoản' },
-        ]
-      : []),
-  ]
-  const setType = (value: ContentType | null) => updateParams({ type: value, page: null })
+  const viewItem = (id: string, label: string) => ({
+    key: id,
+    label,
+    active: view === id,
+    go: () => setView(id),
+  })
+  const typeItem = (t: { value: ContentType; label: string }) => ({
+    key: t.value,
+    label: t.label,
+    active: view === 'content' && type === t.value,
+    go: () => updateParams({ tab: null, type: t.value, status: null, page: null }),
+  })
+  const [musicType, ...otherTypes] = TYPES
+  const navGroups = [
+    { label: null, items: isAdmin ? [viewItem('dashboard', 'Tổng quan')] : [] },
+    {
+      label: 'Nội dung',
+      items: [
+        typeItem(musicType),
+        ...(canManageAlbums ? [viewItem('albums', 'Album')] : []),
+        ...otherTypes.map(typeItem),
+      ],
+    },
+    {
+      label: 'Hệ thống',
+      items: isAdmin ? [viewItem('moderation', 'Kiểm duyệt'), viewItem('users', 'Tài khoản')] : [],
+    },
+  ].filter((group) => group.items.length > 0)
+  const pageTitle =
+    view === 'content'
+      ? typeLabel(type)
+      : navGroups.flatMap((group) => group.items).find((item) => item.active)?.label ?? 'Nội dung'
   const setStatus = (value: ContentStatus | null) => updateParams({ status: value, page: null })
   const setPageNumber = useCallback((value: number) => updateParams({ page: value <= 1 ? null : String(value) }), [updateParams])
   const [items, setItems] = useState<ContentAdmin[]>([])
@@ -1269,7 +1297,7 @@ export function Cms() {
     setLoading(true)
     try {
       const page = await adminApi.list({
-        type: type ?? undefined,
+        type,
         status: status ?? undefined,
         page: pageNumber,
       })
@@ -1348,19 +1376,24 @@ export function Cms() {
           ESKAYLATION <em>CMS</em>
         </span>
         <nav className="cms-side__nav">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={view === item.id ? 'cms-side__link cms-side__link--on' : 'cms-side__link'}
-              aria-current={view === item.id ? 'page' : undefined}
-              onClick={() => {
-                setView(item.id)
-                setNavOpen(false)
-              }}
-            >
-              {item.label}
-            </button>
+          {navGroups.map((group) => (
+            <div key={group.label ?? 'top'} className="cms-side__group">
+              {group.label && <span className="cms-side__heading">{group.label}</span>}
+              {group.items.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={item.active ? 'cms-side__link cms-side__link--on' : 'cms-side__link'}
+                  aria-current={item.active ? 'page' : undefined}
+                  onClick={() => {
+                    item.go()
+                    setNavOpen(false)
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="cms-side__foot">
@@ -1393,10 +1426,10 @@ export function Cms() {
             <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </button>
-        <h1 className="cms__title">{navItems.find((item) => item.id === view)?.label ?? 'Nội dung'}</h1>
+        <h1 className="cms__title">{pageTitle}</h1>
         {view === 'content' && (
           <button type="button" className="cms-pill cms-pill--new" onClick={() => setCreating(true)}>
-            + Nội dung mới
+            {ADD_LABEL[type]}
           </button>
         )}
       </header>
@@ -1421,7 +1454,6 @@ export function Cms() {
       ) : (
         <CmsContent
           type={type}
-          setType={setType}
           status={status}
           setStatus={setStatus}
           items={items}
@@ -1440,7 +1472,7 @@ export function Cms() {
       {(creating || editing) && (
         <Editor
           initial={editing}
-          defaultType={type ?? 'music'}
+          defaultType={type}
           onClose={() => {
             setCreating(false)
             setEditing(null)
@@ -1467,8 +1499,7 @@ interface CmsContentProps {
   page: number
   pages: number
   onPage: (page: number) => void
-  type: ContentType | null
-  setType: (t: ContentType | null) => void
+  type: ContentType
   status: ContentStatus | null
   setStatus: (s: ContentStatus | null) => void
   items: ContentAdmin[]
@@ -1485,7 +1516,6 @@ function CmsContent({
   pages,
   onPage,
   type,
-  setType,
   status,
   setStatus,
   items,
@@ -1497,22 +1527,22 @@ function CmsContent({
   const canPublish = role === 'admin' || role === 'editor'
   // Nội dung đang chờ xác nhận xoá (mở ConfirmDialog thay window.confirm)
   const [pendingDelete, setPendingDelete] = useState<ContentAdmin | null>(null)
+  const isMusic = type === 'music'
+  const [albumNames, setAlbumNames] = useState<Map<number, string>>(new Map())
+  useEffect(() => {
+    if (!isMusic) return
+    let alive = true
+    adminApi
+      .albums()
+      .then((list) => alive && setAlbumNames(new Map(list.map((a) => [a.id, a.title]))))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [isMusic])
   return (
     <>
       <div className="cms-toolbar">
-        <div className="cms-seg" role="group" aria-label="Lọc theo loại">
-          {[{ value: null, label: 'Tất cả' }, ...TYPES].map((t) => (
-            <button
-              key={t.value ?? 'all'}
-              type="button"
-              className={type === t.value ? 'cms-seg__btn cms-seg__btn--on' : 'cms-seg__btn'}
-              onClick={() => setType(t.value)}
-              aria-pressed={type === t.value}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
         <div className="cms-seg" role="group" aria-label="Lọc theo trạng thái">
           {[{ value: null, label: 'Mọi trạng thái' }, ...STATUSES].map((st) => (
             <button
@@ -1539,7 +1569,7 @@ function CmsContent({
             <thead>
               <tr>
                 <th>Tiêu đề</th>
-                <th>Loại</th>
+                {isMusic && <th>Album / Thể loại</th>}
                 <th>Trạng thái</th>
                 <th>Cập nhật</th>
                 <th className="cms-table__actions">
@@ -1598,7 +1628,21 @@ function CmsContent({
                         {c.author_email && ` · ${c.author_email}`}
                       </span>
                     </td>
-                    <td className="cms-table__type">{typeLabel(c.type)}</td>
+                    {isMusic && (
+                      <td className="cms-table__type">
+                        {c.album_id ? (
+                          <>
+                            {albumNames.get(c.album_id) ?? 'Album'}
+                            {c.track_no && ` · #${c.track_no}`}
+                          </>
+                        ) : (
+                          'Bài lẻ'
+                        )}
+                        {typeof c.body.category === 'string' && (
+                          <span className="cms-table__sub">{c.body.category}</span>
+                        )}
+                      </td>
+                    )}
                     <td className="cms-table__status">
                       <span className={`cms-badge cms-badge--${c.status}`}>{STATUS_LABEL[c.status]}</span>
                     </td>
