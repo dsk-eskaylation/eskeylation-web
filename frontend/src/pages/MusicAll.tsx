@@ -9,6 +9,7 @@ import { LibraryFeedback } from '../components/LibraryFeedback'
 import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
 import { Dropdown } from '../components/Dropdown'
+import { AlbumGrid } from '../components/AlbumGrid'
 import { albumOptions, SINGLES } from '../albums'
 import { MusicCard } from '../components/MusicCard'
 import { VideoModal } from '../components/VideoModal'
@@ -23,6 +24,7 @@ export function MusicAll() {
   const player = usePlayer()
   const [params, setParams] = useSearchParams()
   const album = params.get('album') ?? ''
+  const showAlbums = params.get('view') === 'albums'
   const setAlbum = (value: string) =>
     setParams(
       (previous) => {
@@ -30,10 +32,18 @@ export function MusicAll() {
         if (value) next.set('album', value)
         else next.delete('album')
         next.delete('page')
+        next.delete('view')
         return next
       },
       { replace: true },
     )
+  const setShowAlbums = (value: boolean) =>
+    setParams((previous) => {
+      const next = new URLSearchParams(previous)
+      if (value) next.set('view', 'albums')
+      else next.delete('view')
+      return next
+    })
   const albums = useLiveApi(() => api.albums(), [])
   const state = useLiveApi(
     () =>
@@ -70,6 +80,26 @@ export function MusicAll() {
           Quay về
         </Link>
 
+        <div className="music-all__views" role="group" aria-label="Chế độ xem">
+          <button
+            type="button"
+            className={showAlbums ? 'music-all__view' : 'music-all__view music-all__view--on'}
+            aria-pressed={!showAlbums}
+            onClick={() => setShowAlbums(false)}
+          >
+            Bài hát
+          </button>
+          <button
+            type="button"
+            className={showAlbums ? 'music-all__view music-all__view--on' : 'music-all__view'}
+            aria-pressed={showAlbums}
+            onClick={() => setShowAlbums(true)}
+          >
+            Album
+          </button>
+        </div>
+
+        {!showAlbums && (
         <div className="music-all__filters">
           <SearchBar
             value={q}
@@ -83,7 +113,19 @@ export function MusicAll() {
             options={albumOptions(albums.status === 'success' ? albums.data : [])}
           />
         </div>
+        )}
       </header>
+
+      {showAlbums ? (
+        <AlbumGrid
+          albums={albums.status === 'success' ? albums.data : []}
+          onSelect={(slug) => {
+            setAlbum(slug)
+            window.scrollTo({ top: 0, behavior: 'instant' })
+          }}
+        />
+      ) : (
+      <>
 
       <LibraryFeedback status={state.status} empty={items.length === 0} query={q} noun="bài hát"
         onRetry={() => setAttempt((value) => value + 1)} onClear={() => setQuery('')} />
@@ -111,6 +153,8 @@ export function MusicAll() {
 
       {state.status === 'success' && <Pagination page={Math.min(page, pages)} pages={pages}
         label="Phân trang nhạc" busy={busy} onChange={(next) => { setPage(next); window.scrollTo({ top: 0, behavior: 'instant' }) }} />}
+      </>
+      )}
 
       {selected && (
         <VideoModal content={selected} onClose={() => setSelected(null)} />
