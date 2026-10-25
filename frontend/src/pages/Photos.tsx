@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Pagination } from '../components/Pagination'
 import { api } from '../api/client'
 import { useLiveApi } from '../api/useLiveApi'
 import type { ContentOut, MediaOut } from '../api/types'
@@ -35,9 +33,6 @@ function fmtDate(iso: string | null) {
     trải toàn bộ ảnh của mọi bài gallery thành lưới nhiều cột, bấm để xem lớn
     (lightbox có chuyển ảnh ←/→). Giữ style tối Eskaylation, responsive mọi thiết bị. */
 export function Photos() {
-  const [params, setParams] = useSearchParams()
-  const requestedPage = Number(params.get('page') ?? 1)
-  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
   const state = useLiveApi(() => api.listAll('photos'), [])
   const items: ContentOut[] =
     state.status === 'success' ? state.data.items : EMPTY_ITEMS
@@ -61,36 +56,32 @@ export function Photos() {
   )
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  const topRef = useRef<HTMLDivElement>(null)
-
-  const pageCount = Math.max(1, Math.ceil(photos.length / PER_PAGE))
-  // Kẹp page khi số ảnh đổi (vd data mới về)
-  const safePage = Math.min(page, pageCount)
-  const start = (safePage - 1) * PER_PAGE
-  const pagePhotos = photos.slice(start, start + PER_PAGE)
+  // Cuộn tới cuối thì hiện thêm PER_PAGE ảnh (danh sách đã tải đủ từ listAll)
+  const [visible, setVisible] = useState(PER_PAGE)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const swipeX = useRef<number | null>(null)
+  const shown = photos.slice(0, visible)
+  const hasMore = visible < photos.length
 
   const active = photos.findIndex((photo) => photo.id === activeId)
   const cur = active >= 0 ? photos[active] : null
 
-  function goPage(nextPage: number) {
-    setParams((previous) => {
-      const next = new URLSearchParams(previous)
-      if (nextPage === 1) next.delete('page')
-      else next.set('page', String(nextPage))
-      return next
-    })
-    topRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })
+  function go(delta: number) {
+    const next = active + delta
+    if (next >= 0 && next < photos.length) setActiveId(photos[next].id)
   }
 
+  // Tạo lại observer sau mỗi lần hiện thêm -> nếu sentinel vẫn trong tầm nhìn thì nạp tiếp
   useEffect(() => {
-    if (state.status !== 'success' || page <= pageCount) return
-    setParams((previous) => {
-      const next = new URLSearchParams(previous)
-      if (pageCount === 1) next.delete('page')
-      else next.set('page', String(pageCount))
-      return next
-    }, { replace: true })
-  }, [page, pageCount, state.status, setParams])
+    const el = sentinelRef.current
+    if (!el || !hasMore) return
+    const observer = new IntersectionObserver(
+      ([entry]) => entry.isIntersecting && setVisible((v) => v + PER_PAGE),
+      { rootMargin: '600px 0px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visible, hasMore])
 
   useEffect(() => {
     if (activeId !== null && active < 0 && state.status === 'success') setActiveId(null)
@@ -108,6 +99,11 @@ export function Photos() {
     return () => window.removeEventListener('keydown', onKey)
   }, [active, photos])
 
+  // Lightbox chuyển ảnh xa hơn phần đã hiện -> mở rộng lưới để đóng lại vẫn thấy ảnh đó
+  useEffect(() => {
+    if (active >= visible) setVisible(Math.ceil((active + 1) / PER_PAGE) * PER_PAGE)
+  }, [active, visible])
+
   if (state.status === 'loading') return <div className="photos" aria-busy="true"><h1 className="sr-only">Thư viện ảnh</h1><p role="status">Đang tải ảnh…</p></div>
   if (state.status === 'error') return <div className="photos"><h1 className="sr-only">Thư viện ảnh</h1><EmptyState title="Không tải được ảnh." /></div>
   if (photos.length === 0)
@@ -117,9 +113,8 @@ export function Photos() {
   return (
     <div className="photos">
       <h1 className="sr-only">Thư viện ảnh</h1>
-      <div ref={topRef} className="photos__anchor" aria-hidden="true" />
       <div className="photos__grid">
-        {pagePhotos.map((p, i) => (
+        {shown.map((p, i) => (
           <button
             type="button"
             className="photos__item"
@@ -134,16 +129,30 @@ export function Photos() {
         ))}
       </div>
 
-      <Pagination page={safePage} pages={pageCount} label="Phân trang ảnh" onChange={goPage} />
+      {hasMore && (
+        <div ref={sentinelRef} className="photos__more" role="status">
+          Đang tải thêm ảnh…
+        </div>
+      )}
 
       {cur && (
         <Modal onClose={() => setActiveId(null)} label="Xem ảnh" variant="bare" showClose>
-          <figure className="photos__viewer">
+          <figure
+            className="photos__viewer"
+            onPointerDown={(e) => { swipeX.current = e.clientX }}
+            onPointerUp={(e) => {
+              if (swipeX.current === null) return
+              const dx = e.clientX - swipeX.current
+              swipeX.current = null
+              if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1)
+            }}
+            onPointerCancel={() => { swipeX.current = null }}
+          >
             {active > 0 && (
               <button
                 type="button"
                 className="photos__nav photos__nav--prev"
-                onClick={() => setActiveId(photos[active - 1].id)}
+                onClick={() => go(-1)}
                 aria-label="Ảnh trước"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -156,7 +165,7 @@ export function Photos() {
               <button
                 type="button"
                 className="photos__nav photos__nav--next"
-                onClick={() => setActiveId(photos[active + 1].id)}
+                onClick={() => go(1)}
                 aria-label="Ảnh sau"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">

@@ -141,10 +141,19 @@
 }
 
 /* Điểm neo để cuộn mượt về đầu thư viện khi đổi trang (chừa header cố định) */
-.photos__anchor {
-  position: relative;
-  top: 0;
-  scroll-margin-top: 150px;
+.photos__more {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* Vuốt ngang để chuyển ảnh: giữ cuộn dọc, chặn kéo/bôi đen ảnh mặc định */
+.photos__viewer {
+  touch-action: pan-y;
+  user-select: none;
+}
+.photos__viewer img {
+  -webkit-user-drag: none;
 }
 
 /* ---- iPad ---- */
