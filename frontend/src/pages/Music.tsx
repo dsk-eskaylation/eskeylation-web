@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useLiveApi } from "../api/useLiveApi";
 import type { ContentOut } from "../api/types";
-import { AlbumShelf, KIND_LABEL, SINGLES } from "../components/AlbumShelf";
+import { KIND_LABEL, SINGLES } from "../albums";
 import { EmptyState } from "../components/EmptyState";
 import { SearchBar } from "../components/SearchBar";
 import {
@@ -121,32 +121,6 @@ export function Music() {
               : "Đang tải thư viện…"}
         </span>
       </header>
-      <AlbumShelf
-        albums={albumList}
-        singles={singles}
-        selected={albumSlug}
-        onSelect={(slug) => setFilter("album", slug)}
-      />
-      {activeGenres.length > 0 && (
-        <div className="music__topbar">
-          <div className="music__categories" role="group" aria-label="Thể loại">
-            {[null, ...activeGenres.map((g) => g.name)].map((name) => (
-              <button
-                key={name ?? "all"}
-                type="button"
-                className={
-                  genre === name ? "music__cat music__cat--active" : "music__cat"
-                }
-                aria-pressed={genre === name}
-                onClick={() => setFilter("genre", name)}
-              >
-                {name ?? "Tất cả"}
-                <span className="music__cat-line" aria-hidden="true" />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       {state.status === "error" && (
         <div role="alert">
           <EmptyState title="Chưa tải được thư viện nhạc." />
@@ -216,24 +190,42 @@ export function Music() {
               onClear={() => setQuery("")}
               placeholder="Tìm bài hát hoặc nghệ sĩ"
             />
-            {albumSlug && (
-              <div className="music__album-head">
-                <strong>
-                  {albumSlug === SINGLES
-                    ? "Bài lẻ"
-                    : (album?.title ??
-                      (albumDetail.status === "error"
-                        ? "Không tìm thấy album"
-                        : "Đang tải album…"))}
-                </strong>
-                {album && (
-                  <span>
-                    {[KIND_LABEL[album.kind], album.year]
+            <div className="music__filters">
+              <select
+                aria-label="Lọc theo album"
+                value={albumSlug ?? ""}
+                onChange={(e) => setFilter("album", e.target.value || null)}
+              >
+                <option value="">Tất cả album</option>
+                {albumList.map((a) => (
+                  <option key={a.slug} value={a.slug}>
+                    {a.title} ·{" "}
+                    {[KIND_LABEL[a.kind], a.year, `${a.track_count} bài`]
                       .filter(Boolean)
                       .join(" · ")}
-                  </span>
+                  </option>
+                ))}
+                {singles > 0 && (
+                  <option value={SINGLES}>Bài lẻ · {singles} bài</option>
                 )}
-              </div>
+              </select>
+              {activeGenres.length > 0 && (
+                <select
+                  aria-label="Lọc theo thể loại"
+                  value={genre ?? ""}
+                  onChange={(e) => setFilter("genre", e.target.value || null)}
+                >
+                  <option value="">Tất cả thể loại</option>
+                  {activeGenres.map((g) => (
+                    <option key={g.name} value={g.name}>
+                      {g.name} · {g.count} bài
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {albumDetail.status === "error" && (
+              <p role="status">Không tìm thấy album này.</p>
             )}
             <div className="music__album-actions">
               <button

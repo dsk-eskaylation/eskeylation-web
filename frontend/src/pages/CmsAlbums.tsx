@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { adminApi, type AlbumAdmin } from '../api/admin'
 import type { AlbumKind } from '../api/types'
-import { KIND_LABEL } from '../components/AlbumShelf'
+import { KIND_LABEL } from '../albums'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormError } from '../components/FormError'
 import { useToast } from '../components/Toast'
