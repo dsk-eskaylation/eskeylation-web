@@ -2,6 +2,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
+from app.models.album import Album
 from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
 from app.models.media import ContentMedia
@@ -37,10 +38,19 @@ async def list_published(
     page_size: int = 20,
     q: str | None = None,
     filters: dict[str, str | None] | None = None,
+    album: str | None = None,
 ) -> tuple[list[Content], int]:
     base = _apply_filters(_apply_search(_published(type_), q), filters)
+    if album:
+        base = base.join(Album, Content.album_id == Album.id).where(Album.slug == album)
 
-    if q:
+    if album and not q:
+        order = (
+            Content.track_no.asc().nulls_last(),
+            Content.published_at.desc(),
+            Content.id.desc(),
+        )
+    elif q:
         rank = func.ts_rank(
             Content.search_vector, func.plainto_tsquery("simple", func.f_unaccent(q))
         )

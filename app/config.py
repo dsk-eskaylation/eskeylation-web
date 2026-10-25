@@ -103,6 +103,14 @@ class Settings(BaseSettings):
     allowed_html_attributes: dict[str, list[str]] = {
         "a": ["href", "title", "rel"],
     }
+    music_genres: list[str] = [
+        "LIFE RAP",
+        "LOVE RAP",
+        "DISSIN'",
+        "GANGSTA",
+        "THỂ NGHIỆM",
+        "KHÁM PHÁ",
+    ]
     # Host được phép cho embed video (chống SSRF / iframe lạ).
     allowed_embed_hosts: list[str] = [
         "youtube.com",

@@ -7,6 +7,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -22,6 +23,7 @@ from app.models.interaction_target import InteractionTarget
 from app.models.mixins import TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.album import Album
     from app.models.media import ContentMedia
 
 
@@ -61,6 +63,15 @@ class Content(TimestampMixin, Base):
         Enum(MusicProvider, native_enum=False, length=16)
     )
     cover_url: Mapped[str | None] = mapped_column(Text)
+    album_id: Mapped[int | None] = mapped_column(
+        ForeignKey("albums.id", ondelete="SET NULL"), index=True
+    )
+    track_no: Mapped[int | None] = mapped_column(SmallInteger)
+    # Eager because serializers read it after the async session context; selectin, not
+    # joined, since a LEFT JOIN breaks the SELECT ... FOR UPDATE loads on contents.
+    album: Mapped["Album | None"] = relationship(
+        back_populates="tracks", lazy="selectin"
+    )
 
     author_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
@@ -95,6 +106,19 @@ class Content(TimestampMixin, Base):
         CheckConstraint(
             "cover_url IS NULL OR cover_url LIKE 'https://%'",
             name="ck_contents_cover_https",
+        ),
+        CheckConstraint(
+            "album_id IS NULL OR type = 'music'", name="ck_contents_album_music"
+        ),
+        CheckConstraint(
+            "track_no IS NULL OR track_no > 0", name="ck_contents_track_no"
+        ),
+        Index(
+            "uq_contents_album_track",
+            "album_id",
+            "track_no",
+            unique=True,
+            postgresql_where=text("album_id IS NOT NULL AND track_no IS NOT NULL"),
         ),
         # published bắt buộc có published_at (db-review M1)
         CheckConstraint(

@@ -39,6 +39,8 @@ class ContentCreate(BaseModel):
     media: list[ContentMediaIn] = Field(default_factory=list, max_length=500)
     source_url: str | None = Field(default=None, max_length=1000)
     cover_url: str | None = Field(default=None, max_length=1000)
+    album_id: int | None = None
+    track_no: int | None = Field(default=None, ge=1, le=999)
 
     @field_validator("body")
     @classmethod
@@ -56,6 +58,8 @@ class ContentUpdate(BaseModel):
     # Explicit null clears; omitted keeps the stored value.
     source_url: str | None = Field(default=None, max_length=1000)
     cover_url: str | None = Field(default=None, max_length=1000)
+    album_id: int | None = None
+    track_no: int | None = Field(default=None, ge=1, le=999)
     expected_updated_at: datetime | None = None
 
     @field_validator("title", "body")
@@ -91,6 +95,8 @@ class ContentAdminRead(BaseModel):
     source_provider: MusicProvider | None = None
     player_url: str | None = None
     cover_url: str | None = None
+    album_id: int | None = None
+    track_no: int | None = None
 
     @classmethod
     def from_model(cls, content: Content) -> "ContentAdminRead":
@@ -127,4 +133,6 @@ class ContentAdminRead(BaseModel):
             source_provider=content.source_provider,
             player_url=player_url(content.source_url),
             cover_url=content.cover_url,
+            album_id=content.album_id,
+            track_no=content.track_no,
         )

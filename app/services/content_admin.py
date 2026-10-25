@@ -9,6 +9,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import get_settings
+from app.models.album import Album
 from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
 from app.models.media import ContentMedia, Media
@@ -154,12 +156,51 @@ def _link_fields(
     }
 
 
+def _check_genre(type_: ContentType, body: dict) -> None:
+    genre = body.get("category")
+    genres = get_settings().music_genres
+    if type_ == ContentType.music and genre and genre not in genres:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Thể loại phải thuộc: {', '.join(genres)}",
+        )
+
+
+async def _album_fields(
+    session: AsyncSession,
+    type_: ContentType,
+    album_id: int | None,
+    track_no: int | None,
+    exclude_id: int | None = None,
+) -> dict:
+    error = None
+    if album_id is not None and type_ != ContentType.music:
+        error = "Chỉ bài nhạc mới gán được album"
+    elif album_id is not None and await session.get(Album, album_id) is None:
+        error = "Album không tồn tại"
+    elif album_id is not None and track_no is not None:
+        taken = select(Content.id).where(
+            Content.album_id == album_id, Content.track_no == track_no
+        )
+        if exclude_id is not None:
+            taken = taken.where(Content.id != exclude_id)
+        if await session.scalar(taken) is not None:
+            error = f"Album đã có bài số {track_no}"
+    if error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error
+        )
+    return {"album_id": album_id, "track_no": track_no if album_id else None}
+
+
 async def create_content(
     session: AsyncSession, data: ContentCreate, author_id: int
 ) -> Content:
     validate_content_body(data.type, data.body)
     validate_embeds(data.body)
+    _check_genre(data.type, data.body)
     links = _link_fields(data.type, data.source_url, data.cover_url)
+    links |= await _album_fields(session, data.type, data.album_id, data.track_no)
     if data.type == ContentType.homepage:
         await _validate_homepage_avatars(
             session, data.body, {m.media_id for m in data.media}
@@ -223,6 +264,7 @@ async def update_content(
     if "body" in fields:
         validate_content_body(content.type, fields["body"])
         validate_embeds(fields["body"])
+        _check_genre(content.type, fields["body"])
         content.body = sanitize_body(fields["body"])
     if "source_url" in fields or "cover_url" in fields:
         links = _link_fields(
@@ -232,18 +274,28 @@ async def update_content(
         )
         for key, value in links.items():
             setattr(content, key, value)
+    if "album_id" in fields or "track_no" in fields:
+        placement = await _album_fields(
+            session,
+            content.type,
+            fields.get("album_id", content.album_id),
+            fields.get("track_no", content.track_no),
+            exclude_id=content.id,
+        )
+        for key, value in placement.items():
+            setattr(content, key, value)
     if "media" in fields:
         await _replace_media(session, content, data.media or [])
     # Media-only changes must also invalidate editor versions and catalog revision.
     content.updated_at = datetime.now(UTC)
     if content.status == ContentStatus.published:
         await session.flush()
-        session.expire(content, ["media_links"])
+        session.expire(content, ["media_links", "album"])
         content = await get_with_media(session, content.id)
         validate_for_publish(content)
     await session.commit()
     # expire_on_commit=False giữ media_links cũ trên object -> ép reload cho đúng
-    session.expire(content, ["media_links"])
+    session.expire(content, ["media_links", "album"])
     return await get_with_media(session, content.id)
 
 
@@ -336,6 +388,8 @@ async def duplicate(session: AsyncSession, content: Content, author_id: int) -> 
         source_url=content.source_url,
         source_provider=content.source_provider,
         cover_url=content.cover_url,
+        # track_no is unique within an album; the copy gets one when edited
+        album_id=content.album_id,
     )
     session.add(copy)
     try:
