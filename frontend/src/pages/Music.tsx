@@ -3,8 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useLiveApi } from "../api/useLiveApi";
 import type { ContentOut } from "../api/types";
-import { SINGLES } from "../albums";
-import { AlbumBrowser } from "../components/AlbumBrowser";
+import { albumOptions, SINGLES } from "../albums";
 import { Dropdown } from "../components/Dropdown";
 import { EmptyState } from "../components/EmptyState";
 import { SearchBar } from "../components/SearchBar";
@@ -29,7 +28,6 @@ export function Music() {
   const [query, setQuery] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [params, setParams] = useSearchParams();
-  const [browsing, setBrowsing] = useState(false);
   const albumSlug = params.get("album");
   const genre = params.get("genre");
   const player = usePlayer();
@@ -198,51 +196,8 @@ export function Music() {
                 label="Lọc theo album"
                 value={albumSlug ?? ""}
                 onChange={(value) => setFilter("album", value || null)}
-                options={[
-                  {
-                    value: "",
-                    label: "Tất cả bài hát",
-                    meta: `${library.length} bài`,
-                    image: null,
-                  },
-                  ...albumList.map((a) => ({
-                    value: a.slug,
-                    label: a.title,
-                    meta: [a.year, `${a.track_count} bài`]
-                      .filter(Boolean)
-                      .join(" · "),
-                    image: a.cover_url,
-                  })),
-                  ...(singles > 0
-                    ? [
-                        {
-                          value: SINGLES,
-                          label: "Bài lẻ",
-                          meta: `${singles} bài`,
-                          image: null,
-                        },
-                      ]
-                    : []),
-                ]}
+                options={albumOptions(albumList, library.length, singles)}
               />
-              <button
-                type="button"
-                className="music__tool music__tool--icon"
-                onClick={() => setBrowsing(true)}
-                disabled={albumList.length === 0}
-                aria-label="Xem tất cả album"
-                title="Xem tất cả album"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
               {activeGenres.length > 0 && (
                 <Dropdown
                   label="Lọc theo thể loại"
@@ -356,15 +311,6 @@ export function Music() {
             </ol>
           </aside>
         </section>
-      )}
-      {browsing && (
-        <AlbumBrowser
-          albums={albumList}
-          singles={singles}
-          selected={albumSlug}
-          onSelect={(slug) => setFilter("album", slug)}
-          onClose={() => setBrowsing(false)}
-        />
       )}
     </div>
   );

@@ -39,10 +39,13 @@ async def list_published(
     q: str | None = None,
     filters: dict[str, str | None] | None = None,
     album: str | None = None,
+    singles: bool = False,
 ) -> tuple[list[Content], int]:
     base = _apply_filters(_apply_search(_published(type_), q), filters)
     if album:
         base = base.join(Album, Content.album_id == Album.id).where(Album.slug == album)
+    elif singles:
+        base = base.where(Content.album_id.is_(None))
 
     if album and not q:
         order = (

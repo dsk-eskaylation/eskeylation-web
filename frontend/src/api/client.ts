@@ -43,6 +43,8 @@ export interface ListParams {
   q?: string
   category?: string
   artist?: string
+  album?: string
+  singles?: boolean
 }
 
 function buildQuery(params: ListParams): string {
@@ -52,6 +54,8 @@ function buildQuery(params: ListParams): string {
   if (params.q) sp.set('q', params.q)
   if (params.category) sp.set('category', params.category)
   if (params.artist) sp.set('artist', params.artist)
+  if (params.album) sp.set('album', params.album)
+  if (params.singles) sp.set('singles', 'true')
   const qs = sp.toString()
   return qs ? `?${qs}` : ''
 }

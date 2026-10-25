@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useDebounced } from '../api/useApi'
 import { useLiveApi } from '../api/useLiveApi'
@@ -8,6 +8,8 @@ import { Pagination } from '../components/Pagination'
 import { LibraryFeedback } from '../components/LibraryFeedback'
 import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
+import { Dropdown } from '../components/Dropdown'
+import { albumOptions, SINGLES } from '../albums'
 import { MusicCard } from '../components/MusicCard'
 import { VideoModal } from '../components/VideoModal'
 import { usePlayer, audioUrl, embedUrl } from '../player/PlayerContext'
@@ -19,14 +21,30 @@ export function MusicAll() {
   const [attempt, setAttempt] = useState(0)
   const [selected, setSelected] = useState<ContentOut | null>(null)
   const player = usePlayer()
+  const [params, setParams] = useSearchParams()
+  const album = params.get('album') ?? ''
+  const setAlbum = (value: string) =>
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous)
+        if (value) next.set('album', value)
+        else next.delete('album')
+        next.delete('page')
+        return next
+      },
+      { replace: true },
+    )
+  const albums = useLiveApi(() => api.albums(), [])
   const state = useLiveApi(
     () =>
       api.list('music', {
         q: debouncedQ || undefined,
         pageSize: 60,
         page,
+        album: album && album !== SINGLES ? album : undefined,
+        singles: album === SINGLES,
       }),
-    [debouncedQ, page, attempt],
+    [debouncedQ, page, album, attempt],
   )
   const items = state.status === 'success' ? state.data.items : []
   const pages = state.status === 'success' ? Math.max(1, state.data.pages) : 1
@@ -52,11 +70,19 @@ export function MusicAll() {
           Quay về
         </Link>
 
-        <SearchBar
-          value={q}
-          onChange={setQuery}
-          onClear={() => setQuery('')}
-        />
+        <div className="music-all__filters">
+          <SearchBar
+            value={q}
+            onChange={setQuery}
+            onClear={() => setQuery('')}
+          />
+          <Dropdown
+            label="Lọc theo album"
+            value={album}
+            onChange={setAlbum}
+            options={albumOptions(albums.status === 'success' ? albums.data : [])}
+          />
+        </div>
       </header>
 
       <LibraryFeedback status={state.status} empty={items.length === 0} query={q} noun="bài hát"

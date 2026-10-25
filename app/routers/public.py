@@ -52,10 +52,11 @@ async def _list_page(
     q: str | None,
     filters: dict[str, str | None] | None = None,
     album: str | None = None,
+    singles: bool = False,
 ) -> Page[ContentOut]:
     if get_settings().public_content_source == "drive":
         # The Drive catalog has no albums.
-        if album:
+        if album or singles:
             return Page.create(
                 items=[], total=0, page=pagination.page, page_size=pagination.page_size
             )
@@ -70,6 +71,7 @@ async def _list_page(
         q=q,
         filters=filters,
         album=album,
+        singles=singles,
     )
     return Page.create(
         items=[content_to_out(c) for c in items],
@@ -99,6 +101,7 @@ async def list_music(
     category: str | None = None,
     artist: str | None = None,
     album: str | None = Query(None, max_length=255),
+    singles: bool = Query(False, description="Chỉ bài chưa thuộc album"),
     session: AsyncSession | None = Depends(get_public_session),
 ) -> Page[ContentOut]:
     return await _list_page(
@@ -108,6 +111,7 @@ async def list_music(
         q,
         {"category": category, "artist": artist},
         album,
+        singles,
     )
 
 

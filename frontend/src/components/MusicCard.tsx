@@ -1,12 +1,6 @@
 import type { ContentOut } from '../api/types'
+import { coverUrl } from '../player/PlayerContext'
 import './MusicCard.css'
-
-function primary(c: ContentOut) {
-  const images = c.media.filter(
-    (m) => m.url && (m.mime_type.startsWith('image/') || m.preview_url),
-  )
-  return images.find((m) => m.is_primary) ?? images[0]
-}
 
 function timeParts(iso: string | null) {
   if (!iso) return { time: '', date: '' }
@@ -28,7 +22,7 @@ export function MusicCard({
 }) {
   const artist = typeof content.body.artist === 'string' ? content.body.artist : 'DSK'
   const { time, date } = timeParts(content.published_at)
-  const media = primary(content)
+  const cover = coverUrl(content)
 
   return (
     <button type="button" className="music-card" onClick={onClick}>
@@ -49,8 +43,8 @@ export function MusicCard({
         <span className="music-card__corner music-card__corner--bl" />
         <span className="music-card__corner music-card__corner--br" />
         <div className="music-card__thumb">
-          {media ? (
-            <img src={media.url} alt={media.alt_text ?? content.title} loading="lazy" />
+          {cover ? (
+            <img src={cover} alt={content.title} loading="lazy" />
           ) : (
             <span className="music-card__placeholder" />
           )}

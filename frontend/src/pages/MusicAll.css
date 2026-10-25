@@ -1,11 +1,27 @@
 /* Xem tất cả — Figma frame "Nghe nhạc/ Xem tất cả" #1:1167 (nội dung từ y=87) */
 .music-all {
-  padding-top: 160px;
+  padding-top: 136px;
   display: flex;
   flex-direction: column;
-  gap: 75px; /* Figma #1:1384 gap 75 */
+  gap: 32px;
 }
 
+.music-all__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1 1 520px;
+  justify-content: flex-end;
+}
+.music-all__filters .dropdown {
+  flex: 0 1 300px;
+}
+/* The control sits at the right edge here, so open the list leftwards */
+.music-all__filters .dropdown__list {
+  left: auto;
+  right: 0;
+  width: min(400px, calc(100vw - 32px));
+}
 .music-all__head {
   display: flex;
   align-items: center;

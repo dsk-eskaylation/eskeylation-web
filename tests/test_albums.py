@@ -132,3 +132,18 @@ async def test_genre_counts_cover_configured_genres(client, make_user, track_con
     genres = (await client.get("/api/music/genres")).json()
     counts = {g["name"]: g["count"] for g in genres}
     assert counts["LIFE RAP"] >= 1 and "LOVE RAP" in counts
+
+
+async def test_singles_filter_returns_only_tracks_without_album(
+    client, make_user, track_content, track_albums
+):
+    token = await token_for(client, make_user, UserRole.admin)
+    album = await _album(client, token, track_albums, title="Có album")
+    await _track(client, token, track_content, "Trong album", album["id"], 1)
+    single = await _track(client, token, track_content, "Bài lẻ test")
+    page = (
+        await client.get("/api/music", params={"singles": "true", "page_size": 100})
+    ).json()
+    titles = {t["title"] for t in page["items"]}
+    assert single["title"] in titles and "Trong album" not in titles
+    assert all(t["album"] is None for t in page["items"])
