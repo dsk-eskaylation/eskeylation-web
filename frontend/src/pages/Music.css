@@ -245,6 +245,10 @@
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
+.music__see-links {
+  display: flex;
+  gap: 16px;
+}
 .music__see-all {
   font-size: 14px;
   color: var(--color-text-muted);

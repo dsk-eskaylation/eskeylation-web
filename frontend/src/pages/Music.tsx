@@ -248,9 +248,14 @@ export function Music() {
             )}
             <div className="music__side-head">
               <span className="music__side-label">{items.length} bài hát</span>
-              <Link to="/music/all" className="music__see-all">
-                Xem dạng lưới
-              </Link>
+              <span className="music__see-links">
+                <Link to="/music/all" className="music__see-all">
+                  Xem dạng lưới
+                </Link>
+                <Link to="/music/all?view=albums" className="music__see-all">
+                  Xem lưới album
+                </Link>
+              </span>
             </div>
             {items.length === 0 && (
               <p role="status">Không tìm thấy bài hát. Hãy thử từ khóa khác.</p>
