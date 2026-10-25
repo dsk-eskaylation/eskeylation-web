@@ -5,6 +5,7 @@ import { useLiveApi } from "../api/useLiveApi";
 import type { ContentOut } from "../api/types";
 import { SINGLES } from "../albums";
 import { AlbumBrowser } from "../components/AlbumBrowser";
+import { Dropdown } from "../components/Dropdown";
 import { EmptyState } from "../components/EmptyState";
 import { SearchBar } from "../components/SearchBar";
 import {
@@ -60,7 +61,7 @@ export function Music() {
       (track) =>
         (!genre || track.body.category === genre) &&
         (!needle ||
-          searchable(`${track.title} ${artistOf(track)}`).includes(needle)),
+          searchable(track.title).includes(needle)),
     );
   }, [library, album, albumSlug, genre, query]);
   const singles = useMemo(
@@ -190,24 +191,40 @@ export function Music() {
               value={query}
               onChange={setQuery}
               onClear={() => setQuery("")}
-              placeholder="Tìm bài hát hoặc nghệ sĩ"
+              placeholder="Tìm bài hát"
             />
             <div className="music__toolbar">
-              <select
-                aria-label="Lọc theo album"
+              <Dropdown
+                label="Lọc theo album"
                 value={albumSlug ?? ""}
-                onChange={(e) => setFilter("album", e.target.value || null)}
-              >
-                <option value="">Tất cả album</option>
-                {albumList.map((a) => (
-                  <option key={a.slug} value={a.slug}>
-                    {a.year ? `${a.title} (${a.year})` : a.title}
-                  </option>
-                ))}
-                {singles > 0 && (
-                  <option value={SINGLES}>Bài lẻ · {singles} bài</option>
-                )}
-              </select>
+                onChange={(value) => setFilter("album", value || null)}
+                options={[
+                  {
+                    value: "",
+                    label: "Tất cả bài hát",
+                    meta: `${library.length} bài`,
+                    image: null,
+                  },
+                  ...albumList.map((a) => ({
+                    value: a.slug,
+                    label: a.title,
+                    meta: [a.year, `${a.track_count} bài`]
+                      .filter(Boolean)
+                      .join(" · "),
+                    image: a.cover_url,
+                  })),
+                  ...(singles > 0
+                    ? [
+                        {
+                          value: SINGLES,
+                          label: "Bài lẻ",
+                          meta: `${singles} bài`,
+                          image: null,
+                        },
+                      ]
+                    : []),
+                ]}
+              />
               <button
                 type="button"
                 className="music__tool music__tool--icon"
@@ -227,18 +244,19 @@ export function Music() {
                 </svg>
               </button>
               {activeGenres.length > 0 && (
-                <select
-                  aria-label="Lọc theo thể loại"
+                <Dropdown
+                  label="Lọc theo thể loại"
                   value={genre ?? ""}
-                  onChange={(e) => setFilter("genre", e.target.value || null)}
-                >
-                  <option value="">Tất cả thể loại</option>
-                  {activeGenres.map((g) => (
-                    <option key={g.name} value={g.name}>
-                      {g.name} · {g.count} bài
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setFilter("genre", value || null)}
+                  options={[
+                    { value: "", label: "Tất cả thể loại" },
+                    ...activeGenres.map((g) => ({
+                      value: g.name,
+                      label: g.name,
+                      meta: `${g.count} bài`,
+                    })),
+                  ]}
+                />
               )}
               <button
                 type="button"

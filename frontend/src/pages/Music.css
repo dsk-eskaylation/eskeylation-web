@@ -201,7 +201,6 @@
   flex-wrap: wrap;
   gap: 10px;
 }
-.music__toolbar select,
 .music__tool {
   height: 48px;
   border: 0.5px solid var(--color-border-strong);
@@ -211,19 +210,6 @@
   font: inherit;
   font-size: 14px;
   transition: border-color 0.25s ease, background-color 0.25s ease;
-}
-.music__toolbar select {
-  flex: 1 1 220px;
-  min-width: 0;
-  padding: 0 44px 0 20px;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a09f9f' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 18px center;
-  background-size: 16px;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  color-scheme: dark;
 }
 .music__tool {
   display: inline-flex;
@@ -245,12 +231,10 @@
   width: 18px;
   height: 18px;
 }
-.music__toolbar select:hover,
 .music__tool:hover:not(:disabled) {
   border-color: var(--color-text);
   background-color: var(--glass-hover);
 }
-.music__toolbar select:focus-visible,
 .music__tool:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.6);
   outline-offset: 2px;
