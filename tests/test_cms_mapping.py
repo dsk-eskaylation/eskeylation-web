@@ -108,9 +108,7 @@ async def test_music_from_link_publishes_without_audio_file(
         ("video", {"source_url": "https://youtu.be/abcdefghijk"}),
     ],
 )
-async def test_invalid_music_link_rejected_on_save(
-    client, make_user, kind, fields
-):
+async def test_invalid_music_link_rejected_on_save(client, make_user, kind, fields):
     token = await token_for(client, make_user, UserRole.admin)
     response = await client.post(
         "/admin/content",
