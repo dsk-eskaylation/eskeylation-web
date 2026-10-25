@@ -101,7 +101,10 @@ async def music_oembed(
         "author": author,
         "thumbnail_url": (
             thumbnail[:1000]
-            if isinstance(thumbnail, str) and thumbnail.startswith("https://")
+            if isinstance(thumbnail, str)
+            and thumbnail.startswith("https://")
+            # SoundCloud trả logo placeholder khi bài không có artwork
+            and "/images/fb_placeholder" not in thumbnail
             else None
         ),
     }
