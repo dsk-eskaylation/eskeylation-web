@@ -10,7 +10,7 @@ import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
 import { MusicCard } from '../components/MusicCard'
 import { VideoModal } from '../components/VideoModal'
-import { usePlayer, audioUrl } from '../player/PlayerContext'
+import { usePlayer, audioUrl, embedUrl } from '../player/PlayerContext'
 import './MusicAll.css'
 
 export function MusicAll() {
@@ -72,7 +72,11 @@ export function MusicAll() {
             <MusicCard
               content={item}
               onClick={() =>
-                audioUrl(item) ? player.playQueue(items, i) : setSelected(item)
+                audioUrl(item)
+                  ? player.playQueue(items, i)
+                  : embedUrl(item)
+                    ? player.playEmbed(item)
+                    : setSelected(item)
               }
             />
           </div>

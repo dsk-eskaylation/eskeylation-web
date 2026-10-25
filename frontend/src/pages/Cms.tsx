@@ -124,6 +124,8 @@ function Editor({
   const [audioUrl, setAudioUrl] = useState(bstr('audio_url'))
   const [lyrics, setLyrics] = useState(bstr('lyrics'))
   const [embedUrl, setEmbedUrl] = useState(bstr('embed_url'))
+  const [coverLink, setCoverLink] = useState(bstr('cover_url'))
+  const [lookup, setLookup] = useState<'idle' | 'busy' | string>('idle')
   const [author, setAuthor] = useState(bstr('author'))
   // Trang chủ: giới thiệu, các dòng "bảo trì", và các nhóm credits (vai trò + tên)
   const [intro, setIntro] = useState(bstr('intro'))
@@ -222,6 +224,8 @@ function Editor({
     if (type === 'music') {
       set('artist', artist)
       set('audio_url', audioUrl)
+      set('embed_url', embedUrl)
+      set('cover_url', coverLink)
       set('lyrics', lyrics)
     } else if (type === 'video') {
       set('artist', artist)
@@ -349,6 +353,51 @@ function Editor({
                 />
               </label>
 
+            </div>
+            <div className="cms-field">
+              <label htmlFor="cms-music-link">Link SoundCloud / YouTube (tùy chọn)</label>
+              <div className="cms-editor__row">
+                <input
+                  id="cms-music-link"
+                  value={embedUrl}
+                  onChange={(e) => setEmbedUrl(e.target.value)}
+                  placeholder="https://soundcloud.com/... hoặc https://youtu.be/..."
+                />
+                <button
+                  type="button"
+                  className="page-action"
+                  disabled={!embedUrl.trim() || lookup === 'busy'}
+                  onClick={async () => {
+                    setLookup('busy')
+                    try {
+                      const info = await adminApi.oembed(embedUrl.trim())
+                      if (!title.trim() && info.title) setTitle(info.title)
+                      if (!artist.trim() && info.author) setArtist(info.author)
+                      if (info.thumbnail_url) setCoverLink(info.thumbnail_url)
+                      setLookup('idle')
+                    } catch (err) {
+                      setLookup(err instanceof Error ? err.message : 'Không lấy được thông tin bài')
+                    }
+                  }}
+                >
+                  {lookup === 'busy' ? 'Đang lấy…' : 'Lấy thông tin'}
+                </button>
+              </div>
+              {lookup !== 'idle' && lookup !== 'busy' && (
+                <small className="cms-field__hint" role="alert">{lookup}</small>
+              )}
+              <small className="cms-field__hint">
+                Dán link là đăng được, không cần tải MP3. Bài phát bằng trình phát của SoundCloud/YouTube.
+                Bấm “Lấy thông tin” để tự điền tên bài, nghệ sĩ (nếu đang trống) và ảnh bìa.
+              </small>
+              {coverLink && (
+                <div className="cms-editor__row">
+                  <img src={coverLink} alt="Ảnh bìa" width={64} height={64} style={{ objectFit: 'cover', borderRadius: 8 }} />
+                  <button type="button" className="page-action" onClick={() => setCoverLink('')}>
+                    Bỏ ảnh bìa
+                  </button>
+                </div>
+              )}
             </div>
             <label className="cms-field">
               <span>Link nhạc có sẵn (tùy chọn)</span>

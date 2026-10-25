@@ -2,6 +2,7 @@
 
 import asyncio
 
+import httpx
 import pytest
 from sqlalchemy import delete, select
 
@@ -18,9 +19,19 @@ from tests.test_cms_api import _create, auth, token_for
     [
         ("music", {"artist": "Fake"}, None),
         ("music", {"artist": "Fake", "audio_url": "javascript:alert(1)"}, None),
+        # Trang người dùng SoundCloud, không phải một bài
         (
             "music",
-            {"artist": "Fake", "embed_url": "https://youtu.be/abcdefghijk"},
+            {"artist": "Fake", "embed_url": "https://soundcloud.com/sdrecords-vn"},
+            None,
+        ),
+        (
+            "music",
+            {
+                "artist": "Fake",
+                "embed_url": "https://youtu.be/abcdefghijk",
+                "cover_url": "http://insecure.example/a.jpg",
+            },
             None,
         ),
         ("music", {"artist": "   "}, "audio/mpeg"),
@@ -51,6 +62,76 @@ async def test_invalid_source_can_save_draft_but_cannot_publish(
     assert (
         await client.get(f"/admin/content/{content['id']}", headers=auth(token))
     ).json()["status"] == "draft"
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://soundcloud.com/sdrecords-vn/dsk-lon-roi",
+        "https://youtu.be/abcdefghijk",
+    ],
+)
+async def test_music_link_soundcloud_youtube_publish_khong_can_mp3(
+    client, make_user, track_content, link
+):
+    token = await token_for(client, make_user, UserRole.admin)
+    content = await _create(
+        client,
+        token,
+        track_content,
+        type="music",
+        title="Bài từ link",
+        body={
+            "artist": "DSK",
+            "embed_url": link,
+            "cover_url": "https://i1.sndcdn.com/artworks-x-t500x500.jpg",
+        },
+        media=[],
+    )
+    response = await client.post(
+        f"/admin/content/{content['id']}/publish", headers=auth(token)
+    )
+    assert response.status_code == 200
+    assert response.json()["body"]["embed_url"] == link
+
+
+async def test_oembed_dien_form_tu_link_soundcloud(client, make_user, monkeypatch):
+    from app.services import drive_http
+
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url)
+        return httpx.Response(
+            200,
+            json={
+                "title": "Lớn rồi by S.D Records",
+                "author_name": "S.D Records",
+                "thumbnail_url": "https://i1.sndcdn.com/artworks-a-t500x500.jpg",
+            },
+        )
+
+    fake = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    monkeypatch.setattr(drive_http, "client", lambda: fake)
+    token = await token_for(client, make_user, UserRole.admin)
+    link = "https://soundcloud.com/sdrecords-vn/dsk-lon-roi"
+    response = await client.get(
+        "/admin/content/oembed", params={"url": link}, headers=auth(token)
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "title": "Lớn rồi",
+        "author": "S.D Records",
+        "thumbnail_url": "https://i1.sndcdn.com/artworks-a-t500x500.jpg",
+    }
+    # Chỉ gọi endpoint oEmbed cố định, link người dùng nằm trong query
+    assert calls[0].host == "soundcloud.com" and calls[0].path == "/oembed"
+    bad = await client.get(
+        "/admin/content/oembed",
+        params={"url": "http://169.254.169.254/latest/meta-data"},
+        headers=auth(token),
+    )
+    assert bad.status_code == 422 and len(calls) == 1
 
 
 @pytest.mark.parametrize(

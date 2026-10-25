@@ -11,6 +11,8 @@ import {
 import type { ContentOut } from '../api/types'
 import { api } from '../api/client'
 import { useCatalogRevision } from '../api/useLiveApi'
+import { toMusicEmbedUrl } from '../utils/video'
+import { EmbedDock } from '../components/EmbedDock'
 
 export type RepeatMode = 'off' | 'all' | 'one'
 
@@ -29,7 +31,17 @@ export function coverUrl(c: ContentOut): string | null {
       (m.mime_type.startsWith('audio/') && m.stream_url && m.url !== m.stream_url),
   )
   const primary = images.find((m) => m.is_primary) ?? images[0]
-  return primary?.preview_url || primary?.url || null
+  const linked = c.body.cover_url
+  return (
+    primary?.preview_url ||
+    primary?.url ||
+    (typeof linked === 'string' && linked.startsWith('https://') ? linked : null)
+  )
+}
+
+/** Bài thêm bằng link SoundCloud/YouTube (không có mp3) -> URL player nhúng. */
+export function embedUrl(c: ContentOut): string | null {
+  return audioUrl(c) ? null : toMusicEmbedUrl(c.body.embed_url)
 }
 
 export function artistOf(c: ContentOut): string {
@@ -65,6 +77,10 @@ interface PlayerState {
   promptRemote: () => void
   /** Thiết bị phát từ xa có khả dụng không (Cast/AirPlay...). */
   remoteAvailable: boolean
+  /** Bài đang phát qua player nhúng SoundCloud/YouTube (ngoài hàng chờ mp3). */
+  embed: ContentOut | null
+  playEmbed: (track: ContentOut) => void
+  closeEmbed: () => void
 }
 
 const PlayerCtx = createContext<PlayerState | null>(null)
@@ -83,6 +99,7 @@ export function usePlayer(): PlayerState {
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [queue, setQueue] = useState<ContentOut[]>([])
+  const [embed, setEmbed] = useState<ContentOut | null>(null)
   const [index, setIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -205,6 +222,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       )
       historyRef.current = []
       setError(null)
+      setEmbed(null)
       setQueue(playable)
       setIndex(mapped)
       setIsPlaying(true)
@@ -223,6 +241,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setIsPlaying(false)
     } else {
       if (audio.error) audio.load()
+      setEmbed(null)
       startTrack(current)
       setIsPlaying(true)
     }
@@ -317,6 +336,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setQueue([])
     setIndex(0)
   }, [])
+
+  // Chỉ một nguồn phát tại một thời điểm: mở player nhúng thì dừng mp3
+  const playEmbed = useCallback(
+    (track: ContentOut) => {
+      pause()
+      setEmbed(track)
+    },
+    [pause],
+  )
+  const closeEmbed = useCallback(() => setEmbed(null), [])
 
   // Đổi bài -> nạp src mới. Chỉ chạy khi id bài đổi (không phải khi play/pause).
   useEffect(() => {
@@ -445,6 +474,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       removeFromQueue,
       promptRemote,
       remoteAvailable,
+      embed,
+      playEmbed,
+      closeEmbed,
     }),
     [
       queue,
@@ -470,6 +502,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       removeFromQueue,
       promptRemote,
       remoteAvailable,
+      embed,
+      playEmbed,
+      closeEmbed,
     ],
   )
 
@@ -507,6 +542,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           }
           onEnded={handleEnded}
         />
+        {embed && embedUrl(embed) && (
+          <EmbedDock
+            src={embedUrl(embed)!}
+            title={embed.title}
+            artist={artistOf(embed)}
+            onClose={closeEmbed}
+          />
+        )}
       </ProgressCtx.Provider>
     </PlayerCtx.Provider>
   )

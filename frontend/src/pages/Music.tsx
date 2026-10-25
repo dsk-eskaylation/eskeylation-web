@@ -10,6 +10,7 @@ import {
   audioUrl,
   coverUrl,
   artistOf,
+  embedUrl,
 } from "../player/PlayerContext";
 import "./Music.css";
 
@@ -36,11 +37,15 @@ export function Music() {
         )
       : library;
   }, [library, query]);
-  const featured = player.current ?? library[0];
-  const isCurrent = (track: ContentOut) => player.current?.id === track.id;
+  const featured = player.embed ?? player.current ?? library[0];
+  const isCurrent = (track: ContentOut) =>
+    (player.embed ?? player.current)?.id === track.id;
 
   function activate(track: ContentOut) {
-    if (!audioUrl(track)) return;
+    if (!audioUrl(track)) {
+      if (embedUrl(track)) player.playEmbed(track);
+      return;
+    }
     if (isCurrent(track)) player.toggle();
     else {
       const queue = items.some((item) => item.id === track.id)
@@ -93,7 +98,7 @@ export function Music() {
                 type="button"
                 className="music__cover-play"
                 onClick={() => activate(featured)}
-                disabled={!audioUrl(featured)}
+                disabled={!audioUrl(featured) && !embedUrl(featured)}
                 aria-label={`${isCurrent(featured) && player.isPlaying ? "Tạm dừng" : "Phát"} ${featured.title}`}
               >
                 {isCurrent(featured) && player.isPlaying ? (
@@ -147,7 +152,7 @@ export function Music() {
             <ol className="music__list">
               {items.map((track, index) => {
                 const active = isCurrent(track);
-                const playable = Boolean(audioUrl(track));
+                const playable = Boolean(audioUrl(track) || embedUrl(track));
                 return (
                   <li key={track.id}>
                     <button

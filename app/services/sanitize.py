@@ -13,7 +13,7 @@ settings = get_settings()
 
 # Key trong body được coi là URL embed video — phải nằm trong host whitelist.
 _EMBED_KEYS = ("embed_url", "video_url")
-_URL_KEYS = {"audio_url", "embed_url", "video_url"}
+_URL_KEYS = {"audio_url", "embed_url", "video_url", "cover_url"}
 _TEXT_KEYS = {
     "artist",
     "author",
@@ -53,6 +53,21 @@ def playable_video_embed(value: object) -> bool:
         return bool(re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id))
     except ValueError:
         return False
+
+
+def playable_music_embed(value: object) -> bool:
+    """Link nhạc phát bằng player nhúng: SoundCloud <user>/<track>, YouTube/Vimeo."""
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").removeprefix("www.").removeprefix("m.")
+    if host == "soundcloud.com":
+        segments = [p for p in parsed.path.split("/") if p]
+        return parsed.scheme in {"http", "https"} and len(segments) >= 2
+    return playable_video_embed(value)
 
 
 def sanitize_summary(text: str | None) -> str | None:

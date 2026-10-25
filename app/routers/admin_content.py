@@ -1,6 +1,9 @@
 """CMS — quản lý nội dung (tạo/sửa/workflow). Yêu cầu đăng nhập (RBAC)."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from urllib.parse import urlparse
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,9 +16,20 @@ from app.models.media import ContentMedia
 from app.models.user import User
 from app.schemas.admin import ContentAdminRead, ContentCreate, ContentUpdate
 from app.schemas.pagination import Page
-from app.services import activity, content_admin
+from app.services import activity, content_admin, drive_http
+from app.services.ratelimit import check_rate
+from app.services.sanitize import playable_music_embed
 
 router = APIRouter(prefix="/admin/content", tags=["cms"])
+
+# Endpoint oEmbed CỐ ĐỊNH theo host; link người dùng chỉ đi vào query -> không SSRF.
+_OEMBED_ENDPOINTS = {
+    "soundcloud.com": "https://soundcloud.com/oembed",
+    "youtube.com": "https://www.youtube.com/oembed",
+    "youtu.be": "https://www.youtube.com/oembed",
+    "vimeo.com": "https://vimeo.com/api/oembed.json",
+    "player.vimeo.com": "https://vimeo.com/api/oembed.json",
+}
 
 # Tạo/sửa: cả nhóm biên tập. Publish/xoá: chỉ editor + admin.
 _editor = require_role(UserRole.admin, UserRole.editor, UserRole.author)
@@ -41,6 +55,56 @@ def _ensure_can_edit(content: Content, user: User) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Chỉ được thao tác trên nội dung của chính mình",
         )
+
+
+@router.get("/oembed")
+async def music_oembed(
+    url: str = Query(max_length=500),
+    user: User = Depends(_editor),
+) -> dict[str, str | None]:
+    """Tên bài / người đăng / ảnh bìa từ link SoundCloud/YouTube để điền form."""
+    if not playable_music_embed(url):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Chỉ hỗ trợ link SoundCloud hoặc YouTube",
+        )
+    await check_rate(f"oembed:{user.id}", limit=30)
+    host = (urlparse(url).hostname or "").removeprefix("www.").removeprefix("m.")
+    try:
+        response = await drive_http.client().get(
+            _OEMBED_ENDPOINTS[host], params={"url": url, "format": "json"}
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Không kết nối được tới SoundCloud/YouTube",
+        ) from exc
+    if response.status_code != 200 or len(response.content) > 100_000:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Không tìm thấy bài, hoặc bài đang để riêng tư",
+        )
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Dữ liệu trả về không hợp lệ",
+        ) from exc
+    author = str(data.get("author_name") or "")[:200]
+    title = str(data.get("title") or "")[:300]
+    # SoundCloud trả "Tên bài by Người đăng"
+    title = title.removesuffix(f" by {author}") if author else title
+    thumbnail = data.get("thumbnail_url")
+    return {
+        "title": title,
+        "author": author,
+        "thumbnail_url": (
+            thumbnail[:1000]
+            if isinstance(thumbnail, str) and thumbnail.startswith("https://")
+            else None
+        ),
+    }
 
 
 @router.post("", response_model=ContentAdminRead, status_code=status.HTTP_201_CREATED)

@@ -16,6 +16,7 @@ from app.schemas.admin import ContentCreate, ContentMediaIn, ContentUpdate
 from app.schemas.content_body import validate_content_body
 from app.services import moderation
 from app.services.sanitize import (
+    playable_music_embed,
     playable_video_embed,
     sanitize_body,
     sanitize_summary,
@@ -236,8 +237,19 @@ def validate_for_publish(content: Content) -> None:
                 ) or (audio_url.startswith("/") and not audio_url.startswith("//"))
             except ValueError:
                 pass
-        if not any(m.startswith("audio/") for m in mimes) and not valid_url:
-            errors.append("Nhạc cần file âm thanh hoặc link âm thanh HTTP/HTTPS hợp lệ")
+        if (
+            not any(m.startswith("audio/") for m in mimes)
+            and not valid_url
+            and not playable_music_embed(content.body.get("embed_url"))
+        ):
+            errors.append(
+                "Nhạc cần file âm thanh, link MP3 hoặc link SoundCloud/YouTube hợp lệ"
+            )
+        cover_url = content.body.get("cover_url")
+        if cover_url and not (
+            isinstance(cover_url, str) and cover_url.startswith("https://")
+        ):
+            errors.append("Ảnh bìa phải là link HTTPS")
     if content.type == ContentType.video and not (
         any(m.startswith("video/") for m in mimes)
         or playable_video_embed(content.body.get("embed_url"))

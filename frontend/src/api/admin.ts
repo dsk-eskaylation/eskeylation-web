@@ -174,6 +174,12 @@ export const adminApi = {
     return request<Page<ContentAdmin>>(`/admin/content?${sp}`)
   },
 
+  /** Tên bài / người đăng / ảnh bìa từ link SoundCloud hoặc YouTube. */
+  oembed: (url: string) =>
+    request<{ title: string; author: string; thumbnail_url: string | null }>(
+      `/admin/content/oembed?url=${encodeURIComponent(url)}`,
+    ),
+
   create: (payload: ContentPayload & { type: ContentType; title: string }) =>
     request<ContentAdmin>('/admin/content', jsonInit('POST', payload)),
 
