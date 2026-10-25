@@ -147,7 +147,7 @@
   color: var(--color-text-muted);
 }
 
-/* Vuốt ngang để chuyển ảnh: giữ cuộn dọc, chặn kéo/bôi đen ảnh mặc định */
+/* Native image drag/selection swallows pointerup and breaks the swipe */
 .photos__viewer {
   touch-action: pan-y;
   user-select: none;

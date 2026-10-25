@@ -110,8 +110,6 @@ class Settings(BaseSettings):
         "youtu.be",
         "vimeo.com",
         "player.vimeo.com",
-        "soundcloud.com",
-        "m.soundcloud.com",
     ]
 
 

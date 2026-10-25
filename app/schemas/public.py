@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, PrivateAttr
 
-from app.models.enums import ContentType
+from app.models.enums import ContentType, MusicProvider
 
 
 class MediaOut(BaseModel):
@@ -32,5 +32,9 @@ class ContentOut(BaseModel):
     body: dict
     published_at: datetime | None = None
     media: list[MediaOut] = []
+    source_url: str | None = None
+    source_provider: MusicProvider | None = None
+    player_url: str | None = None
+    cover_url: str | None = None
     # Chỉ tồn tại trong bộ nhớ backend, không nằm trong schema/JSON public.
     _drive: dict = PrivateAttr(default_factory=dict)

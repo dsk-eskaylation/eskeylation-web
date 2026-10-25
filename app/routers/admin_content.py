@@ -1,7 +1,5 @@
 """CMS — quản lý nội dung (tạo/sửa/workflow). Yêu cầu đăng nhập (RBAC)."""
 
-from urllib.parse import urlparse
-
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -11,24 +9,22 @@ from sqlalchemy.orm import selectinload
 from app.db import get_session
 from app.dependencies import PaginationParams, require_role
 from app.models.content import Content
-from app.models.enums import ContentStatus, ContentType, UserRole
+from app.models.enums import ContentStatus, ContentType, MusicProvider, UserRole
 from app.models.media import ContentMedia
 from app.models.user import User
 from app.schemas.admin import ContentAdminRead, ContentCreate, ContentUpdate
 from app.schemas.pagination import Page
 from app.services import activity, content_admin, drive_http
 from app.services.ratelimit import check_rate
-from app.services.sanitize import playable_music_embed
+from app.services.sanitize import music_source
 
 router = APIRouter(prefix="/admin/content", tags=["cms"])
 
-# Endpoint oEmbed CỐ ĐỊNH theo host; link người dùng chỉ đi vào query -> không SSRF.
+# Fixed endpoints only; the user's URL is just a query param, never fetched (no SSRF).
 _OEMBED_ENDPOINTS = {
-    "soundcloud.com": "https://soundcloud.com/oembed",
-    "youtube.com": "https://www.youtube.com/oembed",
-    "youtu.be": "https://www.youtube.com/oembed",
-    "vimeo.com": "https://vimeo.com/api/oembed.json",
-    "player.vimeo.com": "https://vimeo.com/api/oembed.json",
+    MusicProvider.soundcloud: "https://soundcloud.com/oembed",
+    MusicProvider.youtube: "https://www.youtube.com/oembed",
+    MusicProvider.vimeo: "https://vimeo.com/api/oembed.json",
 }
 
 # Tạo/sửa: cả nhóm biên tập. Publish/xoá: chỉ editor + admin.
@@ -62,17 +58,16 @@ async def music_oembed(
     url: str = Query(max_length=500),
     user: User = Depends(_editor),
 ) -> dict[str, str | None]:
-    """Tên bài / người đăng / ảnh bìa từ link SoundCloud/YouTube để điền form."""
-    if not playable_music_embed(url):
+    found = music_source(url)
+    if found is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Chỉ hỗ trợ link SoundCloud hoặc YouTube",
         )
     await check_rate(f"oembed:{user.id}", limit=30)
-    host = (urlparse(url).hostname or "").removeprefix("www.").removeprefix("m.")
     try:
         response = await drive_http.client().get(
-            _OEMBED_ENDPOINTS[host], params={"url": url, "format": "json"}
+            _OEMBED_ENDPOINTS[found[0]], params={"url": url, "format": "json"}
         )
     except httpx.HTTPError as exc:
         raise HTTPException(
@@ -93,7 +88,7 @@ async def music_oembed(
         ) from exc
     author = str(data.get("author_name") or "")[:200]
     title = str(data.get("title") or "")[:300]
-    # SoundCloud trả "Tên bài by Người đăng"
+    # SoundCloud titles read "<track> by <uploader>"
     title = title.removesuffix(f" by {author}") if author else title
     thumbnail = data.get("thumbnail_url")
     return {
@@ -103,7 +98,7 @@ async def music_oembed(
             thumbnail[:1000]
             if isinstance(thumbnail, str)
             and thumbnail.startswith("https://")
-            # SoundCloud trả logo placeholder khi bài không có artwork
+            # SoundCloud's stand-in logo for tracks without artwork
             and "/images/fb_placeholder" not in thumbnail
             else None
         ),

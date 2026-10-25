@@ -16,7 +16,7 @@ from app.schemas.admin import ContentCreate, ContentMediaIn, ContentUpdate
 from app.schemas.content_body import validate_content_body
 from app.services import moderation
 from app.services.sanitize import (
-    playable_music_embed,
+    music_source,
     playable_video_embed,
     sanitize_body,
     sanitize_summary,
@@ -130,11 +130,36 @@ async def _validate_homepage_avatars(
             raise HTTPException(422, "Ảnh shout out cần là file ảnh hợp lệ")
 
 
+def _link_fields(
+    type_: ContentType, source_url: str | None, cover_url: str | None
+) -> dict:
+    source_url = (source_url or "").strip() or None
+    cover_url = (cover_url or "").strip() or None
+    found = music_source(source_url) if source_url else None
+    error = None
+    if source_url and type_ != ContentType.music:
+        error = "Chỉ bài nhạc mới thêm được bằng link"
+    elif source_url and found is None:
+        error = "Link phải là một bài SoundCloud hoặc video YouTube/Vimeo"
+    elif cover_url and not cover_url.startswith("https://"):
+        error = "Ảnh bìa phải là link HTTPS"
+    if error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error
+        )
+    return {
+        "source_url": source_url,
+        "source_provider": found[0] if found else None,
+        "cover_url": cover_url,
+    }
+
+
 async def create_content(
     session: AsyncSession, data: ContentCreate, author_id: int
 ) -> Content:
     validate_content_body(data.type, data.body)
     validate_embeds(data.body)
+    links = _link_fields(data.type, data.source_url, data.cover_url)
     if data.type == ContentType.homepage:
         await _validate_homepage_avatars(
             session, data.body, {m.media_id for m in data.media}
@@ -149,6 +174,7 @@ async def create_content(
         body=sanitize_body(data.body),
         status=ContentStatus.draft,
         author_id=author_id,
+        **links,
     )
     session.add(content)
     try:
@@ -198,6 +224,14 @@ async def update_content(
         validate_content_body(content.type, fields["body"])
         validate_embeds(fields["body"])
         content.body = sanitize_body(fields["body"])
+    if "source_url" in fields or "cover_url" in fields:
+        links = _link_fields(
+            content.type,
+            fields.get("source_url", content.source_url),
+            fields.get("cover_url", content.cover_url),
+        )
+        for key, value in links.items():
+            setattr(content, key, value)
     if "media" in fields:
         await _replace_media(session, content, data.media or [])
     # Media-only changes must also invalidate editor versions and catalog revision.
@@ -240,16 +274,11 @@ def validate_for_publish(content: Content) -> None:
         if (
             not any(m.startswith("audio/") for m in mimes)
             and not valid_url
-            and not playable_music_embed(content.body.get("embed_url"))
+            and not content.source_url
         ):
             errors.append(
                 "Nhạc cần file âm thanh, link MP3 hoặc link SoundCloud/YouTube hợp lệ"
             )
-        cover_url = content.body.get("cover_url")
-        if cover_url and not (
-            isinstance(cover_url, str) and cover_url.startswith("https://")
-        ):
-            errors.append("Ảnh bìa phải là link HTTPS")
     if content.type == ContentType.video and not (
         any(m.startswith("video/") for m in mimes)
         or playable_video_embed(content.body.get("embed_url"))
@@ -304,6 +333,9 @@ async def duplicate(session: AsyncSession, content: Content, author_id: int) -> 
         body=dict(content.body),
         status=ContentStatus.draft,
         author_id=author_id,
+        source_url=content.source_url,
+        source_provider=content.source_provider,
+        cover_url=content.cover_url,
     )
     session.add(copy)
     try:

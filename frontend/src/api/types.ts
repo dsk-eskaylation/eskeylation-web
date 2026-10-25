@@ -25,6 +25,10 @@ export interface ContentOut {
   body: Record<string, unknown>
   published_at: string | null
   media: MediaOut[]
+  source_url?: string | null
+  source_provider?: 'soundcloud' | 'youtube' | 'vimeo' | null
+  player_url?: string | null
+  cover_url?: string | null
 }
 
 export interface Page<T> {

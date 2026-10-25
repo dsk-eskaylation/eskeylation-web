@@ -11,7 +11,6 @@ import {
 import type { ContentOut } from '../api/types'
 import { api } from '../api/client'
 import { useCatalogRevision } from '../api/useLiveApi'
-import { toMusicEmbedUrl } from '../utils/video'
 import { EmbedDock } from '../components/EmbedDock'
 
 export type RepeatMode = 'off' | 'all' | 'one'
@@ -31,17 +30,11 @@ export function coverUrl(c: ContentOut): string | null {
       (m.mime_type.startsWith('audio/') && m.stream_url && m.url !== m.stream_url),
   )
   const primary = images.find((m) => m.is_primary) ?? images[0]
-  const linked = c.body.cover_url
-  return (
-    primary?.preview_url ||
-    primary?.url ||
-    (typeof linked === 'string' && linked.startsWith('https://') ? linked : null)
-  )
+  return primary?.preview_url || primary?.url || c.cover_url || null
 }
 
-/** Bài thêm bằng link SoundCloud/YouTube (không có mp3) -> URL player nhúng. */
 export function embedUrl(c: ContentOut): string | null {
-  return audioUrl(c) ? null : toMusicEmbedUrl(c.body.embed_url)
+  return audioUrl(c) ? null : (c.player_url ?? null)
 }
 
 export function artistOf(c: ContentOut): string {
@@ -77,7 +70,7 @@ interface PlayerState {
   promptRemote: () => void
   /** Thiết bị phát từ xa có khả dụng không (Cast/AirPlay...). */
   remoteAvailable: boolean
-  /** Bài đang phát qua player nhúng SoundCloud/YouTube (ngoài hàng chờ mp3). */
+  /** Not part of `queue`: next/prev/repeat never reach embed tracks. */
   embed: ContentOut | null
   playEmbed: (track: ContentOut) => void
   closeEmbed: () => void
@@ -337,7 +330,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setIndex(0)
   }, [])
 
-  // Chỉ một nguồn phát tại một thời điểm: mở player nhúng thì dừng mp3
   const playEmbed = useCallback(
     (track: ContentOut) => {
       pause()

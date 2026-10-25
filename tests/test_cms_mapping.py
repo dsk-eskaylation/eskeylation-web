@@ -19,19 +19,9 @@ from tests.test_cms_api import _create, auth, token_for
     [
         ("music", {"artist": "Fake"}, None),
         ("music", {"artist": "Fake", "audio_url": "javascript:alert(1)"}, None),
-        # Trang người dùng SoundCloud, không phải một bài
         (
             "music",
-            {"artist": "Fake", "embed_url": "https://soundcloud.com/sdrecords-vn"},
-            None,
-        ),
-        (
-            "music",
-            {
-                "artist": "Fake",
-                "embed_url": "https://youtu.be/abcdefghijk",
-                "cover_url": "http://insecure.example/a.jpg",
-            },
+            {"artist": "Fake", "embed_url": "https://youtu.be/abcdefghijk"},
             None,
         ),
         ("music", {"artist": "   "}, "audio/mpeg"),
@@ -71,31 +61,66 @@ async def test_invalid_source_can_save_draft_but_cannot_publish(
         "https://youtu.be/abcdefghijk",
     ],
 )
-async def test_music_link_soundcloud_youtube_publish_khong_can_mp3(
+async def test_music_from_link_publishes_without_audio_file(
     client, make_user, track_content, link
 ):
     token = await token_for(client, make_user, UserRole.admin)
+    cover = "https://i1.sndcdn.com/artworks-x-t500x500.jpg"
     content = await _create(
         client,
         token,
         track_content,
         type="music",
         title="Bài từ link",
-        body={
-            "artist": "DSK",
-            "embed_url": link,
-            "cover_url": "https://i1.sndcdn.com/artworks-x-t500x500.jpg",
-        },
-        media=[],
+        body={"artist": "DSK"},
+        source_url=link,
+        cover_url=cover,
     )
     response = await client.post(
         f"/admin/content/{content['id']}/publish", headers=auth(token)
     )
     assert response.status_code == 200
-    assert response.json()["body"]["embed_url"] == link
+    data = response.json()
+    assert data["source_url"] == link
+    provider = "soundcloud" if "soundcloud" in link else "youtube"
+    assert data["source_provider"] == provider
+    assert data["player_url"].startswith(
+        ("https://w.soundcloud.com/player/", "https://www.youtube.com/embed/")
+    )
+    public = (await client.get(f"/api/music/{data['slug']}")).json()
+    assert public["player_url"] == data["player_url"]
+    assert public["cover_url"] == cover
+
+    cleared = await client.patch(
+        f"/admin/content/{content['id']}",
+        json={"source_url": None},
+        headers=auth(token),
+    )
+    assert cleared.status_code == 422
 
 
-async def test_oembed_dien_form_tu_link_soundcloud(client, make_user, monkeypatch):
+@pytest.mark.parametrize(
+    ("kind", "fields"),
+    [
+        ("music", {"source_url": "https://soundcloud.com/sdrecords-vn"}),
+        ("music", {"source_url": "https://evil.example/track"}),
+        ("music", {"cover_url": "http://insecure.example/a.jpg"}),
+        ("video", {"source_url": "https://youtu.be/abcdefghijk"}),
+    ],
+)
+async def test_invalid_music_link_rejected_on_save(
+    client, make_user, kind, fields
+):
+    token = await token_for(client, make_user, UserRole.admin)
+    response = await client.post(
+        "/admin/content",
+        json={"type": kind, "title": "Link lỗi", "body": {"artist": "x"}, **fields},
+        headers=auth(token),
+    )
+    assert response.status_code == 422
+
+
+async def test_oembed_prefills_form_from_soundcloud(client, make_user, monkeypatch):
     from app.services import drive_http
 
     calls = []
@@ -124,7 +149,6 @@ async def test_oembed_dien_form_tu_link_soundcloud(client, make_user, monkeypatc
         "author": "S.D Records",
         "thumbnail_url": "https://i1.sndcdn.com/artworks-a-t500x500.jpg",
     }
-    # Chỉ gọi endpoint oEmbed cố định, link người dùng nằm trong query
     assert calls[0].host == "soundcloud.com" and calls[0].path == "/oembed"
     bad = await client.get(
         "/admin/content/oembed",

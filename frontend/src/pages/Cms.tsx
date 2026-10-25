@@ -124,7 +124,8 @@ function Editor({
   const [audioUrl, setAudioUrl] = useState(bstr('audio_url'))
   const [lyrics, setLyrics] = useState(bstr('lyrics'))
   const [embedUrl, setEmbedUrl] = useState(bstr('embed_url'))
-  const [coverLink, setCoverLink] = useState(bstr('cover_url'))
+  const [sourceUrl, setSourceUrl] = useState(initial?.source_url ?? '')
+  const [coverLink, setCoverLink] = useState(initial?.cover_url ?? '')
   const [lookup, setLookup] = useState<'idle' | 'busy' | string>('idle')
   const [author, setAuthor] = useState(bstr('author'))
   // Trang chủ: giới thiệu, các dòng "bảo trì", và các nhóm credits (vai trò + tên)
@@ -224,8 +225,6 @@ function Editor({
     if (type === 'music') {
       set('artist', artist)
       set('audio_url', audioUrl)
-      set('embed_url', embedUrl)
-      set('cover_url', coverLink)
       set('lyrics', lyrics)
     } else if (type === 'video') {
       set('artist', artist)
@@ -278,6 +277,9 @@ function Editor({
         is_primary: !avatarIds.has(media_id) && is_primary,
         caption: caption?.trim() || null,
       })),
+      ...(type === 'music'
+        ? { source_url: sourceUrl.trim() || null, cover_url: coverLink.trim() || null }
+        : {}),
     }
 
     setBusy(true)
@@ -359,18 +361,18 @@ function Editor({
               <div className="cms-editor__row">
                 <input
                   id="cms-music-link"
-                  value={embedUrl}
-                  onChange={(e) => setEmbedUrl(e.target.value)}
+                  value={sourceUrl}
+                  onChange={(e) => setSourceUrl(e.target.value)}
                   placeholder="https://soundcloud.com/... hoặc https://youtu.be/..."
                 />
                 <button
                   type="button"
                   className="page-action"
-                  disabled={!embedUrl.trim() || lookup === 'busy'}
+                  disabled={!sourceUrl.trim() || lookup === 'busy'}
                   onClick={async () => {
                     setLookup('busy')
                     try {
-                      const info = await adminApi.oembed(embedUrl.trim())
+                      const info = await adminApi.oembed(sourceUrl.trim())
                       if (!title.trim() && info.title) setTitle(info.title)
                       if (!artist.trim() && info.author) setArtist(info.author)
                       if (info.thumbnail_url) setCoverLink(info.thumbnail_url)

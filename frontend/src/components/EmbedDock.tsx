@@ -7,7 +7,7 @@ interface Props {
   onClose: () => void
 }
 
-/** Khung phát bài dạng link: dùng player chính thức (SoundCloud/YouTube yêu cầu player hiển thị). */
+// YouTube/SoundCloud terms require the official player to stay visible, so it can't be hidden behind PlayerBar.
 export function EmbedDock({ src, title, artist, onClose }: Props) {
   const soundcloud = src.startsWith('https://w.soundcloud.com/')
   return (

@@ -48,6 +48,10 @@ export interface ContentAdmin {
   created_at: string
   updated_at: string
   media: AdminMediaItem[]
+  source_url: string | null
+  source_provider: 'soundcloud' | 'youtube' | 'vimeo' | null
+  player_url: string | null
+  cover_url: string | null
 }
 
 export interface MediaUploaded {
@@ -69,6 +73,9 @@ export interface ContentPayload {
   summary?: string | null
   body?: Record<string, unknown>
   media?: ContentMediaIn[]
+  /** null clears; omitted keeps the stored value */
+  source_url?: string | null
+  cover_url?: string | null
 }
 
 export interface DashboardStats {
@@ -174,7 +181,6 @@ export const adminApi = {
     return request<Page<ContentAdmin>>(`/admin/content?${sp}`)
   },
 
-  /** Tên bài / người đăng / ảnh bìa từ link SoundCloud hoặc YouTube. */
   oembed: (url: string) =>
     request<{ title: string; author: string; thumbnail_url: string | null }>(
       `/admin/content/oembed?url=${encodeURIComponent(url)}`,

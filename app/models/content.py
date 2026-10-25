@@ -17,7 +17,7 @@ from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from app.db import Base
-from app.models.enums import ContentStatus, ContentType
+from app.models.enums import ContentStatus, ContentType, MusicProvider
 from app.models.interaction_target import InteractionTarget
 from app.models.mixins import TimestampMixin
 
@@ -56,6 +56,12 @@ class Content(TimestampMixin, Base):
     # Dữ liệu riêng theo từng loại nội dung (music/gallery/community/homepage).
     body: Mapped[dict] = mapped_column(JSONB, default=dict)
 
+    source_url: Mapped[str | None] = mapped_column(Text)
+    source_provider: Mapped[MusicProvider | None] = mapped_column(
+        Enum(MusicProvider, native_enum=False, length=16)
+    )
+    cover_url: Mapped[str | None] = mapped_column(Text)
+
     author_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
@@ -77,6 +83,18 @@ class Content(TimestampMixin, Base):
         CheckConstraint(f"type IN ({_values(ContentType)})", name="ck_contents_type"),
         CheckConstraint(
             f"status IN ({_values(ContentStatus)})", name="ck_contents_status"
+        ),
+        CheckConstraint(
+            f"source_provider IN ({_values(MusicProvider)})",
+            name="ck_contents_source_provider",
+        ),
+        CheckConstraint(
+            "(source_url IS NULL) = (source_provider IS NULL)",
+            name="ck_contents_source_pair",
+        ),
+        CheckConstraint(
+            "cover_url IS NULL OR cover_url LIKE 'https://%'",
+            name="ck_contents_cover_https",
         ),
         # published bắt buộc có published_at (db-review M1)
         CheckConstraint(

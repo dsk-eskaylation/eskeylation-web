@@ -1,4 +1,4 @@
-/* Nổi trên PlayerBar (z-index 60), góc phải dưới */
+/* Must stay above PlayerBar (z-index 60) */
 .embed-dock {
   position: fixed;
   right: 16px;

@@ -56,7 +56,6 @@ export function Photos() {
   )
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  // Cuộn tới cuối thì hiện thêm PER_PAGE ảnh (danh sách đã tải đủ từ listAll)
   const [visible, setVisible] = useState(PER_PAGE)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const swipeX = useRef<number | null>(null)
@@ -71,7 +70,7 @@ export function Photos() {
     if (next >= 0 && next < photos.length) setActiveId(photos[next].id)
   }
 
-  // Tạo lại observer sau mỗi lần hiện thêm -> nếu sentinel vẫn trong tầm nhìn thì nạp tiếp
+  // `visible` in deps re-observes after each batch; IntersectionObserver won't refire if the sentinel never left view.
   useEffect(() => {
     const el = sentinelRef.current
     if (!el || !hasMore) return
@@ -99,7 +98,7 @@ export function Photos() {
     return () => window.removeEventListener('keydown', onKey)
   }, [active, photos])
 
-  // Lightbox chuyển ảnh xa hơn phần đã hiện -> mở rộng lưới để đóng lại vẫn thấy ảnh đó
+  // The lightbox can step past the rendered grid; grow it so closing lands on that photo.
   useEffect(() => {
     if (active >= visible) setVisible(Math.ceil((active + 1) / PER_PAGE) * PER_PAGE)
   }, [active, visible])

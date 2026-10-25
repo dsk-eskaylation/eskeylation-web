@@ -5,9 +5,9 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.content import Content
-from app.models.enums import ContentStatus, ContentType
+from app.models.enums import ContentStatus, ContentType, MusicProvider
 from app.schemas.content_body import validate_body_budget
-from app.services.sanitize import restore_plain_values
+from app.services.sanitize import player_url, restore_plain_values
 from app.services.storage import get_storage
 
 
@@ -37,6 +37,8 @@ class ContentCreate(BaseModel):
     summary: str | None = Field(default=None, max_length=20_000)
     body: dict = Field(default_factory=dict)
     media: list[ContentMediaIn] = Field(default_factory=list, max_length=500)
+    source_url: str | None = Field(default=None, max_length=1000)
+    cover_url: str | None = Field(default=None, max_length=1000)
 
     @field_validator("body")
     @classmethod
@@ -51,6 +53,9 @@ class ContentUpdate(BaseModel):
     summary: str | None = Field(default=None, max_length=20_000)
     body: dict | None = None
     media: list[ContentMediaIn] | None = Field(default=None, max_length=500)
+    # Explicit null clears; omitted keeps the stored value.
+    source_url: str | None = Field(default=None, max_length=1000)
+    cover_url: str | None = Field(default=None, max_length=1000)
     expected_updated_at: datetime | None = None
 
     @field_validator("title", "body")
@@ -82,6 +87,10 @@ class ContentAdminRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     media: list[ContentMediaOut]
+    source_url: str | None = None
+    source_provider: MusicProvider | None = None
+    player_url: str | None = None
+    cover_url: str | None = None
 
     @classmethod
     def from_model(cls, content: Content) -> "ContentAdminRead":
@@ -114,4 +123,8 @@ class ContentAdminRead(BaseModel):
             created_at=content.created_at,
             updated_at=content.updated_at,
             media=media,
+            source_url=content.source_url,
+            source_provider=content.source_provider,
+            player_url=player_url(content.source_url),
+            cover_url=content.cover_url,
         )

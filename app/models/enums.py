@@ -16,6 +16,12 @@ class ContentType(enum.StrEnum):
     video = "video"
 
 
+class MusicProvider(enum.StrEnum):
+    soundcloud = "soundcloud"
+    youtube = "youtube"
+    vimeo = "vimeo"
+
+
 class ContentStatus(enum.StrEnum):
     draft = "draft"
     published = "published"
