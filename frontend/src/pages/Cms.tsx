@@ -979,14 +979,23 @@ function LyricsModeration() {
   return (
     <section className="cms-lyrics" aria-label="Duyệt lời nhạc">
       <p className="cms__section-label">Đóng góp lời nhạc ({total})</p>
-      <label className="cms-field">
-        <span>Trạng thái lời nhạc</span>
-        <select value={status} disabled={busy} onChange={(e) => { setStatus(e.target.value as LyricStatus); setPage(1) }}>
-          <option value="pending">Chờ duyệt</option>
-          <option value="accepted">Đã duyệt</option>
-          <option value="rejected">Đã từ chối</option>
-        </select>
-      </label>
+      <div className="cms-seg" role="group" aria-label="Trạng thái lời nhạc">
+        {([['pending', 'Chờ duyệt'], ['accepted', 'Đã duyệt'], ['rejected', 'Đã từ chối']] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={status === value ? 'cms-seg__btn cms-seg__btn--on' : 'cms-seg__btn'}
+            aria-pressed={status === value}
+            disabled={busy}
+            onClick={() => {
+              setStatus(value)
+              setPage(1)
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {error ? <p className="cms-error" role="alert">{error} <button type="button" className="cms-pill" onClick={() => void load()}>Thử lại</button></p>
         : loading ? <p className="cms__status">Đang tải lời nhạc…</p>
         : items.length === 0 ? <p className="cms__status">Không có đóng góp trong mục này.</p>
@@ -1221,6 +1230,18 @@ export function Cms() {
     }, { replace })
   }, [setParams])
   const setView = (value: string) => updateParams({ tab: value === 'content' ? null : value })
+  const [navOpen, setNavOpen] = useState(false)
+  const navItems = [
+    ...(isAdmin ? [{ id: 'dashboard', label: 'Tổng quan' }] : []),
+    { id: 'content', label: 'Nội dung' },
+    ...(canManageAlbums ? [{ id: 'albums', label: 'Album' }] : []),
+    ...(isAdmin
+      ? [
+          { id: 'moderation', label: 'Kiểm duyệt' },
+          { id: 'users', label: 'Tài khoản' },
+        ]
+      : []),
+  ]
   const setType = (value: ContentType | null) => updateParams({ type: value, page: null })
   const setStatus = (value: ContentStatus | null) => updateParams({ status: value, page: null })
   const setPageNumber = useCallback((value: number) => updateParams({ page: value <= 1 ? null : String(value) }), [updateParams])
@@ -1320,85 +1341,65 @@ export function Cms() {
   }
 
   return (
-    <div className="cms">
+    <div className={navOpen ? 'cms cms--nav-open' : 'cms'}>
       <a className="skip-link" href="#cms-main">Bỏ qua điều hướng quản trị</a>
-      <header className="cms__topbar">
+      <aside className="cms-side" aria-label="Điều hướng quản trị">
         <span className="cms__brand">
           ESKAYLATION <em>CMS</em>
         </span>
-        <div className="cms__topbar-actions">
-          {/* Tab Tổng quan/Tài khoản chỉ hiện cho admin; Nội dung cho mọi biên tập viên */}
-          {isAdmin && (
+        <nav className="cms-side__nav">
+          {navItems.map((item) => (
             <button
+              key={item.id}
               type="button"
-              className={
-                view === 'dashboard' ? 'cms-pill cms-pill--active' : 'cms-pill'
-              }
-              onClick={() => setView('dashboard')}
-              aria-pressed={view === 'dashboard'}
+              className={view === item.id ? 'cms-side__link cms-side__link--on' : 'cms-side__link'}
+              aria-current={view === item.id ? 'page' : undefined}
+              onClick={() => {
+                setView(item.id)
+                setNavOpen(false)
+              }}
             >
-              Tổng quan
+              {item.label}
             </button>
+          ))}
+        </nav>
+        <div className="cms-side__foot">
+          {me && (
+            <span className="cms-side__me">
+              {me.email}
+              <small>{ROLE_LABEL[me.role]}</small>
+            </span>
           )}
-          <button
-            type="button"
-            className={
-              view === 'content' ? 'cms-pill cms-pill--active' : 'cms-pill'
-            }
-            onClick={() => setView('content')}
-            aria-pressed={view === 'content'}
-          >
-            Nội dung
-          </button>
-          {canManageAlbums && (
-            <button
-              type="button"
-              className={view === 'albums' ? 'cms-pill cms-pill--active' : 'cms-pill'}
-              onClick={() => setView('albums')}
-              aria-pressed={view === 'albums'}
-            >
-              Album
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              type="button"
-              className={
-                view === 'moderation' ? 'cms-pill cms-pill--active' : 'cms-pill'
-              }
-              onClick={() => setView('moderation')}
-              aria-pressed={view === 'moderation'}
-            >
-              Kiểm duyệt
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              type="button"
-              className={
-                view === 'users' ? 'cms-pill cms-pill--active' : 'cms-pill'
-              }
-              onClick={() => setView('users')}
-              aria-pressed={view === 'users'}
-            >
-              Tài khoản
-            </button>
-          )}
-          <Link to="/" className="cms-pill">
+          <Link to="/" className="cms-side__link">
             Xem trang
           </Link>
-          <button
-            type="button"
-            className="cms-pill"
-            onClick={() => void logout()}
-          >
+          <button type="button" className="cms-side__link" onClick={() => void logout()}>
             Đăng xuất
           </button>
         </div>
-      </header>
+      </aside>
+      <div className="cms-scrim" aria-hidden="true" onClick={() => setNavOpen(false)} />
 
       <main id="cms-main" tabIndex={-1} className="cms__main">
-      <h1 className="cms__title">{view === 'dashboard' ? 'Tổng quan' : view === 'moderation' ? 'Kiểm duyệt' : view === 'users' ? 'Tài khoản' : view === 'albums' ? 'Album' : 'Nội dung'}</h1>
+      <header className="cms-top">
+        <button
+          type="button"
+          className="cms-top__menu"
+          aria-label="Mở menu quản trị"
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen(true)}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+        <h1 className="cms__title">{navItems.find((item) => item.id === view)?.label ?? 'Nội dung'}</h1>
+        {view === 'content' && (
+          <button type="button" className="cms-pill cms-pill--new" onClick={() => setCreating(true)}>
+            + Nội dung mới
+          </button>
+        )}
+      </header>
       {source.status === 'success' &&
         source.data.body.source === 'google_drive' && (
           <p className="cms__source-note">
@@ -1427,7 +1428,6 @@ export function Cms() {
           total={total}
           loading={loading}
           act={act}
-          onNew={() => setCreating(true)}
           onEdit={setEditing}
           role={me?.role ?? 'member'}
           page={pageNumber}
@@ -1475,7 +1475,6 @@ interface CmsContentProps {
   total: number
   loading: boolean
   act: (fn: () => Promise<unknown>, opts?: ActOpts) => Promise<void>
-  onNew: () => void
   onEdit: (c: ContentAdmin) => void
 }
 
@@ -1493,7 +1492,6 @@ function CmsContent({
   total,
   loading,
   act,
-  onNew,
   onEdit,
 }: CmsContentProps) {
   const canPublish = role === 'admin' || role === 'editor'
@@ -1501,165 +1499,131 @@ function CmsContent({
   const [pendingDelete, setPendingDelete] = useState<ContentAdmin | null>(null)
   return (
     <>
-      <div className="cms__filters">
-        <div className="cms__filter-group">
-          <button
-            type="button"
-            className={type === null ? 'cms-pill cms-pill--active' : 'cms-pill'}
-            onClick={() => setType(null)}
-            aria-pressed={type === null}
-          >
-            Tất cả
-          </button>
-          {TYPES.map((t) => (
+      <div className="cms-toolbar">
+        <div className="cms-seg" role="group" aria-label="Lọc theo loại">
+          {[{ value: null, label: 'Tất cả' }, ...TYPES].map((t) => (
             <button
-              key={t.value}
+              key={t.value ?? 'all'}
               type="button"
-              className={
-                type === t.value ? 'cms-pill cms-pill--active' : 'cms-pill'
-              }
-              onClick={() => setType(type === t.value ? null : t.value)}
+              className={type === t.value ? 'cms-seg__btn cms-seg__btn--on' : 'cms-seg__btn'}
+              onClick={() => setType(t.value)}
               aria-pressed={type === t.value}
             >
               {t.label}
             </button>
           ))}
         </div>
-
-        <div className="cms__filter-group">
-          {STATUSES.map((s) => (
+        <div className="cms-seg" role="group" aria-label="Lọc theo trạng thái">
+          {[{ value: null, label: 'Mọi trạng thái' }, ...STATUSES].map((st) => (
             <button
-              key={s.value}
+              key={st.value ?? 'all'}
               type="button"
-              className={
-                status === s.value ? 'cms-pill cms-pill--active' : 'cms-pill'
-              }
-              onClick={() => setStatus(status === s.value ? null : s.value)}
-              aria-pressed={status === s.value}
+              className={status === st.value ? 'cms-seg__btn cms-seg__btn--on' : 'cms-seg__btn'}
+              onClick={() => setStatus(st.value)}
+              aria-pressed={status === st.value}
             >
-              {s.label}
+              {st.label}
             </button>
           ))}
         </div>
-
-        <button
-          type="button"
-          className="cms-pill cms-pill--new"
-          onClick={onNew}
-        >
-          + Nội dung mới
-        </button>
+        {!loading && <span className="cms__count">{total} nội dung</span>}
       </div>
 
-      {loading ? (
-        <p className="cms__status">Đang tải…</p>
-      ) : items.length === 0 ? (
-        <p className="cms__status">Chưa có nội dung nào.</p>
-      ) : (
-        <>
-          <p className="cms__count">{total} nội dung</p>
-          <ul className="cms__list">
-            {items.map((c) => (
-              <li key={c.id} className="cms__row page-enter">
-                <div className="cms__row-main">
-                  <span className={`cms-badge cms-badge--${c.status}`}>
-                    {STATUS_LABEL[c.status]}
-                  </span>
-                  <div className="cms__row-text">
-                    <span className="cms__row-title">{c.title}</span>
-                    <span className="cms__row-meta">
-                      {typeLabel(c.type)} · /{c.slug} · sửa{' '}
-                      {fmtTime(c.updated_at)}
-                      {c.media.length > 0 && ` · ${c.media.length} media`}
-                      {c.author_email && ` · ${c.author_email}`}
-                    </span>
-                  </div>
-                </div>
-                <div className="cms__row-actions">
-                  <button
-                    type="button"
-                    className="cms-pill"
-                    disabled={!canPublish && c.status === 'published'}
-                    title={
-                      !canPublish && c.status === 'published'
-                        ? 'Nhân bản bài đã đăng để đề xuất chỉnh sửa'
-                        : undefined
-                    }
-                    onClick={() => onEdit(c)}
-                  >
-                    Sửa
-                  </button>
-                  {canPublish &&
-                    (c.status !== 'published' ? (
-                      <button
-                        type="button"
-                        className="cms-pill cms-pill--publish"
-                        onClick={() =>
-                          void act(() => adminApi.publish(c.id), {
-                            success: `Đã đăng “${c.title}”`,
-                          })
-                        }
-                      >
-                        Đăng
-                      </button>
-                    ) : (
+      <div className="cms-card">
+        {loading ? (
+          <p className="cms__status">Đang tải…</p>
+        ) : items.length === 0 ? (
+          <p className="cms__status">Chưa có nội dung nào.</p>
+        ) : (
+          <table className="cms-table">
+            <thead>
+              <tr>
+                <th>Tiêu đề</th>
+                <th>Loại</th>
+                <th>Trạng thái</th>
+                <th>Cập nhật</th>
+                <th className="cms-table__actions">
+                  <span className="sr-only">Thao tác</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((c) => {
+                const locked = !canPublish && c.status === 'published'
+                const more = [
+                  ...(canPublish
+                    ? [
+                        c.status !== 'published'
+                          ? {
+                              label: 'Đăng',
+                              onClick: () =>
+                                void act(() => adminApi.publish(c.id), { success: `Đã đăng “${c.title}”` }),
+                            }
+                          : {
+                              label: 'Gỡ về nháp',
+                              onClick: () =>
+                                void act(() => adminApi.unpublish(c.id), {
+                                  success: `Đã gỡ “${c.title}” về nháp`,
+                                  undo: () => adminApi.publish(c.id),
+                                }),
+                            },
+                      ]
+                    : []),
+                  ...(canPublish && c.status !== 'archived'
+                    ? [
+                        {
+                          label: 'Lưu trữ',
+                          onClick: () =>
+                            void act(() => adminApi.archive(c.id), {
+                              success: `Đã lưu trữ “${c.title}”`,
+                              undo: () =>
+                                c.status === 'published' ? adminApi.publish(c.id) : adminApi.unpublish(c.id),
+                            }),
+                        },
+                      ]
+                    : []),
+                  {
+                    label: 'Nhân bản',
+                    onClick: () =>
+                      void act(() => adminApi.duplicate(c.id), { success: `Đã nhân bản “${c.title}”` }),
+                  },
+                  ...(canPublish ? [{ label: 'Xoá', danger: true, onClick: () => setPendingDelete(c) }] : []),
+                ]
+                return (
+                  <tr key={c.id}>
+                    <td className="cms-table__main">
+                      <span className="cms-table__title">{c.title}</span>
+                      <span className="cms-table__sub">
+                        /{c.slug}
+                        {c.author_email && ` · ${c.author_email}`}
+                      </span>
+                    </td>
+                    <td className="cms-table__type">{typeLabel(c.type)}</td>
+                    <td className="cms-table__status">
+                      <span className={`cms-badge cms-badge--${c.status}`}>{STATUS_LABEL[c.status]}</span>
+                    </td>
+                    <td className="cms-table__time">{fmtTime(c.updated_at)}</td>
+                    <td className="cms-table__actions">
+                      <div className="cms-table__btns">
                       <button
                         type="button"
                         className="cms-pill"
-                        onClick={() =>
-                          void act(() => adminApi.unpublish(c.id), {
-                            success: `Đã gỡ “${c.title}” về nháp`,
-                            undo: () => adminApi.publish(c.id),
-                          })
-                        }
+                        disabled={locked}
+                        title={locked ? 'Nhân bản bài đã đăng để đề xuất chỉnh sửa' : undefined}
+                        onClick={() => onEdit(c)}
                       >
-                        Gỡ
+                        Sửa
                       </button>
-                    ))}
-                  {canPublish && c.status !== 'archived' && (
-                    <button
-                      type="button"
-                      className="cms-pill"
-                      onClick={() =>
-                        void act(() => adminApi.archive(c.id), {
-                          success: `Đã lưu trữ “${c.title}”`,
-                          // Hoàn tác: trả về trạng thái trước đó
-                          undo: () =>
-                            c.status === 'published'
-                              ? adminApi.publish(c.id)
-                              : adminApi.unpublish(c.id),
-                        })
-                      }
-                    >
-                      Lưu trữ
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="cms-pill"
-                    onClick={() =>
-                      void act(() => adminApi.duplicate(c.id), {
-                        success: `Đã nhân bản “${c.title}”`,
-                      })
-                    }
-                  >
-                    Nhân bản
-                  </button>
-                  {canPublish && (
-                    <button
-                      type="button"
-                      className="cms-pill cms-pill--danger"
-                      onClick={() => setPendingDelete(c)}
-                    >
-                      Xoá
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+                      <RowMenu label={`Thao tác khác cho “${c.title}”`} items={more} />
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       <CmsPagination
         page={page}
@@ -1684,6 +1648,65 @@ function CmsContent({
         />
       )}
     </>
+  )
+}
+
+function RowMenu({ label, items }: {
+  label: string
+  items: { label: string; danger?: boolean; onClick: () => void }[]
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+  return (
+    <div className="cms-menu" ref={ref}>
+      <button
+        type="button"
+        className="cms-pill cms-pill--icon"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+          <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+          <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+        </svg>
+      </button>
+      {open && (
+        <div className="cms-menu__list" role="menu">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              className={item.danger ? 'cms-menu__item cms-menu__item--danger' : 'cms-menu__item'}
+              onClick={() => {
+                setOpen(false)
+                item.onClick()
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
