@@ -378,3 +378,18 @@ async def list_saved(
         .limit(page_size)
     )
     return list(rows.all()), total or 0
+
+
+async def list_authored(session: AsyncSession, user_id: int) -> list[Content]:
+    rows = await session.scalars(
+        select(Content)
+        .where(
+            Content.author_id == user_id,
+            Content.type == ContentType.community,
+            Content.status != ContentStatus.archived,
+        )
+        .options(selectinload(Content.media_links).joinedload(ContentMedia.media))
+        .order_by(Content.created_at.desc())
+        .limit(100)
+    )
+    return list(rows.all())

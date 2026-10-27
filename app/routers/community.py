@@ -41,7 +41,13 @@ from app.schemas.community import (
 )
 from app.schemas.pagination import Page
 from app.schemas.public import ContentOut
-from app.services import community, content_admin, moderation, realtime
+from app.services import (
+    community,
+    content_admin,
+    moderation,
+    notifications,
+    realtime,
+)
 from app.services.ratelimit import check_rate
 from app.services.sanitize import sanitize_summary
 from app.services.serialize import content_to_out
@@ -195,6 +201,14 @@ async def create_comment(
     # Chặn bình luận chứa từ ngữ không phù hợp (kiểm duyệt)
     await moderation.assert_clean(session, text=body, actor=user, entity_type="comment")
     comment = await community.create_comment(session, content_id, user, body)
+    await notifications.notify(
+        session,
+        recipient_id=await notifications.post_author(session, content_id),
+        actor=user,
+        kind="post_comment",
+        content_id=content_id,
+        comment_id=comment.id,
+    )
     out = _comment_out(comment, is_mine=True)
     # Broadcast bản KHÔNG kèm is_mine cho người khác (is_mine tính theo mỗi client)
     await realtime.publish(
@@ -272,6 +286,14 @@ async def react_comment(
         )
     await check_rate(f"creact:{user.id}", limit=40, window_seconds=60)
     await community.set_comment_reaction(session, comment_id, user.id, payload.type)
+    await notifications.notify(
+        session,
+        recipient_id=comment.user_id,
+        actor=user,
+        kind="comment_reaction",
+        content_id=content_id,
+        comment_id=comment_id,
+    )
     counts, total, mine = await community.comment_reaction_summary(
         session, comment_id, user.id
     )
@@ -309,6 +331,13 @@ async def set_reaction(
     # -> chặn spam toggle gây khuếch đại broadcast (DoS tầng ứng dụng).
     await check_rate(f"react:{user.id}", limit=30, window_seconds=60)
     await community.set_reaction(session, content_id, user.id, payload.type)
+    await notifications.notify(
+        session,
+        recipient_id=await notifications.post_author(session, content_id),
+        actor=user,
+        kind="post_reaction",
+        content_id=content_id,
+    )
     summary = await _summary(session, content_id, user)
     await realtime.publish(
         content_id,
@@ -357,6 +386,36 @@ async def unsave_post(
     await check_rate(f"save:{user.id}", limit=30, window_seconds=60)
     await community.unsave_post(session, content_id, user.id)
     return {"saved": False}
+
+
+@me_router.get("/notifications")
+async def my_notifications(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    return await notifications.list_for(session, user.id)
+
+
+@me_router.post("/notifications/read", status_code=status.HTTP_204_NO_CONTENT)
+async def read_notifications(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    await notifications.mark_all_read(session, user.id)
+
+
+@me_router.get("/posts", response_model=list[ContentOut])
+async def my_posts(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[ContentOut]:
+    """Bài cộng đồng của tôi, kể cả bài đang chờ duyệt (body.status cho biết)."""
+    return [
+        content_to_out(c).model_copy(
+            update={"body": {**c.body, "review_status": c.status.value}}
+        )
+        for c in await community.list_authored(session, user.id)
+    ]
 
 
 @me_router.get("/saved", response_model=Page[ContentOut])

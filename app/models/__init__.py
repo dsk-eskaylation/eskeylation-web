@@ -12,6 +12,7 @@ from app.models.interaction_target import InteractionTarget
 from app.models.lyrics import LyricSuggestion
 from app.models.media import ContentMedia, Media
 from app.models.moderation import BannedWord
+from app.models.notification import Notification
 from app.models.session import UserSession
 from app.models.user import User
 
@@ -28,6 +29,7 @@ __all__ = [
     "InteractionTarget",
     "LyricSuggestion",
     "Media",
+    "Notification",
     "PostReaction",
     "ReactionType",
     "SavedPost",

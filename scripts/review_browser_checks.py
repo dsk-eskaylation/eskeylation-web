@@ -123,6 +123,7 @@ def check_review_fixes(base, context_factory, login, passed, evidence):
             has=page.get_by_text(post["title"], exact=True)
         )
         article.get_by_role("button", name="55 bình luận", exact=True).click()
+        article = page.locator(".cpost--detail")
         expect(article.locator(".cpost__comment")).to_have_count(50)
         request(
             "POST",

@@ -1,19 +1,36 @@
-import { useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { getSession, updateProfile, type SessionUser } from '../api/auth'
 import { community } from '../api/community'
 import type { ContentOut } from '../api/types'
-import { CommunityPost } from '../components/CommunityPost'
 import { EmptyState } from '../components/EmptyState'
-import { artistOf, audioUrl, usePlayer } from '../player/PlayerContext'
+import { MediaImage } from '../components/MediaImage'
+import { artistOf, audioUrl, coverUrl, usePlayer } from '../player/PlayerContext'
 import './Profile.css'
 
-type Tab = 'music' | 'community'
+type Tab = 'posts' | 'favorites' | 'saved'
+type Load<T> = { status: 'loading' } | { status: 'error' } | { status: 'ready'; items: T[] }
 
-/** Hồ sơ cá nhân: bio + bài hát yêu thích + bài cộng đồng đã lưu (đều riêng tư). */
+function useList(fetcher: () => Promise<ContentOut[]>): Load<ContentOut> {
+  const [state, setState] = useState<Load<ContentOut>>({ status: 'loading' })
+  const [request] = useState(fetcher) // fetch once per mount
+  useEffect(() => {
+    let live = true
+    request.then((items) => live && setState({ status: 'ready', items }), () => live && setState({ status: 'error' }))
+    return () => { live = false }
+  }, [request])
+  return state
+}
+
+const count = (state: Load<ContentOut>) => (state.status === 'ready' ? state.items.length : '–')
+
+/** Hồ sơ cá nhân kiểu mạng xã hội: bài đăng, bài hát yêu thích, bài đã lưu (riêng tư). */
 export function Profile() {
   const [user, setUser] = useState<SessionUser | null | undefined>(undefined)
-  const [tab, setTab] = useState<Tab>('music')
+  const [tab, setTab] = useState<Tab>('posts')
+  const posts = useList(() => community.myPosts())
+  const favorites = useList(() => community.mySaved('music').then((p) => p.items))
+  const saved = useList(() => community.mySaved('community').then((p) => p.items))
 
   useEffect(() => {
     let live = true
@@ -23,23 +40,46 @@ export function Profile() {
 
   if (user === undefined) return null
   if (user === null) return <Navigate to="/login?next=%2Fprofile" replace />
+  const name = user.email.split('@', 1)[0]
+  const joined = user.created_at ? new Date(user.created_at).toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' }) : null
+
+  const tabs: { key: Tab; label: string; icon: ReactNode; total: number | string }[] = [
+    { key: 'posts', label: 'Bài đăng', total: count(posts), icon: <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /> },
+    { key: 'favorites', label: 'Yêu thích', total: count(favorites), icon: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" /> },
+    { key: 'saved', label: 'Đã lưu', total: count(saved), icon: <path d="M6 3h12v18l-6-4-6 4z" /> },
+  ]
 
   return (
     <div className="profile">
       <header className="profile__head">
-        <h1>{user.email.split('@', 1)[0]}</h1>
-        <BioEditor initial={user.bio ?? ''} />
+        <span className="profile__avatar" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>
+        <div className="profile__info">
+          <div className="profile__name-row">
+            <h1>{name}</h1>
+          </div>
+          <ul className="profile__stats">
+            {tabs.map((t) => (
+              <li key={t.key}><strong>{t.total}</strong> {t.label.toLowerCase()}</li>
+            ))}
+          </ul>
+          <BioEditor initial={user.bio ?? ''} />
+          {joined && <p className="profile__joined">Tham gia {joined}</p>}
+        </div>
       </header>
-      <div className="profile__tabs" role="tablist" aria-label="Danh sách của tôi">
-        <button type="button" role="tab" aria-selected={tab === 'music'} onClick={() => setTab('music')}>
-          Bài hát yêu thích
-        </button>
-        <button type="button" role="tab" aria-selected={tab === 'community'} onClick={() => setTab('community')}>
-          Bài đã lưu
-        </button>
+
+      <div className="profile__tabs" role="tablist" aria-label="Nội dung hồ sơ">
+        {tabs.map((t) => (
+          <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">{t.icon}</svg>
+            {t.label}
+          </button>
+        ))}
       </div>
+
       <div role="tabpanel">
-        {tab === 'music' ? <Favorites /> : <SavedPosts />}
+        {tab === 'posts' && <PostGrid state={posts} empty="Bạn chưa đăng bài nào. Vào Cộng đồng và bấm “+ Đăng bài”." />}
+        {tab === 'favorites' && <Favorites state={favorites} />}
+        {tab === 'saved' && <PostGrid state={saved} empty="Bấm Lưu trên bài cộng đồng để xem lại ở đây." />}
       </div>
     </div>
   )
@@ -47,7 +87,8 @@ export function Profile() {
 
 function BioEditor({ initial }: { initial: string }) {
   const [bio, setBio] = useState(initial)
-  const [saved, setSaved] = useState(initial)
+  const [draft, setDraft] = useState(initial)
+  const [editing, setEditing] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -55,10 +96,9 @@ function BioEditor({ initial }: { initial: string }) {
     setBusy(true)
     setMsg(null)
     try {
-      const user = await updateProfile(bio)
+      const user = await updateProfile(draft)
       setBio(user.bio ?? '')
-      setSaved(user.bio ?? '')
-      setMsg('Đã lưu bio.')
+      setEditing(false)
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Chưa lưu được bio.')
     } finally {
@@ -66,69 +106,94 @@ function BioEditor({ initial }: { initial: string }) {
     }
   }
 
+  if (!editing) {
+    return (
+      <div className="profile__bio">
+        {bio ? <p>{bio}</p> : <p className="profile__muted">Chưa có bio.</p>}
+        <button type="button" className="profile__edit" onClick={() => { setDraft(bio); setEditing(true) }}>Sửa hồ sơ</button>
+      </div>
+    )
+  }
   return (
-    <div className="profile__bio">
-      <label htmlFor="profile-bio">Bio</label>
-      <textarea id="profile-bio" value={bio} onChange={(e) => setBio(e.target.value)} maxLength={500} rows={3} placeholder="Giới thiệu đôi chút về bạn…" />
-      <button type="button" onClick={save} disabled={busy || bio === saved}>Lưu bio</button>
-      {msg && <p role="status">{msg}</p>}
+    <div className="profile__bio profile__bio--editing">
+      <label htmlFor="profile-bio" className="profile__muted">Bio</label>
+      <textarea id="profile-bio" value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={500} rows={3} placeholder="Giới thiệu đôi chút về bạn" autoFocus />
+      <div className="profile__actions">
+        <button type="button" className="profile__edit profile__edit--primary" onClick={save} disabled={busy}>Lưu</button>
+        <button type="button" className="profile__edit" onClick={() => setEditing(false)} disabled={busy}>Huỷ</button>
+        <span className="profile__muted">{draft.length}/500</span>
+      </div>
+      {msg && <p role="alert">{msg}</p>}
     </div>
   )
 }
 
-function useSaved(type: Tab) {
-  const [state, setState] = useState<{ status: 'loading' } | { status: 'error' } | { status: 'ready'; items: ContentOut[] }>({ status: 'loading' })
-  useEffect(() => {
-    let live = true
-    community.mySaved(type).then(
-      (page) => live && setState({ status: 'ready', items: page.items }),
-      () => live && setState({ status: 'error' }),
-    )
-    return () => { live = false }
-  }, [type])
-  return state
+function PostGrid({ state, empty }: { state: Load<ContentOut>; empty: string }) {
+  const navigate = useNavigate()
+  if (state.status === 'loading') return <p role="status" className="profile__muted">Đang tải…</p>
+  if (state.status === 'error') return <EmptyState title="Không tải được danh sách." />
+  if (state.items.length === 0) return <EmptyState title={empty} />
+  return (
+    <ul className="profile__grid">
+      {state.items.map((post) => {
+        const pending = post.body.review_status === 'draft'
+        const image = post.media.find((m) => m.mime_type.startsWith('image/') && m.url)
+        return (
+          <li key={post.id}>
+            <button
+              type="button"
+              className="profile__tile"
+              disabled={pending}
+              onClick={() => navigate(`/community?post=${encodeURIComponent(post.slug)}`)}
+              aria-label={pending ? `${post.title} (chờ duyệt)` : `Mở bài ${post.title}`}
+            >
+              {image ? (
+                <MediaImage media={image} alt="" sizes="(max-width: 640px) 33vw, 300px" />
+              ) : (
+                <span className="profile__tile-text">{post.title}</span>
+              )}
+              {pending && <span className="profile__badge">Chờ duyệt</span>}
+              {post.media.length > 1 && <span className="profile__multi" aria-hidden="true">❐</span>}
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
 }
 
-function Favorites() {
-  const state = useSaved('music')
+function Favorites({ state }: { state: Load<ContentOut> }) {
   const player = usePlayer()
-  if (state.status === 'loading') return <p role="status">Đang tải…</p>
+  if (state.status === 'loading') return <p role="status" className="profile__muted">Đang tải…</p>
   if (state.status === 'error') return <EmptyState title="Không tải được bài hát yêu thích." />
-  if (state.items.length === 0) return <EmptyState title="Chưa có bài hát yêu thích." hint="Bấm ♡ trên trình phát để thêm bài." />
+  if (state.items.length === 0) return <EmptyState title="Bấm ♡ trên trình phát để thêm bài hát vào đây." />
   const playable = state.items.filter((track) => audioUrl(track))
-
   return (
     <>
       {playable.length > 0 && (
-        <button type="button" className="profile__play" onClick={() => player.playQueue(playable, 0)}>
+        <button type="button" className="profile__edit profile__edit--primary profile__play" onClick={() => player.playQueue(playable, 0)}>
           Phát {playable.length} bài yêu thích
         </button>
       )}
       <ol className="profile__songs">
-        {state.items.map((track) => (
-          <li key={track.id}>
-            <button
-              type="button"
-              onClick={() => audioUrl(track) ? player.playQueue(playable, playable.indexOf(track)) : player.playEmbed(track)}
-            >
-              <span>{track.title}</span>
-              <span className="profile__artist">{artistOf(track)}</span>
-            </button>
-          </li>
-        ))}
+        {state.items.map((track) => {
+          const cover = coverUrl(track)
+          return (
+            <li key={track.id}>
+              <button
+                type="button"
+                onClick={() => (audioUrl(track) ? player.playQueue(playable, playable.indexOf(track)) : player.playEmbed(track))}
+              >
+                {cover ? <img src={cover} alt="" loading="lazy" /> : <span className="profile__cover" aria-hidden="true" />}
+                <span className="profile__song">
+                  <span>{track.title}</span>
+                  <span className="profile__muted">{artistOf(track)}</span>
+                </span>
+              </button>
+            </li>
+          )
+        })}
       </ol>
     </>
-  )
-}
-
-function SavedPosts() {
-  const state = useSaved('community')
-  if (state.status === 'loading') return <p role="status">Đang tải…</p>
-  if (state.status === 'error') return <EmptyState title="Không tải được bài đã lưu." />
-  if (state.items.length === 0) return <EmptyState title="Chưa lưu bài nào." />
-  return (
-    <div className="profile__posts">
-      {state.items.map((post) => <CommunityPost key={post.id} content={post} loggedIn />)}
-    </div>
   )
 }

@@ -28,6 +28,19 @@ export interface InteractionOut {
   saved: boolean
 }
 
+export interface NotificationItem {
+  id: number
+  kind: 'post_reaction' | 'post_comment' | 'comment_reaction'
+  actor_name: string
+  content_id: number
+  content_title: string | null
+  content_slug: string | null
+  content_type: string | null
+  comment_id: number | null
+  read: boolean
+  created_at: string
+}
+
 /** Sự kiện realtime nhận qua WebSocket. */
 export type CommunityEvent =
   | { kind: 'comment'; comment: CommentOut }
@@ -56,6 +69,14 @@ const base = (id: number) => `/api/community/${id}`
 const jsonMut = () => ({ 'Content-Type': 'application/json', ...csrfHeaders() })
 
 export const community = {
+  notifications: () =>
+    fetch('/api/me/notifications', { credentials: 'include' }).then((r) =>
+      toJson<{ unread: number; items: NotificationItem[] }>(r),
+    ),
+  readNotifications: () =>
+    fetch('/api/me/notifications/read', { method: 'POST', credentials: 'include', headers: csrfHeaders() }).then(ensureOk),
+  myPosts: () =>
+    fetch('/api/me/posts', { credentials: 'include' }).then((r) => toJson<ContentOut[]>(r)),
   submitPost: (title: string, summary: string) =>
     fetch('/api/community/posts', {
       method: 'POST',

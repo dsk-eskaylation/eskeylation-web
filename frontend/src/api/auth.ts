@@ -10,6 +10,7 @@ export interface SessionUser {
   role: 'admin' | 'editor' | 'author' | 'member'
   is_active: boolean
   bio?: string | null
+  created_at?: string
 }
 
 /** Đọc CSRF token từ cookie esk_csrf (cookie này KHÔNG httpOnly). */

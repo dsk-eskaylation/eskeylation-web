@@ -404,8 +404,11 @@ def check_ui(password: str, tag: str) -> None:
             member_page = member_context.new_page()
             page = member_page
             login(member_page, "member")
-            post = member_page.locator(".cpost").first
-            post.get_by_role("button", name="Bình luận", exact=True).click()
+            member_page.locator(".cpost").first.get_by_role(
+                "button", name="Bình luận", exact=True
+            ).click()
+            # Comments open in the Instagram-style post dialog.
+            post = member_page.locator(".cpost--detail")
             draft = post.get_by_placeholder("Viết bình luận...")
             draft.fill("Browser comment " + tag)
             post.get_by_role("button", name="Gửi", exact=True).click()

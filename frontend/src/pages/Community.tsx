@@ -7,6 +7,8 @@ import { getSession } from '../api/auth'
 import { community } from '../api/community'
 import { CommunityPost } from '../components/CommunityPost'
 import { EmptyState } from '../components/EmptyState'
+import { Modal } from '../components/Modal'
+import type { ContentOut } from '../api/types'
 import './Community.css'
 
 const TABS = [
@@ -75,6 +77,16 @@ export function Community() {
     topRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })
   }
 
+  const openSlug = params.get('post')
+  function openPost(slug: string | null) {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous)
+      if (slug) next.set('post', slug)
+      else next.delete('post')
+      return next
+    })
+  }
+
   function goTab(next: Tab) {
     setParams(next === 'feed' ? {} : { tab: next })
   }
@@ -123,9 +135,19 @@ export function Community() {
             loggedIn={loggedIn}
             isAdmin={isAdmin}
             priority={index === 0}
+            onOpen={() => openPost(item.slug)}
           />
         ))}
       </div>
+      {openSlug && (
+        <PostDetail
+          slug={openSlug}
+          cached={items.find((item) => item.slug === openSlug)}
+          loggedIn={loggedIn}
+          isAdmin={isAdmin}
+          onClose={() => openPost(null)}
+        />
+      )}
       {state.status === 'success' && (
         <Pagination page={Math.min(page, Math.max(1, state.data.pages))}
           pages={state.data.pages} label="Phân trang cộng đồng" onChange={goPage} busy={busy} />
@@ -259,5 +281,40 @@ function PostComposer() {
       )}
       {msg && <p role={msg.tone === 'error' ? 'alert' : 'status'}>{msg.text}</p>}
     </div>
+  )
+}
+
+/** Bài mở ở dạng Instagram (?post=<slug>); link từ thông báo cũng mở thẳng vào đây. */
+function PostDetail({ slug, cached, loggedIn, isAdmin, onClose }: {
+  slug: string
+  cached: ContentOut | undefined
+  loggedIn: boolean
+  isAdmin: boolean
+  onClose: () => void
+}) {
+  const [fetched, setFetched] = useState<ContentOut | null | 'error'>(null)
+  const [wasListed, setWasListed] = useState(Boolean(cached))
+  if (cached && !wasListed) setWasListed(true)
+  // Bài đang mở bị gỡ (danh sách làm mới không còn nó) -> đóng khung luôn.
+  useEffect(() => {
+    if (wasListed && !cached) onClose()
+  }, [wasListed, cached, onClose])
+  useEffect(() => {
+    if (cached || wasListed) return
+    let live = true
+    api.detail('community', slug).then((post) => live && setFetched(post), () => live && setFetched('error'))
+    return () => { live = false }
+  }, [slug, cached, wasListed])
+  const post = cached ?? (fetched !== 'error' ? fetched : null)
+  return (
+    <Modal onClose={onClose} variant="bare" label={post ? post.title : 'Bài viết'} showClose>
+      {post ? (
+        <CommunityPost key={post.id} content={post} loggedIn={loggedIn} isAdmin={isAdmin} variant="detail" />
+      ) : fetched === 'error' ? (
+        <EmptyState title="Không tìm thấy bài viết này." />
+      ) : (
+        <p role="status">Đang tải bài viết…</p>
+      )}
+    </Modal>
   )
 }

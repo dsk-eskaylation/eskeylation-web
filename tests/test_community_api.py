@@ -187,3 +187,56 @@ async def test_thanh_vien_gui_bai_cho_duyet_va_tu_cam_duoc_bao(client, db, make_
     )
     await db.commit()
     moderation.invalidate()
+
+
+async def test_thong_bao_khi_co_nguoi_tuong_tac(client, db, make_user, make_content):
+    author, author_token = await token_for(client, make_user, UserRole.member)
+    _, fan_token = await token_for(client, make_user, UserRole.member)
+    post = await make_content(type_=ContentType.community, title="Bài của tôi")
+    post.author_id = author.id
+    await db.commit()
+    base = f"/api/community/{post.id}"
+
+    # Tự tương tác bài mình không tạo thông báo
+    await client.put(
+        f"{base}/reaction", json={"type": "like"}, headers=auth(author_token)
+    )
+    own = await client.post(
+        f"{base}/comments", json={"body": "Của tôi"}, headers=auth(author_token)
+    )
+    await client.put(f"{base}/reaction", json={"type": "like"}, headers=auth(fan_token))
+    await client.put(f"{base}/reaction", json={"type": "love"}, headers=auth(fan_token))
+    await client.post(f"{base}/comments", json={"body": "Hay"}, headers=auth(fan_token))
+    await client.put(
+        f"{base}/comments/{own.json()['id']}/reaction",
+        json={"type": "haha"},
+        headers=auth(fan_token),
+    )
+
+    data = (
+        await client.get("/api/me/notifications", headers=auth(author_token))
+    ).json()
+    assert data["unread"] == 3
+    assert sorted(n["kind"] for n in data["items"]) == [
+        "comment_reaction",
+        "post_comment",
+        "post_reaction",
+    ]
+    assert data["items"][0]["content_slug"] == post.slug
+    r = await client.post("/api/me/notifications/read", headers=auth(author_token))
+    assert r.status_code == 204
+    again = await client.get("/api/me/notifications", headers=auth(author_token))
+    assert again.json()["unread"] == 0
+
+
+async def test_bai_cua_toi_gom_ca_bai_cho_duyet(client, make_user):
+    _, token = await token_for(client, make_user, UserRole.member)
+    await client.post(
+        "/api/community/posts",
+        json={"title": "Chờ duyệt", "summary": "Nội dung"},
+        headers=auth(token),
+    )
+    mine = (await client.get("/api/me/posts", headers=auth(token))).json()
+    assert [(p["title"], p["body"]["review_status"]) for p in mine] == [
+        ("Chờ duyệt", "draft")
+    ]

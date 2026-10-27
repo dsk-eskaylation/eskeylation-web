@@ -1,97 +1,285 @@
 .profile {
   width: 100%;
-  max-width: 640px;
+  max-width: 935px;
   margin: 0 auto;
   padding: 150px var(--space-4) var(--space-8);
-  display: grid;
-  gap: var(--space-6);
 }
-.profile__head h1 {
-  margin: 0 0 var(--space-4);
+
+.profile__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: clamp(24px, 6vw, 88px);
+  align-items: start;
+  padding-bottom: 40px;
+}
+.profile__avatar {
+  width: clamp(88px, 18vw, 150px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, #3a3a3a, var(--color-surface) 70%);
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 3px var(--color-border-strong);
+  color: var(--color-text-bright);
   font-family: var(--font-accent);
-  font-size: clamp(24px, 3vw, 38px);
+  font-size: clamp(40px, 8vw, 72px);
   letter-spacing: -0.04em;
+}
+.profile__info {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.profile__name-row h1 {
+  margin: 0;
+  font-family: var(--font-accent);
+  font-size: clamp(26px, 3.4vw, 36px);
+  letter-spacing: -0.04em;
+  color: var(--color-text-bright);
   overflow-wrap: anywhere;
+}
+.profile__stats {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  color: var(--color-text);
+}
+.profile__stats strong {
+  color: var(--color-text-bright);
+  font-weight: 600;
 }
 .profile__bio {
   display: grid;
-  gap: var(--space-2);
+  gap: 12px;
+  justify-items: start;
+  max-width: 60ch;
 }
-.profile__bio label {
-  color: var(--color-text-muted);
-  font-size: 14px;
+.profile__bio p {
+  margin: 0;
+  white-space: pre-line;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.profile__bio--editing {
+  justify-items: stretch;
 }
 .profile__bio textarea {
   width: 100%;
   resize: vertical;
-  padding: var(--space-3);
+  padding: 12px;
   border: 1px solid var(--color-border-strong);
   border-radius: 12px;
   background: transparent;
-  color: inherit;
+  color: var(--color-text-bright);
   font: inherit;
 }
-.profile__bio button,
-.profile__play,
-.profile__tabs button {
-  justify-self: start;
-  min-height: 40px;
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-border-strong);
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
+.profile__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.profile__muted,
+.profile__joined {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+.profile__edit {
+  min-height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-bright);
   font: inherit;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
 }
-.profile__bio button:disabled {
+.profile__edit:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.profile__edit--primary {
+  background: var(--color-text-bright);
+  color: var(--color-bg);
+}
+.profile__edit--primary:hover {
+  background: var(--color-text);
+}
+.profile__edit:disabled {
   opacity: 0.5;
   cursor: default;
 }
-.profile__bio p {
-  margin: 0;
-  color: var(--color-text-muted);
-}
+
+/* Tab kiểu mạng xã hội: gạch trên đánh dấu tab đang xem */
 .profile__tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  justify-content: center;
+  gap: clamp(24px, 8vw, 60px);
+  border-top: 1px solid var(--color-border);
+  margin-bottom: 24px;
+}
+.profile__tabs button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -1px;
+  padding: 16px 0;
+  border: 0;
+  border-top: 1px solid transparent;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
 }
 .profile__tabs button[aria-selected='true'] {
-  background: var(--color-text);
-  color: var(--color-bg);
+  border-top-color: var(--color-text-bright);
+  color: var(--color-text-bright);
 }
+.profile__tabs svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.profile__tabs button:focus-visible,
+.profile__tile:focus-visible,
+.profile__songs button:focus-visible,
+.profile__edit:focus-visible {
+  outline: 2px solid var(--color-text-bright);
+  outline-offset: 2px;
+}
+
+.profile__grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+.profile__tile {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: var(--color-surface);
+  color: var(--color-text);
+  overflow: hidden;
+  cursor: pointer;
+}
+.profile__tile:disabled {
+  cursor: default;
+}
+.profile__tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.2s ease;
+}
+.profile__tile:not(:disabled):hover img {
+  filter: brightness(0.75);
+}
+.profile__tile-text {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  font-family: var(--font-accent);
+  font-size: clamp(13px, 2vw, 18px);
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.profile__badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--color-text-bright);
+  font-size: 12px;
+}
+.profile__multi {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--color-text-bright);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
 .profile__play {
-  margin-bottom: var(--space-4);
+  margin-bottom: 16px;
 }
 .profile__songs {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: var(--space-2);
+  gap: 4px;
 }
 .profile__songs button {
   width: 100%;
   display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-  min-height: 48px;
-  padding: var(--space-2) var(--space-4);
+  align-items: center;
+  gap: 14px;
+  padding: 8px;
   border: 0;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  color: inherit;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-bright);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.profile__artist {
-  color: var(--color-text-muted);
-  flex-shrink: 0;
+.profile__songs button:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
-.profile__posts {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+.profile__songs img,
+.profile__cover {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--color-surface);
+}
+.profile__song {
+  display: grid;
+  min-width: 0;
+}
+.profile__song span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .profile {
+    padding-top: 120px;
+  }
+  .profile__head {
+    gap: 20px;
+    padding-bottom: 24px;
+  }
+  .profile__stats {
+    gap: 4px 18px;
+    font-size: 14px;
+  }
+  .profile__tabs button {
+    font-size: 13px;
+  }
 }

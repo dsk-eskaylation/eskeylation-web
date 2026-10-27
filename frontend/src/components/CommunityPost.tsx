@@ -70,12 +70,19 @@ export function CommunityPost({
   loggedIn,
   isAdmin = false,
   priority = false,
+  variant = "feed",
+  onOpen,
 }: {
   content: ContentOut;
   loggedIn: boolean;
   isAdmin?: boolean;
   priority?: boolean;
+  /** 'detail': khung kiểu Instagram — ảnh bên trái, bình luận luôn mở bên phải. */
+  variant?: "feed" | "detail";
+  /** Feed: bấm ảnh / bình luận mở bài ở dạng detail thay vì mở tại chỗ. */
+  onOpen?: () => void;
 }) {
+  const detail = variant === "detail";
   const id = content.id;
   const { notify } = useToast();
   const author =
@@ -84,7 +91,13 @@ export function CommunityPost({
       : content.title;
 
   const [inter, setInter] = useState<InteractionOut | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(detail);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const openComments = () => {
+    if (onOpen) onOpen();
+    else if (detail) inputRef.current?.focus();
+    else setExpanded((v) => !v);
+  };
   const navigate = useNavigate();
   const location = useLocation();
   const loginHref = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
@@ -400,7 +413,7 @@ export function CommunityPost({
   const media = content.media;
 
   return (
-    <article ref={articleRef} className="cpost">
+    <article ref={articleRef} className={detail ? `cpost cpost--detail${content.media.length ? "" : " cpost--text"}` : "cpost"}>
       <header className="cpost__head">
         <span className="cpost__avatar" aria-hidden="true" />
         <div className="cpost__id">
@@ -415,7 +428,11 @@ export function CommunityPost({
 
       {content.summary && <p className="cpost__caption">{content.summary}</p>}
 
-      {media.length > 0 && (
+      {detail && media.length > 0 && (
+        <MediaCarousel content={content} />
+      )}
+
+      {!detail && media.length > 0 && (
         <div
           className={`cpost__media cpost__media--n${Math.min(media.length, 4)}`}
         >
@@ -424,7 +441,7 @@ export function CommunityPost({
               type="button"
               className="cpost__cell"
               key={i}
-              onClick={() => setViewingMedia(true)}
+              onClick={() => (onOpen ? onOpen() : setViewingMedia(true))}
               aria-label={`Xem ${content.title}`}
             >
               {m.url ? (
@@ -463,7 +480,7 @@ export function CommunityPost({
             <button
               type="button"
               className="cpost__stats-comments"
-              onClick={() => setExpanded(true)}
+              onClick={openComments}
             >
               {inter?.comment_count} bình luận
             </button>
@@ -483,7 +500,7 @@ export function CommunityPost({
         <button
           type="button"
           className="cpost__act"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={openComments}
         >
           <span className="cpost__act-icon">
             <CommentIcon />
@@ -630,6 +647,7 @@ export function CommunityPost({
           {loggedIn ? (
             <form className="cpost__form" onSubmit={submitComment}>
               <input
+                ref={inputRef}
                 className="cpost__input"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -652,5 +670,54 @@ export function CommunityPost({
         </div>
       )}
     </article>
+  );
+}
+
+/** Khung ảnh bên trái của chế độ detail: xem từng ảnh/video, chuyển bằng nút hoặc phím ←/→. */
+function MediaCarousel({ content }: { content: ContentOut }) {
+  const [index, setIndex] = useState(0);
+  const media = content.media;
+  const current = media[Math.min(index, media.length - 1)];
+  const go = (step: number) =>
+    setIndex((i) => (i + step + media.length) % media.length);
+  return (
+    <div
+      className="cpost__visual"
+      role="group"
+      aria-roledescription="carousel"
+      aria-label={`Ảnh ${index + 1}/${media.length} của ${content.title}`}
+      tabIndex={media.length > 1 ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (media.length < 2) return;
+        if (e.key === "ArrowLeft") go(-1);
+        if (e.key === "ArrowRight") go(1);
+      }}
+    >
+      {current.mime_type.startsWith("video/") ? (
+        <video
+          key={index}
+          src={current.stream_url || current.url}
+          title={current.alt_text ?? content.title}
+          controls
+          playsInline
+        />
+      ) : (
+        <MediaImage
+          key={index}
+          media={current}
+          original
+          alt={current.alt_text ?? content.title}
+        />
+      )}
+      {media.length > 1 && (
+        <>
+          <button type="button" className="cpost__nav cpost__nav--prev" onClick={() => go(-1)} aria-label="Ảnh trước">‹</button>
+          <button type="button" className="cpost__nav cpost__nav--next" onClick={() => go(1)} aria-label="Ảnh sau">›</button>
+          <div className="cpost__dots" aria-hidden="true">
+            {media.map((_, i) => <span key={i} className={i === index ? "is-on" : undefined} />)}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

@@ -3,6 +3,7 @@ import { Suspense, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { PillNav } from './PillNav'
 import { AuthButtons } from './AuthButtons'
+import { NotificationBell } from './NotificationBell'
 import { PlayerBar } from './PlayerBar'
 import { usePlayer } from '../player/PlayerContext'
 import bgTexture from '../assets/figma/bg-texture.png'
@@ -26,6 +27,7 @@ export function Layout() {
           </Link>
           <PillNav />
           <div className="layout__auth">
+            <NotificationBell />
             <AuthButtons />
           </div>
         </header>,
