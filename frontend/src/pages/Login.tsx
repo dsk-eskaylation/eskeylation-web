@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { getSession, login } from '../api/auth'
 import { FormError } from '../components/FormError'
 import './Login.css'
@@ -8,6 +8,10 @@ import './Login.css'
     nền tối + orb blur, card pill glass, input radius 52, lỗi đỏ #AF0A0A. */
 export function Login() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  // Only same-site paths, so ?next= cannot send users to another origin.
+  const nextPath = params.get('next')
+  const next = nextPath?.startsWith('/') && !nextPath.startsWith('//') && !nextPath.startsWith('/\\') ? nextPath : null
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -20,7 +24,7 @@ export function Login() {
     try {
       await login(email, password)
       const user = await getSession()
-      navigate(user?.role === 'member' ? '/community' : '/cms', { replace: true })
+      navigate(next ?? (user?.role === 'member' ? '/community' : '/cms'), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đăng nhập thất bại')
     } finally {

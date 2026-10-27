@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { ContentOut } from "../api/types";
 import { MediaImage } from "./MediaImage";
 import {
@@ -82,6 +82,10 @@ export function CommunityPost({
 
   const [inter, setInter] = useState<InteractionOut | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const loginHref = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+  const goLogin = () => navigate(loginHref);
   const [comments, setComments] = useState<CommentOut[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -457,9 +461,8 @@ export function CommunityPost({
         <ReactionControl
           variant="post"
           mine={mine}
-          disabled={!loggedIn}
-          onToggle={postToggle}
-          onPick={postPick}
+          onToggle={loggedIn ? postToggle : goLogin}
+          onPick={loggedIn ? postPick : goLogin}
         />
 
         <button
@@ -476,8 +479,7 @@ export function CommunityPost({
         <button
           type="button"
           className={inter?.saved ? "cpost__act cpost__act--on" : "cpost__act"}
-          onClick={toggleSave}
-          disabled={!loggedIn}
+          onClick={loggedIn ? toggleSave : goLogin}
         >
           <span className="cpost__act-icon">
             <BookmarkIcon filled={inter?.saved} />
@@ -620,7 +622,7 @@ export function CommunityPost({
             </form>
           ) : (
             <p className="cpost__login-hint">
-              <Link to="/login">Đăng nhập</Link> để bình luận và bày tỏ cảm xúc.
+              <Link to={loginHref}>Đăng nhập</Link> để bình luận và bày tỏ cảm xúc.
             </p>
           )}
         </div>
