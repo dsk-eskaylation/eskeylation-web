@@ -19,16 +19,16 @@ class SingleUploadParser(MultiPartParser):
         self.completed = True
 
 
-async def parse_upload(request: Request) -> FormData:
+async def parse_upload(request: Request, max_bytes: int | None = None) -> FormData:
     if request.headers.get("content-type", "").partition(";")[0].strip().lower() != (
         "multipart/form-data"
     ):
         raise HTTPException(422, "Cần gửi một file qua multipart/form-data")
     settings = get_settings()
-    limit = (
-        max(settings.max_image_size, settings.max_video_size, settings.max_audio_size)
-        + 64 * 1024
+    largest = max(
+        settings.max_image_size, settings.max_video_size, settings.max_audio_size
     )
+    limit = (max_bytes or largest) + 64 * 1024
     length = request.headers.get("content-length")
     if length:
         try:

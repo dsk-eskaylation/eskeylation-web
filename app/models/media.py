@@ -32,6 +32,10 @@ class Media(TimestampMixin, Base):
     height: Mapped[int | None] = mapped_column()
     duration: Mapped[float | None] = mapped_column()  # giây, cho video
     alt_text: Mapped[str | None] = mapped_column(Text)
+    # Thành viên chỉ được gắn ảnh do chính mình tải lên vào bài cộng đồng.
+    uploaded_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
     variants: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
     processing_status: Mapped[str] = mapped_column(
         String(16), default="skipped", server_default="skipped"

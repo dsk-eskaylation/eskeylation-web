@@ -415,7 +415,7 @@ export function CommunityPost({
   return (
     <article ref={articleRef} className={detail ? `cpost cpost--detail${content.media.length ? "" : " cpost--text"}` : "cpost"}>
       <header className="cpost__head">
-        <span className="cpost__avatar" aria-hidden="true" />
+        <span className="cpost__avatar" aria-hidden="true">{author.slice(0, 1).toUpperCase()}</span>
         <div className="cpost__id">
           <span className="cpost__name">{author}</span>
           <div className="cpost__meta">
@@ -530,7 +530,7 @@ export function CommunityPost({
           )}
           {comments.map((c) => (
             <div className="cpost__comment" key={c.id}>
-              <span className="cpost__comment-avatar" aria-hidden="true" />
+              <span className="cpost__comment-avatar" aria-hidden="true">{c.author_name.slice(0, 1).toUpperCase()}</span>
               <div className="cpost__comment-main">
                 <div className="cpost__comment-bubble">
                   {/* Issue 4: thời gian nằm CẠNH tên người bình luận */}

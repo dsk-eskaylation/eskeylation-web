@@ -7,6 +7,7 @@ GROUP BY + bool_or) thay vì nhiều câu tuần tự.
 
 import json
 
+from fastapi import HTTPException
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +23,7 @@ from app.models.community import (
 from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType, ReactionType
 from app.models.interaction_target import InteractionTarget
-from app.models.media import ContentMedia
+from app.models.media import ContentMedia, Media
 from app.models.user import User
 from app.schemas.public import ContentOut
 from app.services.interaction_targets import (
@@ -393,3 +394,23 @@ async def list_authored(session: AsyncSession, user_id: int) -> list[Content]:
         .limit(100)
     )
     return list(rows.all())
+
+
+async def ensure_own_unused_images(
+    session: AsyncSession, media_ids: list[int], user_id: int
+) -> None:
+    """Thành viên chỉ gắn được ảnh chính mình vừa tải và chưa thuộc bài nào."""
+    if not media_ids:
+        return
+    ok = await session.scalar(
+        select(func.count())
+        .select_from(Media)
+        .where(
+            Media.id.in_(media_ids),
+            Media.uploaded_by == user_id,
+            Media.mime_type.startswith("image/"),
+            ~select(ContentMedia.id).where(ContentMedia.media_id == Media.id).exists(),
+        )
+    )
+    if ok != len(media_ids):
+        raise HTTPException(422, "Ảnh không hợp lệ hoặc không phải ảnh bạn tải lên")

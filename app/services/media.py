@@ -69,7 +69,12 @@ async def _read_capped(file: UploadFile, cap: int) -> bytes:
 
 
 async def create_media(
-    session: AsyncSession, file: UploadFile, alt_text: str | None = None
+    session: AsyncSession,
+    file: UploadFile,
+    alt_text: str | None = None,
+    *,
+    uploaded_by: int | None = None,
+    images_only: bool = False,
 ) -> Media:
     header = await file.read(261)
     await file.seek(0)
@@ -79,6 +84,11 @@ async def create_media(
     # Xác định MIME từ NỘI DUNG (magic bytes), không tin đuôi file.
     kind = filetype.guess(header)
     mime = kind.mime if kind else None
+    if images_only and mime not in settings.allowed_image_types:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Chỉ hỗ trợ ảnh JPG, PNG, WebP hoặc GIF",
+        )
 
     if mime in settings.allowed_image_types:
         data = await _read_capped(file, settings.max_image_size)
@@ -121,6 +131,7 @@ async def create_media(
         height=height,
         duration=duration,
         alt_text=alt_text,
+        uploaded_by=uploaded_by,
     )
     if settings.media_processing_enabled:
         queue(media)

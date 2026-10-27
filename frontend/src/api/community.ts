@@ -77,13 +77,23 @@ export const community = {
     fetch('/api/me/notifications/read', { method: 'POST', credentials: 'include', headers: csrfHeaders() }).then(ensureOk),
   myPosts: () =>
     fetch('/api/me/posts', { credentials: 'include' }).then((r) => toJson<ContentOut[]>(r)),
-  submitPost: (title: string, summary: string) =>
+  submitPost: (summary: string, mediaIds: number[]) =>
     fetch('/api/community/posts', {
       method: 'POST',
       credentials: 'include',
       headers: jsonMut(),
-      body: JSON.stringify({ title, summary }),
+      body: JSON.stringify({ summary, media_ids: mediaIds }),
     }).then((r) => toJson<{ message: string }>(r)),
+  uploadImage: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch('/api/community/uploads', {
+      method: 'POST',
+      credentials: 'include',
+      headers: csrfHeaders(),
+      body: form,
+    }).then((r) => toJson<{ id: number; url: string }>(r))
+  },
   /** Bài đã lưu (community) hoặc bài hát yêu thích (music) của tài khoản. */
   mySaved: (type: 'community' | 'music', page = 1) =>
     fetch(`/api/me/saved?type=${type}&page=${page}&page_size=100`, { credentials: 'include' }).then((r) =>

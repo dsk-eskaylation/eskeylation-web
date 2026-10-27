@@ -13,12 +13,14 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
+    Request,
     WebSocket,
     WebSocketDisconnect,
     status,
 )
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.datastructures import UploadFile
 
 from app.config import get_settings
 from app.db import SessionLocal, get_session
@@ -30,7 +32,7 @@ from app.dependencies import (
 from app.models.content import Content
 from app.models.enums import ContentType, ReactionType
 from app.models.user import User
-from app.schemas.admin import ContentCreate
+from app.schemas.admin import ContentCreate, ContentMediaIn
 from app.schemas.community import (
     CommentIn,
     CommentOut,
@@ -39,6 +41,7 @@ from app.schemas.community import (
     ReactionIn,
     ReactionSummary,
 )
+from app.schemas.media import MediaRead
 from app.schemas.pagination import Page
 from app.schemas.public import ContentOut
 from app.services import (
@@ -48,9 +51,11 @@ from app.services import (
     notifications,
     realtime,
 )
+from app.services import media as media_service
 from app.services.ratelimit import check_rate
 from app.services.sanitize import sanitize_summary
 from app.services.serialize import content_to_out
+from app.services.uploads import parse_upload
 
 settings = get_settings()
 
@@ -438,8 +443,49 @@ async def my_saved(
 
 
 class PostIn(BaseModel):
-    title: str = Field(min_length=1, max_length=255)
+    title: str | None = Field(default=None, max_length=255)
     summary: str = Field(min_length=1, max_length=5000)
+    media_ids: list[int] = Field(default_factory=list, max_length=10)
+
+
+@router.post(
+    "/uploads",
+    response_model=MediaRead,
+    status_code=status.HTTP_201_CREATED,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["file"],
+                        "properties": {"file": {"type": "string", "format": "binary"}},
+                    }
+                }
+            },
+        }
+    },
+)
+async def upload_post_image(
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> MediaRead:
+    """Thành viên tải ảnh cho bài sắp đăng (chỉ ảnh, ghi lại người tải)."""
+    # Auth + rate limit trước khi đọc body upload.
+    await check_rate(f"post-upload:{user.id}", limit=30, window_seconds=600)
+    form = await parse_upload(request, max_bytes=settings.max_image_size)
+    try:
+        file = form.get("file")
+        if not isinstance(file, UploadFile):
+            raise HTTPException(422, "Thiếu file ảnh")
+        media = await media_service.create_media(
+            session, file, uploaded_by=user.id, images_only=True
+        )
+        return MediaRead.from_model(media)
+    finally:
+        await form.close()
 
 
 @router.post("/posts", status_code=status.HTTP_201_CREATED)
@@ -450,10 +496,17 @@ async def submit_post(
 ) -> dict[str, str]:
     """Thành viên gửi bài cộng đồng -> nằm ở Nháp, chỉ hiện sau khi admin duyệt."""
     await check_rate(f"post:{user.id}", limit=3, window_seconds=600)
+    summary = payload.summary.strip()
+    if not summary:
+        raise HTTPException(422, "Nội dung bài viết trống")
+    # Không có tiêu đề -> lấy dòng đầu của nội dung, như caption mạng xã hội.
+    title = (payload.title or "").strip() or summary.splitlines()[0][:80]
+    ids = list(dict.fromkeys(payload.media_ids))
+    await community.ensure_own_unused_images(session, ids, user.id)
     await moderation.assert_clean(
         session,
-        text=payload.title,
-        summary=payload.summary,
+        text=title,
+        summary=summary,
         actor=user,
         entity_type="community_post",
     )
@@ -461,9 +514,13 @@ async def submit_post(
         session,
         ContentCreate(
             type=ContentType.community,
-            title=payload.title.strip(),
-            summary=payload.summary,
+            title=title,
+            summary=summary,
             body={"author": community.author_name(user)},
+            media=[
+                ContentMediaIn(media_id=media_id, position=i, is_primary=i == 0)
+                for i, media_id in enumerate(ids)
+            ],
         ),
         user.id,
     )

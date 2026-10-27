@@ -6,6 +6,9 @@ from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+# Multipart uploads are bounded by parse_upload / create_media instead.
+_UPLOAD_PATHS = {"/admin/media", "/api/community/uploads"}
+
 
 class RequestBodyLimit:
     """Bound non-upload mutations before JSON/form decoding allocates large bodies."""
@@ -21,7 +24,7 @@ class RequestBodyLimit:
             or scope["method"] not in {"POST", "PUT", "PATCH", "DELETE"}
             or (
                 scope["method"] == "POST"
-                and scope.get("path", "").rstrip("/") == "/admin/media"
+                and scope.get("path", "").rstrip("/") in _UPLOAD_PATHS
             )
         ):
             await self.app(scope, receive, send)

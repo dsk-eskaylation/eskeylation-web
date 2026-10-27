@@ -240,3 +240,50 @@ async def test_bai_cua_toi_gom_ca_bai_cho_duyet(client, make_user):
     assert [(p["title"], p["body"]["review_status"]) for p in mine] == [
         ("Chờ duyệt", "draft")
     ]
+
+
+async def test_thanh_vien_dang_bai_kem_anh_cua_minh(client, db, make_user):
+    from sqlalchemy import select
+
+    from app.models.content import Content
+    from tests.test_media_api import mp4_bytes, png_bytes
+
+    member, token = await token_for(client, make_user, UserRole.member)
+    _, other_token = await token_for(client, make_user, UserRole.member)
+
+    def upload(tok, name="a.png", data=None, mime="image/png"):
+        return client.post(
+            "/api/community/uploads",
+            files={"file": (name, data or png_bytes(), mime)},
+            headers=auth(tok),
+        )
+
+    mine = (await upload(token)).json()["id"]
+    theirs = (await upload(other_token)).json()["id"]
+    video = await upload(token, "clip.mp4", mp4_bytes(), "video/mp4")
+    assert video.status_code == 415
+
+    stolen = await client.post(
+        "/api/community/posts",
+        json={"summary": "Ảnh người khác", "media_ids": [theirs]},
+        headers=auth(token),
+    )
+    assert stolen.status_code == 422
+
+    r = await client.post(
+        "/api/community/posts",
+        json={"summary": "Buổi offline\nĐông vui lắm", "media_ids": [mine]},
+        headers=auth(token),
+    )
+    assert r.status_code == 201, r.text
+    post = await db.scalar(select(Content).where(Content.author_id == member.id))
+    await db.refresh(post, ["media_links"])
+    assert post.title == "Buổi offline"
+    assert [link.media_id for link in post.media_links] == [mine]
+
+    reused = await client.post(
+        "/api/community/posts",
+        json={"summary": "Dùng lại ảnh", "media_ids": [mine]},
+        headers=auth(token),
+    )
+    assert reused.status_code == 422
