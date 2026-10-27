@@ -72,7 +72,9 @@ def check_music_release(base, context, login, passed):
             ),
         )
         page.goto(base + "/music", wait_until="networkidle")
-        page.get_by_role("button", name="Phát bài nhúng đầu tiên theo thứ tự A-Z", exact=True).click()
+        page.get_by_role(
+            "button", name="Phát bài nhúng đầu tiên theo thứ tự A-Z", exact=True
+        ).click()
         expect(page.locator(".embed-dock iframe")).to_be_visible()
         page.get_by_role("button", name="Đóng trình phát", exact=True).click()
         page.get_by_role("button", name="Phát bài nhúng ngẫu nhiên", exact=True).click()
@@ -84,7 +86,9 @@ def check_music_release(base, context, login, passed):
         expect(page.locator(".music__hint").last).to_contain_text(
             "1 bài có file âm thanh"
         )
-        page.get_by_role("button", name="Phát danh sách audio theo thứ tự A-Z", exact=True).click()
+        page.get_by_role(
+            "button", name="Phát danh sách audio theo thứ tự A-Z", exact=True
+        ).click()
         page.wait_for_function("()=>document.querySelector('audio').currentTime > .1")
         expect(page.locator(".embed-dock")).to_have_count(0)
         page.get_by_role("button", name="Phát Bài nhúng kiểm thử", exact=True).click()

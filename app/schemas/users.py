@@ -29,4 +29,9 @@ class UserRead(BaseModel):
     email: EmailStr
     role: UserRole
     is_active: bool
+    bio: str | None = None
     created_at: datetime
+
+
+class ProfileUpdate(BaseModel):
+    bio: str | None = Field(None, max_length=500)

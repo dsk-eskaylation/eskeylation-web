@@ -93,9 +93,9 @@ async def test_save_va_interactions(client, make_user, make_content):
 
 async def test_tuong_tac_bai_khong_phai_community_404(client, make_user, make_content):
     _, token = await token_for(client, make_user)
-    music = await make_content(type_=ContentType.music, title="Nhạc")
+    video = await make_content(type_=ContentType.video, title="Video")
     r = await client.put(
-        f"/api/community/{music.id}/reaction",
+        f"/api/community/{video.id}/reaction",
         json={"type": "like"},
         headers=auth(token),
     )
@@ -114,3 +114,37 @@ async def test_tuong_tac_bai_draft_404(client, make_user, make_content):
         f"/api/community/{draft.id}/comments", json={"body": "hi"}, headers=auth(token)
     )
     assert r.status_code == 404
+
+
+async def test_bai_nhac_duoc_yeu_thich_va_binh_luan(client, make_user, make_content):
+    _, token = await token_for(client, make_user)
+    music = await make_content(type_=ContentType.music, title="Nhạc")
+    base = f"/api/community/{music.id}"
+    assert (await client.put(f"{base}/save", headers=auth(token))).status_code == 200
+    created = await client.post(
+        f"{base}/comments", json={"body": "Hay quá"}, headers=auth(token)
+    )
+    assert created.status_code == 201, created.text
+    overview = (await client.get(f"{base}/interactions", headers=auth(token))).json()
+    assert overview["saved"] is True and overview["comment_count"] == 1
+
+
+async def test_danh_sach_da_luu_va_yeu_thich(client, make_user, make_content):
+    _, token = await token_for(client, make_user)
+    post = await make_content(type_=ContentType.community, title="Bài lưu")
+    song = await make_content(type_=ContentType.music, title="Bài thích")
+    for item in (post, song):
+        await client.put(f"/api/community/{item.id}/save", headers=auth(token))
+    saved = await client.get("/api/me/saved", headers=auth(token))
+    favorites = await client.get("/api/me/saved?type=music", headers=auth(token))
+    assert [c["id"] for c in saved.json()["items"]] == [post.id]
+    assert [c["id"] for c in favorites.json()["items"]] == [song.id]
+    client.cookies.clear()  # login set a session cookie
+    assert (await client.get("/api/me/saved")).status_code == 401
+
+
+async def test_cap_nhat_bio(client, make_user):
+    _, token = await token_for(client, make_user)
+    r = await client.patch("/auth/me", json={"bio": "  Fan DSK  "}, headers=auth(token))
+    assert r.status_code == 200, r.text
+    assert r.json()["bio"] == "Fan DSK"

@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, Enum, String
+from sqlalchemy import CheckConstraint, Enum, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -17,6 +17,7 @@ class User(TimestampMixin, Base):
         default=UserRole.member,
     )
     is_active: Mapped[bool] = mapped_column(default=True)
+    bio: Mapped[str | None] = mapped_column(Text)
 
     __table_args__ = (
         # CHECK enum ở tầng DB vì native_enum=False lưu VARCHAR (db-review C4)

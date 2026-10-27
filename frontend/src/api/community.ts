@@ -1,5 +1,5 @@
 import { csrfHeaders } from './auth'
-import type { Page } from './types'
+import type { ContentOut, Page } from './types'
 
 export type ReactionKind = 'like' | 'love' | 'haha' | 'wow' | 'sad' | 'angry'
 
@@ -56,6 +56,11 @@ const base = (id: number) => `/api/community/${id}`
 const jsonMut = () => ({ 'Content-Type': 'application/json', ...csrfHeaders() })
 
 export const community = {
+  /** Bài đã lưu (community) hoặc bài hát yêu thích (music) của tài khoản. */
+  mySaved: (type: 'community' | 'music', page = 1) =>
+    fetch(`/api/me/saved?type=${type}&page=${page}&page_size=100`, { credentials: 'include' }).then((r) =>
+      toJson<Page<ContentOut>>(r),
+    ),
   interactions: (id: number) =>
     fetch(`${base(id)}/interactions`, { credentials: 'include' }).then((r) =>
       toJson<InteractionOut>(r),

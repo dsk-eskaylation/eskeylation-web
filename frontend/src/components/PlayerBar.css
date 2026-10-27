@@ -298,6 +298,19 @@
   opacity: 0.4;
   cursor: default;
 }
+.pbpanel__comments {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.pbpanel__comments .pbpanel__link {
+  margin-left: 8px;
+}
 .pbpanel__msg {
   margin: 10px 0 0;
   font-size: 13px;

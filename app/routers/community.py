@@ -6,6 +6,7 @@ Redis pub/sub (app.services.realtime).
 """
 
 import asyncio
+from typing import Literal
 
 from fastapi import (
     APIRouter,
@@ -25,7 +26,8 @@ from app.dependencies import (
     get_current_user,
     get_current_user_optional,
 )
-from app.models.enums import ReactionType
+from app.models.content import Content
+from app.models.enums import ContentType, ReactionType
 from app.models.user import User
 from app.schemas.community import (
     CommentIn,
@@ -36,13 +38,16 @@ from app.schemas.community import (
     ReactionSummary,
 )
 from app.schemas.pagination import Page
+from app.schemas.public import ContentOut
 from app.services import community, moderation, realtime
 from app.services.ratelimit import check_rate
 from app.services.sanitize import sanitize_summary
+from app.services.serialize import content_to_out
 
 settings = get_settings()
 
 router = APIRouter(prefix="/api/community", tags=["community"])
+me_router = APIRouter(prefix="/api/me", tags=["community"])
 
 
 async def _ensure_post(session: AsyncSession, content_id: int) -> None:
@@ -350,6 +355,25 @@ async def unsave_post(
     await check_rate(f"save:{user.id}", limit=30, window_seconds=60)
     await community.unsave_post(session, content_id, user.id)
     return {"saved": False}
+
+
+@me_router.get("/saved", response_model=Page[ContentOut])
+async def my_saved(
+    type: Literal["community", "music"] = "community",
+    pagination: PaginationParams = Depends(),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Page[ContentOut]:
+    """Bài đã lưu (type=community) hoặc bài hát yêu thích (type=music)."""
+    items, total = await community.list_saved(
+        session, user.id, ContentType(type), pagination.page, pagination.page_size
+    )
+    return Page.create(
+        items=[content_to_out(c) if isinstance(c, Content) else c for c in items],
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )
 
 
 # ---- Realtime WebSocket ----

@@ -13,6 +13,7 @@ const Video = lazy(() => import('./pages/Video').then((m) => ({ default: m.Video
 const VideoAll = lazy(() => import('./pages/VideoAll').then((m) => ({ default: m.VideoAll })))
 const Photos = lazy(() => import('./pages/Photos').then((m) => ({ default: m.Photos })))
 const Community = lazy(() => import('./pages/Community').then((m) => ({ default: m.Community })))
+const Profile = lazy(() => import('./pages/Profile').then((m) => ({ default: m.Profile })))
 const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })))
 const Register = lazy(() => import('./pages/Register').then((m) => ({ default: m.Register })))
 const Cms = lazy(() => import('./pages/Cms').then((m) => ({ default: m.Cms })))
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="video/all" element={<VideoAll />} />
           <Route path="photos" element={<Photos />} />
           <Route path="community" element={<Community />} />
+          <Route path="profile" element={<Profile />} />
           <Route path="*" element={<NotFound />} />
         </Route>
 

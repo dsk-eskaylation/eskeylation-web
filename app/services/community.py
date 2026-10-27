@@ -10,6 +10,7 @@ import json
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.models.community import (
@@ -19,7 +20,9 @@ from app.models.community import (
     SavedPost,
 )
 from app.models.content import Content
-from app.models.enums import ContentType, ReactionType
+from app.models.enums import ContentStatus, ContentType, ReactionType
+from app.models.interaction_target import InteractionTarget
+from app.models.media import ContentMedia
 from app.models.user import User
 from app.schemas.public import ContentOut
 from app.services.interaction_targets import (
@@ -37,16 +40,23 @@ def author_name(user: User | None) -> str:
     return user.email.split("@", 1)[0]
 
 
+# Bài nhạc dùng chung bình luận / cảm xúc / lưu (= yêu thích) với bài cộng đồng.
+INTERACTIVE_TYPES = (ContentType.community, ContentType.music)
+
+
 async def get_published_community(
     session: AsyncSession, content_id: int
 ) -> Content | ContentOut | None:
-    """Chỉ cho tương tác trên bài cộng đồng ĐÃ publish."""
-    if get_settings().public_content_source == "drive":
-        post = await drive_content(content_id, ContentType.community)
-        if post is not None:
-            await ensure_drive_target(session, post)
-        return post
-    return await published_cms_target(session, content_id, ContentType.community)
+    """Chỉ cho tương tác trên bài cộng đồng hoặc bài nhạc ĐÃ publish."""
+    for type_ in INTERACTIVE_TYPES:
+        if get_settings().public_content_source == "drive":
+            post = await drive_content(content_id, type_)
+            if post is not None:
+                await ensure_drive_target(session, post)
+                return post
+        elif post := await published_cms_target(session, content_id, type_):
+            return post
+    return None
 
 
 async def interaction_overview(
@@ -68,7 +78,8 @@ async def interaction_overview(
                   (:is_drive OR EXISTS(SELECT 1 FROM interaction_targets t
                          JOIN contents c ON c.id=t.content_id
                          WHERE t.id=CAST(:cid AS bigint)
-                           AND c.type='community' AND c.status='published'))
+                           AND c.type IN ('community', 'music')
+                           AND c.status='published'))
                     AS ok,
                   (SELECT coalesce(jsonb_object_agg(t.type, t.n), '{}'::jsonb)
                      FROM (SELECT type, count(*) AS n FROM post_reactions
@@ -331,3 +342,39 @@ async def unsave_post(session: AsyncSession, content_id: int, user_id: int) -> N
         )
     )
     await session.commit()
+
+
+async def list_saved(
+    session: AsyncSession, user_id: int, type_: ContentType, page: int, page_size: int
+) -> tuple[list[Content | ContentOut], int]:
+    """Bài đã lưu (cộng đồng) / bài hát yêu thích (nhạc) của user, mới lưu trước."""
+    if get_settings().public_content_source == "drive":
+        ids = (
+            await session.scalars(
+                select(SavedPost.content_id)
+                .where(SavedPost.user_id == user_id, SavedPost.content_id < 0)
+                .order_by(SavedPost.created_at.desc())
+            )
+        ).all()
+        # shortcut: resolves every saved Drive id per request; page in SQL if lists grow
+        found = [await drive_content(i, type_) for i in ids]
+        items = [c for c in found if c is not None]
+        return items[(page - 1) * page_size : page * page_size], len(items)
+    base = (
+        select(Content)
+        .join(InteractionTarget, InteractionTarget.content_id == Content.id)
+        .join(SavedPost, SavedPost.content_id == InteractionTarget.id)
+        .where(
+            SavedPost.user_id == user_id,
+            Content.type == type_,
+            Content.status == ContentStatus.published,
+        )
+    )
+    total = await session.scalar(select(func.count()).select_from(base.subquery()))
+    rows = await session.scalars(
+        base.options(selectinload(Content.media_links).joinedload(ContentMedia.media))
+        .order_by(SavedPost.created_at.desc(), SavedPost.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    return list(rows.all()), total or 0

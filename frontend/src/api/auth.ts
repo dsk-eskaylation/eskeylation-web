@@ -9,6 +9,7 @@ export interface SessionUser {
   email: string
   role: 'admin' | 'editor' | 'author' | 'member'
   is_active: boolean
+  bio?: string | null
 }
 
 /** Đọc CSRF token từ cookie esk_csrf (cookie này KHÔNG httpOnly). */
@@ -85,4 +86,17 @@ export async function register(email: string, password: string): Promise<void> {
     const detail = typeof data?.detail === 'string' ? data.detail : null
     throw new Error(detail ?? `Đăng ký lỗi ${res.status}`)
   }
+}
+
+export async function updateProfile(bio: string): Promise<SessionUser> {
+  const res = await fetch('/auth/me', {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+    body: JSON.stringify({ bio }),
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) throw new Error(typeof data?.detail === 'string' ? data.detail : 'Chưa lưu được bio.')
+  clearSessionCache()
+  return data as SessionUser
 }

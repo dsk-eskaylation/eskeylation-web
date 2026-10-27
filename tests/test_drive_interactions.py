@@ -106,9 +106,10 @@ async def test_drive_comment_ownership_and_wrong_content_type(
         f"{base}/comments/{cid}", json={"body": "Other"}, headers=auth(other)
     )
     assert edit.status_code == 403
-    wrong = await client.put(
+    # Bài nhạc Drive cũng nhận cảm xúc (dùng chung tương tác với cộng đồng).
+    music_reaction = await client.put(
         f"/api/community/{music.id}/reaction",
         json={"type": "like"},
         headers=auth(owner),
     )
-    assert wrong.status_code == 404
+    assert music_reaction.status_code == 200, music_reaction.text

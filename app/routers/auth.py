@@ -23,8 +23,10 @@ from app.models.enums import UserRole
 from app.models.session import UserSession
 from app.models.user import User
 from app.schemas.auth import Token
-from app.schemas.users import UserCreate, UserRead
+from app.schemas.users import ProfileUpdate, UserCreate, UserRead
+from app.services import moderation
 from app.services.ratelimit import check_rate
+from app.services.sanitize import sanitize_summary
 from app.services.security import (
     create_access_token,
     decode_token,
@@ -157,6 +159,20 @@ async def logout(
 @router.get("/me", response_model=UserRead)
 async def me(user: User = Depends(get_current_user)) -> UserRead:
     """Thông tin tài khoản đang đăng nhập — để frontend biết vai trò."""
+    return UserRead.model_validate(user)
+
+
+@router.patch("/me", response_model=UserRead)
+async def update_me(
+    data: ProfileUpdate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> UserRead:
+    bio = sanitize_summary(data.bio or "") or ""
+    await moderation.assert_clean(session, text=bio)
+    user.bio = bio.strip() or None
+    await session.commit()
+    await session.refresh(user)
     return UserRead.model_validate(user)
 
 

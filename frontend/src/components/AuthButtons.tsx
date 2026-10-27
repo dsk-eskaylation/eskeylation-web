@@ -87,6 +87,14 @@ export function AuthButtons() {
         <div className="auth-menu__panel" role="menu">
           {user ? (
             <>
+              <Link
+                to="/profile"
+                role="menuitem"
+                className="auth-menu__item"
+                onClick={() => setOpen(false)}
+              >
+                Hồ sơ của tôi
+              </Link>
               {user.role !== 'member' && <Link
                 to="/cms"
                 role="menuitem"
