@@ -17,6 +17,7 @@ from app.db import engine
 from app.dependencies import CSRF_COOKIE, SESSION_COOKIE
 from app.middleware import RequestBodyLimit, TextCompression
 from app.routers import (
+    admin_albums,
     admin_content,
     admin_lyrics,
     admin_moderation,
@@ -91,7 +92,8 @@ _CSP = (
     "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' data: blob: https:; "
     "media-src 'self' https:; "
-    "frame-src https://www.youtube.com https://player.vimeo.com; "
+    "frame-src https://www.youtube.com https://player.vimeo.com "
+    "https://w.soundcloud.com; "
     "connect-src 'self'; "
     "object-src 'none'; "
     "base-uri 'self'; form-action 'self'; "
@@ -185,6 +187,7 @@ app.include_router(community.router)
 app.include_router(lyrics.router)
 app.include_router(media.router)
 app.include_router(admin_content.router)
+app.include_router(admin_albums.router)
 app.include_router(admin_lyrics.router)
 app.include_router(admin_stats.router)
 app.include_router(admin_users.router)

@@ -3,6 +3,16 @@
   min-height: 100dvh; /* dvh: đúng chiều cao khả kiến trên di động (thanh công cụ động) */
 }
 
+.layout__bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-size: cover;
+  background-position: top center;
+  opacity: 0.2; /* Figma image 11 opacity 0.2 */
+}
+
 /* Nav nổi ở y=50: grid 3 cột [brand | pill | auth] -> pill LUÔN căn giữa
    giữa brand và nút tài khoản (hai cột biên rộng bằng nhau = 1fr). */
 .layout__nav {
@@ -95,7 +105,9 @@
     align-items: center;
     row-gap: 12px;
     column-gap: 10px;
-    padding: 14px 16px 0;
+    padding: 14px 16px 16px;
+    /* Two rows here; the default 65% fade let page text show through the pill row. */
+    background: linear-gradient(#090909 82%, rgba(9, 9, 9, 0));
   }
   .layout__brand {
     grid-area: brand;

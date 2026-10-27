@@ -16,6 +16,20 @@ class ContentType(enum.StrEnum):
     video = "video"
 
 
+class AlbumKind(enum.StrEnum):
+    album = "album"
+    mixtape = "mixtape"
+    ep = "ep"
+    # Curated groupings that were never released as one record (sessions, guest verses)
+    collection = "collection"
+
+
+class MusicProvider(enum.StrEnum):
+    soundcloud = "soundcloud"
+    youtube = "youtube"
+    vimeo = "vimeo"
+
+
 class ContentStatus(enum.StrEnum):
     draft = "draft"
     published = "published"

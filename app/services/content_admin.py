@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.album import Album
 from app.models.content import Content
 from app.models.enums import ContentStatus, ContentType
 from app.models.media import ContentMedia, Media
@@ -16,12 +17,15 @@ from app.schemas.admin import ContentCreate, ContentMediaIn, ContentUpdate
 from app.schemas.content_body import validate_content_body
 from app.services import moderation
 from app.services.sanitize import (
+    music_source,
     playable_video_embed,
     sanitize_body,
     sanitize_summary,
     validate_embeds,
 )
 from app.services.slug import unique_slug
+
+_CONFLICT = "Dữ liệu vừa bị thay đổi bởi thao tác khác — thử lại"
 
 
 async def get_with_media(
@@ -129,11 +133,64 @@ async def _validate_homepage_avatars(
             raise HTTPException(422, "Ảnh shout out cần là file ảnh hợp lệ")
 
 
+def _link_fields(
+    type_: ContentType, source_url: str | None, cover_url: str | None
+) -> dict:
+    source_url = (source_url or "").strip() or None
+    cover_url = (cover_url or "").strip() or None
+    found = music_source(source_url) if source_url else None
+    error = None
+    if source_url and type_ != ContentType.music:
+        error = "Chỉ bài nhạc mới thêm được bằng link"
+    elif source_url and found is None:
+        error = "Link phải là một bài SoundCloud hoặc video YouTube/Vimeo"
+    elif cover_url and not cover_url.startswith("https://"):
+        error = "Ảnh bìa phải là link HTTPS"
+    if error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error
+        )
+    return {
+        "source_url": source_url,
+        "source_provider": found[0] if found else None,
+        "cover_url": cover_url,
+    }
+
+
+async def _album_fields(
+    session: AsyncSession,
+    type_: ContentType,
+    album_id: int | None,
+    track_no: int | None,
+    exclude_id: int | None = None,
+) -> dict:
+    error = None
+    if album_id is not None and type_ != ContentType.music:
+        error = "Chỉ bài nhạc mới gán được album"
+    elif album_id is not None and await session.get(Album, album_id) is None:
+        error = "Album không tồn tại"
+    elif album_id is not None and track_no is not None:
+        taken = select(Content.id).where(
+            Content.album_id == album_id, Content.track_no == track_no
+        )
+        if exclude_id is not None:
+            taken = taken.where(Content.id != exclude_id)
+        if await session.scalar(taken) is not None:
+            error = f"Album đã có bài số {track_no}"
+    if error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error
+        )
+    return {"album_id": album_id, "track_no": track_no if album_id else None}
+
+
 async def create_content(
     session: AsyncSession, data: ContentCreate, author_id: int
 ) -> Content:
     validate_content_body(data.type, data.body)
     validate_embeds(data.body)
+    links = _link_fields(data.type, data.source_url, data.cover_url)
+    links |= await _album_fields(session, data.type, data.album_id, data.track_no)
     if data.type == ContentType.homepage:
         await _validate_homepage_avatars(
             session, data.body, {m.media_id for m in data.media}
@@ -148,6 +205,7 @@ async def create_content(
         body=sanitize_body(data.body),
         status=ContentStatus.draft,
         author_id=author_id,
+        **links,
     )
     session.add(content)
     try:
@@ -155,11 +213,10 @@ async def create_content(
         await _replace_media(session, content, data.media)
         await session.commit()
     except IntegrityError as exc:
-        # Hai request cùng title đua nhau qua unique_slug -> UNIQUE(type, slug)
+        # Races past the pre-checks: UNIQUE(type, slug), album FK, (album_id, track_no)
         await session.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Slug vừa bị chiếm bởi thao tác khác — thử lại",
+            status_code=status.HTTP_409_CONFLICT, detail=_CONFLICT
         ) from exc
     return await get_with_media(session, content.id)
 
@@ -197,18 +254,46 @@ async def update_content(
         validate_content_body(content.type, fields["body"])
         validate_embeds(fields["body"])
         content.body = sanitize_body(fields["body"])
-    if "media" in fields:
-        await _replace_media(session, content, data.media or [])
-    # Media-only changes must also invalidate editor versions and catalog revision.
-    content.updated_at = datetime.now(UTC)
-    if content.status == ContentStatus.published:
-        await session.flush()
-        session.expire(content, ["media_links"])
-        content = await get_with_media(session, content.id)
-        validate_for_publish(content)
-    await session.commit()
+    if "source_url" in fields or "cover_url" in fields:
+        links = _link_fields(
+            content.type,
+            fields.get("source_url", content.source_url),
+            fields.get("cover_url", content.cover_url),
+        )
+        for key, value in links.items():
+            setattr(content, key, value)
+    if "album_id" in fields or "track_no" in fields:
+        album_id = fields.get("album_id", content.album_id)
+        # A track number belongs to its album; moving without one starts unnumbered.
+        default_no = content.track_no if album_id == content.album_id else None
+        placement = await _album_fields(
+            session,
+            content.type,
+            album_id,
+            fields.get("track_no", default_no),
+            exclude_id=content.id,
+        )
+        for key, value in placement.items():
+            setattr(content, key, value)
+    try:
+        if "media" in fields:
+            await _replace_media(session, content, data.media or [])
+        # Media-only changes must also invalidate editor versions and catalog revision.
+        content.updated_at = datetime.now(UTC)
+        if content.status == ContentStatus.published:
+            await session.flush()
+            session.expire(content, ["media_links", "album"])
+            content = await get_with_media(session, content.id)
+            validate_for_publish(content)
+        await session.commit()
+    except IntegrityError as exc:
+        # Races past _album_fields: album deleted or track_no taken mid-request
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_CONFLICT
+        ) from exc
     # expire_on_commit=False giữ media_links cũ trên object -> ép reload cho đúng
-    session.expire(content, ["media_links"])
+    session.expire(content, ["media_links", "album"])
     return await get_with_media(session, content.id)
 
 
@@ -236,8 +321,14 @@ def validate_for_publish(content: Content) -> None:
                 ) or (audio_url.startswith("/") and not audio_url.startswith("//"))
             except ValueError:
                 pass
-        if not any(m.startswith("audio/") for m in mimes) and not valid_url:
-            errors.append("Nhạc cần file âm thanh hoặc link âm thanh HTTP/HTTPS hợp lệ")
+        if (
+            not any(m.startswith("audio/") for m in mimes)
+            and not valid_url
+            and not content.source_url
+        ):
+            errors.append(
+                "Nhạc cần file âm thanh, link MP3 hoặc link SoundCloud/YouTube hợp lệ"
+            )
     if content.type == ContentType.video and not (
         any(m.startswith("video/") for m in mimes)
         or playable_video_embed(content.body.get("embed_url"))
@@ -292,6 +383,11 @@ async def duplicate(session: AsyncSession, content: Content, author_id: int) -> 
         body=dict(content.body),
         status=ContentStatus.draft,
         author_id=author_id,
+        source_url=content.source_url,
+        source_provider=content.source_provider,
+        cover_url=content.cover_url,
+        # track_no is unique within an album; the copy gets one when edited
+        album_id=content.album_id,
     )
     session.add(copy)
     try:
@@ -310,7 +406,6 @@ async def duplicate(session: AsyncSession, content: Content, author_id: int) -> 
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Slug vừa bị chiếm bởi thao tác khác — thử lại",
+            status_code=status.HTTP_409_CONFLICT, detail=_CONFLICT
         ) from exc
     return await get_with_media(session, copy.id)

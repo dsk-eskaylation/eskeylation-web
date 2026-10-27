@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { api } from "../api/client";
+import { Link, useSearchParams } from "react-router-dom";
+import { api, ApiError } from "../api/client";
 import { useLiveApi } from "../api/useLiveApi";
 import type { ContentOut } from "../api/types";
+import { albumOptions, SINGLES } from "../albums";
+import { Dropdown } from "../components/Dropdown";
 import { EmptyState } from "../components/EmptyState";
 import { SearchBar } from "../components/SearchBar";
 import {
@@ -10,6 +12,7 @@ import {
   audioUrl,
   coverUrl,
   artistOf,
+  embedUrl,
 } from "../player/PlayerContext";
 import "./Music.css";
 
@@ -21,26 +24,96 @@ const searchable = (text: string) =>
     .replace(/\p{Diacritic}/gu, "")
     .replace(/đ/g, "d");
 
-/** One library and a persistent player; no genre filters or Drive audio embeds. */
 export function Music() {
   const [query, setQuery] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [params, setParams] = useSearchParams();
+  const albumSlug = params.get("album");
   const player = usePlayer();
   const state = useLiveApi(() => api.listAll("music"), [attempt]);
+  const albums = useLiveApi(() => api.albums(), [attempt]);
+  // Resolve 404 as a keyed miss: useLiveApi keeps the previous album's data on errors.
+  const albumDetail = useLiveApi(
+    () =>
+      albumSlug && albumSlug !== SINGLES
+        ? api.album(albumSlug).then(
+            (detail) => ({ slug: albumSlug, detail }),
+            (error: unknown) => {
+              if (error instanceof ApiError && error.status === 404)
+                return { slug: albumSlug, detail: null };
+              throw error;
+            },
+          )
+        : Promise.resolve(null),
+    [albumSlug, attempt],
+  );
   const library = state.status === "success" ? state.data.items : EMPTY_ITEMS;
+  const albumList = albums.status === "success" ? albums.data : [];
+  const albumResult =
+    albumDetail.status === "success" && albumDetail.data?.slug === albumSlug
+      ? albumDetail.data
+      : null;
+  const album = albumResult?.detail ?? null;
+  const albumFailed = albumDetail.status === "error";
+  const albumMissing = albumResult !== null && !album;
+  const albumPending =
+    Boolean(albumSlug && albumSlug !== SINGLES) && !albumResult && !albumMissing && !albumFailed;
   const items = useMemo(() => {
+    const source =
+      albumSlug === SINGLES
+        ? library.filter((track) => !track.album)
+        : albumSlug
+          ? (album?.tracks ?? EMPTY_ITEMS)
+          : library;
     const needle = searchable(query.trim());
-    return needle
-      ? library.filter((track) =>
-          searchable(`${track.title} ${artistOf(track)}`).includes(needle),
-        )
-      : library;
-  }, [library, query]);
-  const featured = player.current ?? library[0];
-  const isCurrent = (track: ContentOut) => player.current?.id === track.id;
+    return source.filter(
+      (track) =>
+        !needle || searchable(`${track.title} ${artistOf(track)}`).includes(needle),
+    );
+  }, [library, album, albumSlug, query]);
+  const audioItems = items.filter((track) => audioUrl(track));
+  const embeddedItems = items.filter((track) => embedUrl(track));
+  const playableCount = audioItems.length || embeddedItems.length;
+  const mixedSources = audioItems.length > 0 && embeddedItems.length > 0;
+  const singles = useMemo(
+    () => library.filter((track) => !track.album).length,
+    [library],
+  );
+
+  function setFilter(key: "album", value: string | null) {
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function playAll(shuffled: boolean) {
+    if (audioItems.length === 0) {
+      const track = embeddedItems[shuffled ? Math.floor(Math.random() * embeddedItems.length) : 0];
+      if (track) player.playEmbed(track);
+      return;
+    }
+    if (player.shuffle !== shuffled) player.toggleShuffle();
+    player.playQueue(
+      audioItems,
+      shuffled ? Math.floor(Math.random() * audioItems.length) : 0,
+    );
+  }
+
+  const featured = player.embed ?? player.current ?? items[0] ?? library[0];
+  const isCurrent = (track: ContentOut) =>
+    (player.embed ?? player.current)?.id === track.id;
 
   function activate(track: ContentOut) {
-    if (!audioUrl(track)) return;
+    if (!audioUrl(track)) {
+      if (embedUrl(track)) player.playEmbed(track);
+      return;
+    }
     if (isCurrent(track)) player.toggle();
     else {
       const queue = items.some((item) => item.id === track.id)
@@ -93,7 +166,7 @@ export function Music() {
                 type="button"
                 className="music__cover-play"
                 onClick={() => activate(featured)}
-                disabled={!audioUrl(featured)}
+                disabled={!audioUrl(featured) && !embedUrl(featured)}
                 aria-label={`${isCurrent(featured) && player.isPlaying ? "Tạm dừng" : "Phát"} ${featured.title}`}
               >
                 {isCurrent(featured) && player.isPlaying ? (
@@ -135,19 +208,80 @@ export function Music() {
               onClear={() => setQuery("")}
               placeholder="Tìm bài hát hoặc nghệ sĩ"
             />
+            <div className="music__toolbar">
+              <Dropdown
+                label="Lọc theo album"
+                value={albumSlug ?? ""}
+                onChange={(value) => setFilter("album", value || null)}
+                options={albumOptions(albumList, library.length, singles)}
+              />
+              <button
+                type="button"
+                className="music__tool"
+                aria-label={audioItems.length ? (mixedSources ? "Phát danh sách audio" : "Phát danh sách") : "Phát bài nhúng đầu tiên"}
+                onClick={() => playAll(false)}
+                disabled={playableCount === 0}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 4.5v15l13-7.5z" fill="currentColor" />
+                </svg>
+                {audioItems.length ? (mixedSources ? "Phát audio" : "Phát") : "Phát bài"}
+              </button>
+              <button
+                type="button"
+                className="music__tool"
+                aria-label={audioItems.length ? (mixedSources ? "Trộn danh sách audio" : "Trộn danh sách") : "Phát bài nhúng ngẫu nhiên"}
+                onClick={() => playAll(true)}
+                disabled={playableCount === 0}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                {audioItems.length ? (mixedSources ? "Trộn audio" : "Trộn") : "Ngẫu nhiên"}
+              </button>
+            </div>
+            {embeddedItems.length > 0 && (
+              <p className="music__hint">
+                Bài SoundCloud/YouTube dùng trình phát riêng và được chọn từng bài.
+                {mixedSources && ` Phát/Trộn audio áp dụng cho ${audioItems.length} bài có file âm thanh.`}
+              </p>
+            )}
+            {(albums.status === "error" || albumFailed) && (
+              <p role="alert">Không tải được album. <button type="button" className="music__retry" onClick={() => setAttempt((value) => value + 1)}>Thử lại</button></p>
+            )}
+            {albumMissing && (
+              <p role="status">Không tìm thấy album này.</p>
+            )}
             <div className="music__side-head">
               <span className="music__side-label">{items.length} bài hát</span>
-              <Link to="/music/all" className="music__see-all">
-                Xem dạng lưới
-              </Link>
+              <span className="music__see-links">
+                <Link to="/music/all" className="music__see-all">
+                  Xem dạng lưới
+                </Link>
+                <Link to="/music/all?view=albums" className="music__see-all">
+                  Xem lưới album
+                </Link>
+              </span>
             </div>
-            {items.length === 0 && (
-              <p role="status">Không tìm thấy bài hát. Hãy thử từ khóa khác.</p>
+            {albumPending ? (
+              <p role="status">Đang tải album…</p>
+            ) : (
+              !albumMissing && !albumFailed &&
+              items.length === 0 && (
+                <p role="status">Không tìm thấy bài hát. Hãy thử từ khóa khác.</p>
+              )
             )}
             <ol className="music__list">
               {items.map((track, index) => {
                 const active = isCurrent(track);
-                const playable = Boolean(audioUrl(track));
+                const playable = Boolean(audioUrl(track) || embedUrl(track));
                 return (
                   <li key={track.id}>
                     <button
@@ -168,7 +302,7 @@ export function Music() {
                             <i />
                           </span>
                         ) : (
-                          index + 1
+                          (albumSlug && track.track_no) || index + 1
                         )}
                       </span>
                       {coverUrl(track) ? (

@@ -2,6 +2,7 @@
 
 import asyncio
 
+import httpx
 import pytest
 from sqlalchemy import delete, select
 
@@ -51,6 +52,108 @@ async def test_invalid_source_can_save_draft_but_cannot_publish(
     assert (
         await client.get(f"/admin/content/{content['id']}", headers=auth(token))
     ).json()["status"] == "draft"
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://soundcloud.com/sdrecords-vn/dsk-lon-roi",
+        "https://youtu.be/abcdefghijk",
+    ],
+)
+async def test_music_from_link_publishes_without_audio_file(
+    client, make_user, track_content, link
+):
+    token = await token_for(client, make_user, UserRole.admin)
+    cover = "https://i1.sndcdn.com/artworks-x-t500x500.jpg"
+    content = await _create(
+        client,
+        token,
+        track_content,
+        type="music",
+        title="Bài từ link",
+        body={"artist": "DSK"},
+        source_url=link,
+        cover_url=cover,
+    )
+    response = await client.post(
+        f"/admin/content/{content['id']}/publish", headers=auth(token)
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source_url"] == link
+    provider = "soundcloud" if "soundcloud" in link else "youtube"
+    assert data["source_provider"] == provider
+    assert data["player_url"].startswith(
+        ("https://w.soundcloud.com/player/", "https://www.youtube.com/embed/")
+    )
+    public = (await client.get(f"/api/music/{data['slug']}")).json()
+    assert public["player_url"] == data["player_url"]
+    assert public["cover_url"] == cover
+
+    cleared = await client.patch(
+        f"/admin/content/{content['id']}",
+        json={"source_url": None},
+        headers=auth(token),
+    )
+    assert cleared.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("kind", "fields"),
+    [
+        ("music", {"source_url": "https://soundcloud.com/sdrecords-vn"}),
+        ("music", {"source_url": "https://evil.example/track"}),
+        ("music", {"cover_url": "http://insecure.example/a.jpg"}),
+        ("video", {"source_url": "https://youtu.be/abcdefghijk"}),
+    ],
+)
+async def test_invalid_music_link_rejected_on_save(client, make_user, kind, fields):
+    token = await token_for(client, make_user, UserRole.admin)
+    response = await client.post(
+        "/admin/content",
+        json={"type": kind, "title": "Link lỗi", "body": {"artist": "x"}, **fields},
+        headers=auth(token),
+    )
+    assert response.status_code == 422
+
+
+async def test_oembed_prefills_form_from_soundcloud(client, make_user, monkeypatch):
+    from app.services import drive_http
+
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url)
+        return httpx.Response(
+            200,
+            json={
+                "title": "Lớn rồi by S.D Records",
+                "author_name": "S.D Records",
+                "thumbnail_url": "https://i1.sndcdn.com/artworks-a-t500x500.jpg",
+            },
+        )
+
+    fake = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    monkeypatch.setattr(drive_http, "client", lambda: fake)
+    token = await token_for(client, make_user, UserRole.admin)
+    link = "https://soundcloud.com/sdrecords-vn/dsk-lon-roi"
+    response = await client.get(
+        "/admin/content/oembed", params={"url": link}, headers=auth(token)
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "title": "Lớn rồi",
+        "author": "S.D Records",
+        "thumbnail_url": "https://i1.sndcdn.com/artworks-a-t500x500.jpg",
+    }
+    assert calls[0].host == "soundcloud.com" and calls[0].path == "/oembed"
+    bad = await client.get(
+        "/admin/content/oembed",
+        params={"url": "http://169.254.169.254/latest/meta-data"},
+        headers=auth(token),
+    )
+    assert bad.status_code == 422 and len(calls) == 1
 
 
 @pytest.mark.parametrize(

@@ -2,12 +2,13 @@
 
 import re
 from html import unescape
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import bleach
 from fastapi import HTTPException, status
 
 from app.config import get_settings
+from app.models.enums import MusicProvider
 
 settings = get_settings()
 
@@ -26,14 +27,13 @@ _TEXT_KEYS = {
 }
 
 
-def playable_video_embed(value: object) -> bool:
-    """Match the YouTube/Vimeo URL formats supported by the public player."""
+def _video_target(value: object) -> tuple[MusicProvider, str] | None:
     if not isinstance(value, str):
-        return False
+        return None
     try:
         parsed = urlparse(value)
         if parsed.scheme not in {"http", "https"}:
-            return False
+            return None
         host = (parsed.hostname or "").removeprefix("www.")
         parts = parsed.path.strip("/").split("/")
         if host == "youtu.be":
@@ -47,12 +47,53 @@ def playable_video_embed(value: object) -> bool:
                 else ""
             )
         elif host in {"vimeo.com", "player.vimeo.com"}:
-            return bool(re.fullmatch(r"(?:video/)?\d+", parsed.path.strip("/")))
+            match = re.fullmatch(r"(?:video/)?(\d+)", parsed.path.strip("/"))
+            return (MusicProvider.vimeo, match[1]) if match else None
         else:
-            return False
-        return bool(re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id))
+            return None
+        if re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+            return MusicProvider.youtube, video_id
+        return None
     except ValueError:
-        return False
+        return None
+
+
+def playable_video_embed(value: object) -> bool:
+    """Match the YouTube/Vimeo URL formats supported by the public player."""
+    return _video_target(value) is not None
+
+
+def music_source(value: object) -> tuple[MusicProvider, str] | None:
+    """(provider, embed player URL), or None unless the link is a SoundCloud
+    track or a YouTube/Vimeo video."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return None
+    host = (parsed.hostname or "").removeprefix("www.").removeprefix("m.")
+    if host == "soundcloud.com":
+        segments = [p for p in parsed.path.split("/") if p]
+        if parsed.scheme not in {"http", "https"} or len(segments) < 2:
+            return None
+        track = quote("https://soundcloud.com/" + "/".join(segments), safe="")
+        return MusicProvider.soundcloud, (
+            f"https://w.soundcloud.com/player/?url={track}"
+            "&auto_play=true&visual=false&show_comments=false"
+        )
+    target = _video_target(value)
+    if target is None:
+        return None
+    provider, video_id = target
+    if provider == MusicProvider.vimeo:
+        return provider, f"https://player.vimeo.com/video/{video_id}?autoplay=1"
+    return provider, f"https://www.youtube.com/embed/{video_id}?autoplay=1"
+
+
+def player_url(source_url: str | None) -> str | None:
+    found = music_source(source_url)
+    return found[1] if found else None
 
 
 def sanitize_summary(text: str | None) -> str | None:

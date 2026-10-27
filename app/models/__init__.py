@@ -1,4 +1,5 @@
 from app.models.activity import ActivityLog
+from app.models.album import Album
 from app.models.community import (
     Comment,
     CommentReaction,
@@ -16,6 +17,7 @@ from app.models.user import User
 
 __all__ = [
     "ActivityLog",
+    "Album",
     "BannedWord",
     "Comment",
     "CommentReaction",

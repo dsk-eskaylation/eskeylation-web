@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { useDebounced } from '../api/useApi'
 import { useLiveApi } from '../api/useLiveApi'
@@ -8,9 +8,12 @@ import { Pagination } from '../components/Pagination'
 import { LibraryFeedback } from '../components/LibraryFeedback'
 import type { ContentOut } from '../api/types'
 import { SearchBar } from '../components/SearchBar'
+import { Dropdown } from '../components/Dropdown'
+import { AlbumGrid } from '../components/AlbumGrid'
+import { albumOptions, SINGLES } from '../albums'
 import { MusicCard } from '../components/MusicCard'
 import { VideoModal } from '../components/VideoModal'
-import { usePlayer, audioUrl } from '../player/PlayerContext'
+import { usePlayer, audioUrl, embedUrl } from '../player/PlayerContext'
 import './MusicAll.css'
 
 export function MusicAll() {
@@ -19,21 +22,49 @@ export function MusicAll() {
   const [attempt, setAttempt] = useState(0)
   const [selected, setSelected] = useState<ContentOut | null>(null)
   const player = usePlayer()
+  const [params, setParams] = useSearchParams()
+  const album = params.get('album') ?? ''
+  const showAlbums = params.get('view') === 'albums'
+  const setAlbum = (value: string) =>
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous)
+        if (value) next.set('album', value)
+        else next.delete('album')
+        next.delete('page')
+        next.delete('view')
+        return next
+      },
+      { replace: true },
+    )
+  const setShowAlbums = (value: boolean) =>
+    setParams((previous) => {
+      const next = new URLSearchParams(previous)
+      if (value) next.set('view', 'albums')
+      else next.delete('view')
+      return next
+    })
+  const albums = useLiveApi(() => api.albums(), [attempt])
+  // useLiveApi keeps the previous result while refetching; the key tells whether it is current.
+  const key = `${album}|${debouncedQ}|${page}|${showAlbums}`
   const state = useLiveApi(
-    () =>
-      api.list('music', {
-        q: debouncedQ || undefined,
-        pageSize: 60,
-        page,
-      }),
-    [debouncedQ, page, attempt],
+    () => showAlbums ? Promise.resolve({ key, list: { items: [], page: 1, pages: 1, total: 0, page_size: 60 } }) : api
+        .list('music', {
+          q: debouncedQ || undefined,
+          pageSize: 60,
+          page,
+          album: album && album !== SINGLES ? album : undefined,
+          singles: album === SINGLES,
+        })
+        .then((list) => ({ key, list })),
+    [debouncedQ, page, album, attempt, showAlbums],
   )
-  const items = state.status === 'success' ? state.data.items : []
-  const pages = state.status === 'success' ? Math.max(1, state.data.pages) : 1
-  const busy = state.status === 'success' && state.data.page !== page
+  const items = state.status === 'success' ? state.data.list.items : []
+  const pages = state.status === 'success' ? Math.max(1, state.data.list.pages) : 1
+  const busy = state.status === 'success' && state.data.key !== key
   useEffect(() => {
-    if (state.status === 'success' && state.data.page === page && page > pages) setPage(pages, true)
-  }, [state, page, pages, setPage])
+    if (!showAlbums && state.status === 'success' && !busy && page > pages) setPage(pages, true)
+  }, [state, busy, page, pages, setPage, showAlbums])
 
   return (
     <div className="music-all">
@@ -52,17 +83,63 @@ export function MusicAll() {
           Quay về
         </Link>
 
-        <SearchBar
-          value={q}
-          onChange={setQuery}
-          onClear={() => setQuery('')}
-        />
+        <div className="music-all__views" role="group" aria-label="Chế độ xem">
+          <button
+            type="button"
+            className={showAlbums ? 'music-all__view' : 'music-all__view music-all__view--on'}
+            aria-pressed={!showAlbums}
+            onClick={() => setShowAlbums(false)}
+          >
+            Bài hát
+          </button>
+          <button
+            type="button"
+            className={showAlbums ? 'music-all__view music-all__view--on' : 'music-all__view'}
+            aria-pressed={showAlbums}
+            onClick={() => setShowAlbums(true)}
+          >
+            Album
+          </button>
+        </div>
+
+        {!showAlbums && (
+        <div className="music-all__filters">
+          <SearchBar
+            value={q}
+            onChange={setQuery}
+            onClear={() => setQuery('')}
+          />
+          <Dropdown
+            label="Lọc theo album"
+            value={album}
+            onChange={setAlbum}
+            options={albumOptions(albums.status === 'success' ? albums.data : [])}
+          />
+        </div>
+        )}
       </header>
+
+      {showAlbums ? (
+        <>
+        <LibraryFeedback status={albums.status} empty={albums.status === 'success' && albums.data.length === 0} query="" noun="album"
+          onRetry={() => setAttempt((value) => value + 1)} onClear={() => {}} />
+        {albums.status === 'success' && (
+        <AlbumGrid
+          albums={albums.data}
+          onSelect={(slug) => {
+            setAlbum(slug)
+            window.scrollTo({ top: 0, behavior: 'instant' })
+          }}
+        />
+        )}
+        </>
+      ) : (
+      <>
 
       <LibraryFeedback status={state.status} empty={items.length === 0} query={q} noun="bài hát"
         onRetry={() => setAttempt((value) => value + 1)} onClear={() => setQuery('')} />
 
-      <div className="music-all__grid" aria-busy={state.status === 'loading' || busy}>
+      <div className="music-all__grid" aria-busy={state.status === 'loading' || busy} inert={busy}>
         {items.map((item, i) => (
           <div
             className="music-all__cell"
@@ -72,7 +149,11 @@ export function MusicAll() {
             <MusicCard
               content={item}
               onClick={() =>
-                audioUrl(item) ? player.playQueue(items, i) : setSelected(item)
+                audioUrl(item)
+                  ? player.playQueue(items, i)
+                  : embedUrl(item)
+                    ? player.playEmbed(item)
+                    : setSelected(item)
               }
             />
           </div>
@@ -81,6 +162,8 @@ export function MusicAll() {
 
       {state.status === 'success' && <Pagination page={Math.min(page, pages)} pages={pages}
         label="Phân trang nhạc" busy={busy} onChange={(next) => { setPage(next); window.scrollTo({ top: 0, behavior: 'instant' }) }} />}
+      </>
+      )}
 
       {selected && (
         <VideoModal content={selected} onClose={() => setSelected(null)} />

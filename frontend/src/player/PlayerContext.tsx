@@ -11,6 +11,7 @@ import {
 import type { ContentOut } from '../api/types'
 import { api } from '../api/client'
 import { useCatalogRevision } from '../api/useLiveApi'
+import { EmbedDock } from '../components/EmbedDock'
 
 export type RepeatMode = 'off' | 'all' | 'one'
 
@@ -29,7 +30,11 @@ export function coverUrl(c: ContentOut): string | null {
       (m.mime_type.startsWith('audio/') && m.stream_url && m.url !== m.stream_url),
   )
   const primary = images.find((m) => m.is_primary) ?? images[0]
-  return primary?.preview_url || primary?.url || null
+  return primary?.preview_url || primary?.url || c.cover_url || null
+}
+
+export function embedUrl(c: ContentOut): string | null {
+  return audioUrl(c) ? null : (c.player_url ?? null)
 }
 
 export function artistOf(c: ContentOut): string {
@@ -65,6 +70,10 @@ interface PlayerState {
   promptRemote: () => void
   /** Thiết bị phát từ xa có khả dụng không (Cast/AirPlay...). */
   remoteAvailable: boolean
+  /** Not part of `queue`: next/prev/repeat never reach embed tracks. */
+  embed: ContentOut | null
+  playEmbed: (track: ContentOut) => void
+  closeEmbed: () => void
 }
 
 const PlayerCtx = createContext<PlayerState | null>(null)
@@ -83,6 +92,7 @@ export function usePlayer(): PlayerState {
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [queue, setQueue] = useState<ContentOut[]>([])
+  const [embed, setEmbed] = useState<ContentOut | null>(null)
   const [index, setIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -167,6 +177,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const audio = audioRef.current
       const url = audioUrl(track)
       if (!audio || !url) return
+      // mp3 and an embedded player must never play together.
+      setEmbed(null)
       audio.volume = volume
       setError(null)
       if (audio.src !== new URL(url, location.href).href) {
@@ -318,6 +330,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setIndex(0)
   }, [])
 
+  const playEmbed = useCallback(
+    (track: ContentOut) => {
+      pause()
+      setEmbed(track)
+    },
+    [pause],
+  )
+  const closeEmbed = useCallback(() => setEmbed(null), [])
+
   // Đổi bài -> nạp src mới. Chỉ chạy khi id bài đổi (không phải khi play/pause).
   useEffect(() => {
     const audio = audioRef.current
@@ -388,7 +409,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         ? [{ src: new URL(cover, location.origin).href }]
         : undefined,
     })
-    navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true))
+    navigator.mediaSession.setActionHandler('play', () => {
+      setEmbed(null)
+      setIsPlaying(true)
+    })
     navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false))
     navigator.mediaSession.setActionHandler('previoustrack', prev)
     navigator.mediaSession.setActionHandler('nexttrack', next)
@@ -445,6 +469,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       removeFromQueue,
       promptRemote,
       remoteAvailable,
+      embed,
+      playEmbed,
+      closeEmbed,
     }),
     [
       queue,
@@ -470,6 +497,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       removeFromQueue,
       promptRemote,
       remoteAvailable,
+      embed,
+      playEmbed,
+      closeEmbed,
     ],
   )
 
@@ -507,6 +537,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           }
           onEnded={handleEnded}
         />
+        {embed && embedUrl(embed) && (
+          <EmbedDock
+            src={embedUrl(embed)!}
+            title={embed.title}
+            artist={artistOf(embed)}
+            onClose={closeEmbed}
+          />
+        )}
       </ProgressCtx.Provider>
     </PlayerCtx.Provider>
   )

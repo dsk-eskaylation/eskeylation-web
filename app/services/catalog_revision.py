@@ -20,7 +20,10 @@ async def database_revision(session: AsyncSession) -> str:
                         FROM public.content_media m
                         JOIN public.contents c ON c.id=m.content_id
                         JOIN public.media a ON a.id=m.media_id
-                        WHERE c.status='published'), '')
+                        WHERE c.status='published'), '') || '|' ||
+              coalesce((SELECT string_agg(id::text || ':' || updated_at::text,
+                                         ',' ORDER BY id)
+                        FROM public.albums), '')
             )
             """
         )

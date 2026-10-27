@@ -5,6 +5,7 @@ import { PillNav } from './PillNav'
 import { AuthButtons } from './AuthButtons'
 import { PlayerBar } from './PlayerBar'
 import { usePlayer } from '../player/PlayerContext'
+import bgTexture from '../assets/figma/bg-texture.png'
 import './Layout.css'
 
 export function Layout() {
@@ -15,6 +16,7 @@ export function Layout() {
   }, [location.pathname])
   return (
     <div className={hasPlayer ? 'layout layout--with-player' : 'layout'}>
+      <div className="layout__bg" aria-hidden="true" style={{ backgroundImage: `url(${bgTexture})` }} />
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
       {createPortal(
         <header className="layout__nav">

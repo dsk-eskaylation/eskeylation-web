@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   AdminApiError,
   adminApi,
   type AdminUser,
+  type AlbumAdmin,
   type BannedWord,
   type ContentAdmin,
   type ContentMediaIn,
@@ -21,6 +22,7 @@ import { UnsavedChangesModal } from '../components/UnsavedChangesModal'
 import { FormError } from '../components/FormError'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useToast } from '../components/Toast'
+import { AlbumsPanel } from './CmsAlbums'
 import { Dashboard } from './Dashboard'
 import './Cms.css'
 
@@ -56,6 +58,14 @@ const STATUS_LABEL: Record<ContentStatus, string> = {
   draft: 'Nháp',
   published: 'Đã đăng',
   archived: 'Lưu trữ',
+}
+
+const ADD_LABEL: Record<ContentType, string> = {
+  music: '+ Thêm bài nhạc',
+  video: '+ Thêm video',
+  gallery: '+ Thêm album ảnh',
+  community: '+ Thêm bài viết',
+  homepage: '+ Thêm trang chủ',
 }
 
 function typeLabel(t: ContentType) {
@@ -124,6 +134,25 @@ function Editor({
   const [audioUrl, setAudioUrl] = useState(bstr('audio_url'))
   const [lyrics, setLyrics] = useState(bstr('lyrics'))
   const [embedUrl, setEmbedUrl] = useState(bstr('embed_url'))
+  const [albumId, setAlbumId] = useState(initial?.album_id ? String(initial.album_id) : '')
+  const [trackNo, setTrackNo] = useState(initial?.track_no ? String(initial.track_no) : '')
+  const [albumOptions, setAlbumOptions] = useState<AlbumAdmin[]>([])
+  useEffect(() => {
+    if (type !== 'music') return
+    let alive = true
+    void adminApi.albums()
+      .then((albums) => {
+        if (!alive) return
+        setAlbumOptions(albums)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [type])
+  const [sourceUrl, setSourceUrl] = useState(initial?.source_url ?? '')
+  const [coverLink, setCoverLink] = useState(initial?.cover_url ?? '')
+  const [lookup, setLookup] = useState<'idle' | 'busy' | string>('idle')
   const [author, setAuthor] = useState(bstr('author'))
   // Trang chủ: giới thiệu, các dòng "bảo trì", và các nhóm credits (vai trò + tên)
   const [intro, setIntro] = useState(bstr('intro'))
@@ -151,7 +180,7 @@ function Editor({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const draft = JSON.stringify({ type, title, summary, artist, audioUrl, lyrics, embedUrl, author, intro, maintainText, credits, leader, media })
+  const draft = JSON.stringify({ type, title, summary, artist, audioUrl, lyrics, embedUrl, albumId, trackNo, sourceUrl, coverLink, author, intro, maintainText, credits, leader, media })
   const [initialDraft] = useState(draft)
 
   // Cập nhật một nhóm credits của trang chủ
@@ -274,6 +303,14 @@ function Editor({
         is_primary: !avatarIds.has(media_id) && is_primary,
         caption: caption?.trim() || null,
       })),
+      ...(type === 'music'
+        ? {
+            source_url: sourceUrl.trim() || null,
+            cover_url: coverLink.trim() || null,
+            album_id: albumId ? Number(albumId) : null,
+            track_no: albumId && trackNo ? Number(trackNo) : null,
+          }
+        : {}),
     }
 
     setBusy(true)
@@ -349,6 +386,77 @@ function Editor({
                 />
               </label>
 
+            </div>
+            <div className="cms-editor__row">
+              <label className="cms-field">
+                <span>Album</span>
+                <select className="cms-field__select" value={albumId} onChange={(e) => setAlbumId(e.target.value)}>
+                  <option value="">— Bài lẻ (không thuộc album) —</option>
+                  {albumOptions.map((album) => (
+                    <option key={album.id} value={album.id}>
+                      {album.title}
+                      {album.year ? ` (${album.year})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="cms-field">
+                <span>Số thứ tự trong album</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={999}
+                  value={trackNo}
+                  onChange={(e) => setTrackNo(e.target.value)}
+                  disabled={!albumId}
+                />
+              </label>
+            </div>
+            <div className="cms-field">
+              <span id="cms-music-link-label">Link SoundCloud / YouTube (tùy chọn)</span>
+              <div className="cms-field__inline">
+                <input
+                  id="cms-music-link"
+                  aria-labelledby="cms-music-link-label"
+                  value={sourceUrl}
+                  onChange={(e) => setSourceUrl(e.target.value)}
+                  placeholder="https://soundcloud.com/... hoặc https://youtu.be/..."
+                />
+                <button
+                  type="button"
+                  className="page-action"
+                  disabled={!sourceUrl.trim() || lookup === 'busy'}
+                  onClick={async () => {
+                    setLookup('busy')
+                    try {
+                      const info = await adminApi.oembed(sourceUrl.trim())
+                      if (!title.trim() && info.title) setTitle(info.title)
+                      if (!artist.trim() && info.author) setArtist(info.author)
+                      if (info.thumbnail_url) setCoverLink(info.thumbnail_url)
+                      setLookup('idle')
+                    } catch (err) {
+                      setLookup(err instanceof Error ? err.message : 'Không lấy được thông tin bài')
+                    }
+                  }}
+                >
+                  {lookup === 'busy' ? 'Đang lấy…' : 'Lấy thông tin'}
+                </button>
+              </div>
+              {lookup !== 'idle' && lookup !== 'busy' && (
+                <small className="cms-field__hint" role="alert">{lookup}</small>
+              )}
+              <small className="cms-field__hint">
+                Dán link là đăng được, không cần tải MP3. Bài phát bằng trình phát của SoundCloud/YouTube.
+                Bấm “Lấy thông tin” để tự điền tên bài, nghệ sĩ (nếu đang trống) và ảnh bìa.
+              </small>
+              {coverLink && (
+                <div className="cms-editor__row">
+                  <img src={coverLink} alt="Ảnh bìa" width={64} height={64} style={{ objectFit: 'cover', borderRadius: 8 }} />
+                  <button type="button" className="page-action" onClick={() => setCoverLink('')}>
+                    Bỏ ảnh bìa
+                  </button>
+                </div>
+              )}
             </div>
             <label className="cms-field">
               <span>Link nhạc có sẵn (tùy chọn)</span>
@@ -864,14 +972,23 @@ function LyricsModeration() {
   return (
     <section className="cms-lyrics" aria-label="Duyệt lời nhạc">
       <p className="cms__section-label">Đóng góp lời nhạc ({total})</p>
-      <label className="cms-field">
-        <span>Trạng thái lời nhạc</span>
-        <select value={status} disabled={busy} onChange={(e) => { setStatus(e.target.value as LyricStatus); setPage(1) }}>
-          <option value="pending">Chờ duyệt</option>
-          <option value="accepted">Đã duyệt</option>
-          <option value="rejected">Đã từ chối</option>
-        </select>
-      </label>
+      <div className="cms-seg" role="group" aria-label="Trạng thái lời nhạc">
+        {([['pending', 'Chờ duyệt'], ['accepted', 'Đã duyệt'], ['rejected', 'Đã từ chối']] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={status === value ? 'cms-seg__btn cms-seg__btn--on' : 'cms-seg__btn'}
+            aria-pressed={status === value}
+            disabled={busy}
+            onClick={() => {
+              setStatus(value)
+              setPage(1)
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {error ? <p className="cms-error" role="alert">{error} <button type="button" className="cms-pill" onClick={() => void load()}>Thử lại</button></p>
         : loading ? <p className="cms__status">Đang tải lời nhạc…</p>
         : items.length === 0 ? <p className="cms__status">Không có đóng góp trong mục này.</p>
@@ -1086,9 +1203,15 @@ export function Cms() {
   const [me, setMe] = useState<AdminUser | null>(null)
   const [params, setParams] = useSearchParams()
   const isAdmin = me?.role === 'admin'
+  const canManageAlbums = isAdmin || me?.role === 'editor'
   const requestedView = params.get('tab')
-  const view = isAdmin && (requestedView === 'users' || requestedView === 'dashboard' || requestedView === 'moderation') ? requestedView : 'content'
-  const type = TYPES.find((item) => item.value === params.get('type'))?.value ?? null
+  const view =
+    isAdmin && (requestedView === 'users' || requestedView === 'dashboard' || requestedView === 'moderation')
+      ? requestedView
+      : canManageAlbums && requestedView === 'albums'
+        ? 'albums'
+        : 'content'
+  const type = TYPES.find((item) => item.value === params.get('type'))?.value ?? 'music'
   const status = STATUSES.find((item) => item.value === params.get('status'))?.value ?? null
   const requestedPage = Number(params.get('page') ?? 1)
   const pageNumber = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
@@ -1100,7 +1223,56 @@ export function Cms() {
     }, { replace })
   }, [setParams])
   const setView = (value: string) => updateParams({ tab: value === 'content' ? null : value })
-  const setType = (value: ContentType | null) => updateParams({ type: value, page: null })
+  const [navOpen, setNavOpen] = useState(false)
+  const sideRef = useRef<HTMLElement>(null)
+  const menuRef = useRef<HTMLButtonElement>(null)
+  const closeNav = () => {
+    setNavOpen(false)
+    menuRef.current?.focus()
+  }
+  useEffect(() => {
+    if (!navOpen) return
+    sideRef.current?.querySelector<HTMLElement>('.cms-side__link')?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setNavOpen(false)
+      menuRef.current?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [navOpen])
+  const viewItem = (id: string, label: string) => ({
+    key: id,
+    label,
+    active: view === id,
+    go: () => setView(id),
+  })
+  const typeItem = (t: { value: ContentType; label: string }) => ({
+    key: t.value,
+    label: t.label,
+    active: view === 'content' && type === t.value,
+    go: () => updateParams({ tab: null, type: t.value, status: null, page: null }),
+  })
+  const [musicType, ...otherTypes] = TYPES
+  const navGroups = [
+    { label: null, items: isAdmin ? [viewItem('dashboard', 'Tổng quan')] : [] },
+    {
+      label: 'Nội dung',
+      items: [
+        typeItem(musicType),
+        ...(canManageAlbums ? [viewItem('albums', 'Album')] : []),
+        ...otherTypes.map(typeItem),
+      ],
+    },
+    {
+      label: 'Hệ thống',
+      items: isAdmin ? [viewItem('moderation', 'Kiểm duyệt'), viewItem('users', 'Tài khoản')] : [],
+    },
+  ].filter((group) => group.items.length > 0)
+  const pageTitle =
+    view === 'content'
+      ? typeLabel(type)
+      : navGroups.flatMap((group) => group.items).find((item) => item.active)?.label ?? 'Nội dung'
   const setStatus = (value: ContentStatus | null) => updateParams({ status: value, page: null })
   const setPageNumber = useCallback((value: number) => updateParams({ page: value <= 1 ? null : String(value) }), [updateParams])
   const [items, setItems] = useState<ContentAdmin[]>([])
@@ -1127,7 +1299,7 @@ export function Cms() {
     setLoading(true)
     try {
       const page = await adminApi.list({
-        type: type ?? undefined,
+        type,
         status: status ?? undefined,
         page: pageNumber,
       })
@@ -1199,75 +1371,71 @@ export function Cms() {
   }
 
   return (
-    <div className="cms">
+    <div className={navOpen ? 'cms cms--nav-open' : 'cms'}>
       <a className="skip-link" href="#cms-main">Bỏ qua điều hướng quản trị</a>
-      <header className="cms__topbar">
+      <aside className="cms-side" aria-label="Điều hướng quản trị" ref={sideRef}>
         <span className="cms__brand">
           ESKAYLATION <em>CMS</em>
         </span>
-        <div className="cms__topbar-actions">
-          {/* Tab Tổng quan/Tài khoản chỉ hiện cho admin; Nội dung cho mọi biên tập viên */}
-          {isAdmin && (
-            <button
-              type="button"
-              className={
-                view === 'dashboard' ? 'cms-pill cms-pill--active' : 'cms-pill'
-              }
-              onClick={() => setView('dashboard')}
-              aria-pressed={view === 'dashboard'}
-            >
-              Tổng quan
-            </button>
+        <nav className="cms-side__nav">
+          {navGroups.map((group) => (
+            <div key={group.label ?? 'top'} className="cms-side__group">
+              {group.label && <span className="cms-side__heading">{group.label}</span>}
+              {group.items.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={item.active ? 'cms-side__link cms-side__link--on' : 'cms-side__link'}
+                  aria-current={item.active ? 'page' : undefined}
+                  onClick={() => {
+                    item.go()
+                    setNavOpen(false)
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="cms-side__foot">
+          {me && (
+            <span className="cms-side__me">
+              {me.email}
+              <small>{ROLE_LABEL[me.role]}</small>
+            </span>
           )}
-          <button
-            type="button"
-            className={
-              view === 'content' ? 'cms-pill cms-pill--active' : 'cms-pill'
-            }
-            onClick={() => setView('content')}
-            aria-pressed={view === 'content'}
-          >
-            Nội dung
-          </button>
-          {isAdmin && (
-            <button
-              type="button"
-              className={
-                view === 'moderation' ? 'cms-pill cms-pill--active' : 'cms-pill'
-              }
-              onClick={() => setView('moderation')}
-              aria-pressed={view === 'moderation'}
-            >
-              Kiểm duyệt
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              type="button"
-              className={
-                view === 'users' ? 'cms-pill cms-pill--active' : 'cms-pill'
-              }
-              onClick={() => setView('users')}
-              aria-pressed={view === 'users'}
-            >
-              Tài khoản
-            </button>
-          )}
-          <Link to="/" className="cms-pill">
+          <Link to="/" className="cms-side__link">
             Xem trang
           </Link>
-          <button
-            type="button"
-            className="cms-pill"
-            onClick={() => void logout()}
-          >
+          <button type="button" className="cms-side__link" onClick={() => void logout()}>
             Đăng xuất
           </button>
         </div>
-      </header>
+      </aside>
+      <div className="cms-scrim" aria-hidden="true" onClick={closeNav} />
 
       <main id="cms-main" tabIndex={-1} className="cms__main">
-      <h1 className="cms__title">{view === 'dashboard' ? 'Tổng quan' : view === 'moderation' ? 'Kiểm duyệt' : view === 'users' ? 'Tài khoản' : 'Nội dung'}</h1>
+      <header className="cms-top">
+        <button
+          type="button"
+          ref={menuRef}
+          className="cms-top__menu"
+          aria-label="Mở menu quản trị"
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen(true)}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+        <h1 className="cms__title">{pageTitle}</h1>
+        {view === 'content' && (
+          <button type="button" className="cms-pill cms-pill--new" onClick={() => setCreating(true)}>
+            {ADD_LABEL[type]}
+          </button>
+        )}
+      </header>
       {source.status === 'success' &&
         source.data.body.source === 'google_drive' && (
           <p className="cms__source-note">
@@ -1284,17 +1452,17 @@ export function Cms() {
         <Moderation />
       ) : view === 'users' && isAdmin ? (
         <UsersPanel meId={me?.id ?? null} />
+      ) : view === 'albums' ? (
+        <AlbumsPanel />
       ) : (
         <CmsContent
           type={type}
-          setType={setType}
           status={status}
           setStatus={setStatus}
           items={items}
           total={total}
           loading={loading}
           act={act}
-          onNew={() => setCreating(true)}
           onEdit={setEditing}
           role={me?.role ?? 'member'}
           page={pageNumber}
@@ -1307,7 +1475,7 @@ export function Cms() {
       {(creating || editing) && (
         <Editor
           initial={editing}
-          defaultType={type ?? 'music'}
+          defaultType={type}
           onClose={() => {
             setCreating(false)
             setEditing(null)
@@ -1334,15 +1502,13 @@ interface CmsContentProps {
   page: number
   pages: number
   onPage: (page: number) => void
-  type: ContentType | null
-  setType: (t: ContentType | null) => void
+  type: ContentType
   status: ContentStatus | null
   setStatus: (s: ContentStatus | null) => void
   items: ContentAdmin[]
   total: number
   loading: boolean
   act: (fn: () => Promise<unknown>, opts?: ActOpts) => Promise<void>
-  onNew: () => void
   onEdit: (c: ContentAdmin) => void
 }
 
@@ -1353,180 +1519,155 @@ function CmsContent({
   pages,
   onPage,
   type,
-  setType,
   status,
   setStatus,
   items,
   total,
   loading,
   act,
-  onNew,
   onEdit,
 }: CmsContentProps) {
   const canPublish = role === 'admin' || role === 'editor'
   // Nội dung đang chờ xác nhận xoá (mở ConfirmDialog thay window.confirm)
   const [pendingDelete, setPendingDelete] = useState<ContentAdmin | null>(null)
+  const isMusic = type === 'music'
+  const [albumNames, setAlbumNames] = useState<Map<number, string>>(new Map())
+  useEffect(() => {
+    if (!isMusic) return
+    let alive = true
+    adminApi
+      .albums()
+      .then((list) => alive && setAlbumNames(new Map(list.map((a) => [a.id, a.title]))))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [isMusic])
   return (
     <>
-      <div className="cms__filters">
-        <div className="cms__filter-group">
-          <button
-            type="button"
-            className={type === null ? 'cms-pill cms-pill--active' : 'cms-pill'}
-            onClick={() => setType(null)}
-            aria-pressed={type === null}
-          >
-            Tất cả
-          </button>
-          {TYPES.map((t) => (
+      <div className="cms-toolbar">
+        <div className="cms-seg" role="group" aria-label="Lọc theo trạng thái">
+          {[{ value: null, label: 'Mọi trạng thái' }, ...STATUSES].map((st) => (
             <button
-              key={t.value}
+              key={st.value ?? 'all'}
               type="button"
-              className={
-                type === t.value ? 'cms-pill cms-pill--active' : 'cms-pill'
-              }
-              onClick={() => setType(type === t.value ? null : t.value)}
-              aria-pressed={type === t.value}
+              className={status === st.value ? 'cms-seg__btn cms-seg__btn--on' : 'cms-seg__btn'}
+              onClick={() => setStatus(st.value)}
+              aria-pressed={status === st.value}
             >
-              {t.label}
+              {st.label}
             </button>
           ))}
         </div>
-
-        <div className="cms__filter-group">
-          {STATUSES.map((s) => (
-            <button
-              key={s.value}
-              type="button"
-              className={
-                status === s.value ? 'cms-pill cms-pill--active' : 'cms-pill'
-              }
-              onClick={() => setStatus(status === s.value ? null : s.value)}
-              aria-pressed={status === s.value}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          className="cms-pill cms-pill--new"
-          onClick={onNew}
-        >
-          + Nội dung mới
-        </button>
+        {!loading && <span className="cms__count">{total} nội dung</span>}
       </div>
 
-      {loading ? (
-        <p className="cms__status">Đang tải…</p>
-      ) : items.length === 0 ? (
-        <p className="cms__status">Chưa có nội dung nào.</p>
-      ) : (
-        <>
-          <p className="cms__count">{total} nội dung</p>
-          <ul className="cms__list">
-            {items.map((c) => (
-              <li key={c.id} className="cms__row page-enter">
-                <div className="cms__row-main">
-                  <span className={`cms-badge cms-badge--${c.status}`}>
-                    {STATUS_LABEL[c.status]}
-                  </span>
-                  <div className="cms__row-text">
-                    <span className="cms__row-title">{c.title}</span>
-                    <span className="cms__row-meta">
-                      {typeLabel(c.type)} · /{c.slug} · sửa{' '}
-                      {fmtTime(c.updated_at)}
-                      {c.media.length > 0 && ` · ${c.media.length} media`}
-                      {c.author_email && ` · ${c.author_email}`}
-                    </span>
-                  </div>
-                </div>
-                <div className="cms__row-actions">
-                  <button
-                    type="button"
-                    className="cms-pill"
-                    disabled={!canPublish && c.status === 'published'}
-                    title={
-                      !canPublish && c.status === 'published'
-                        ? 'Nhân bản bài đã đăng để đề xuất chỉnh sửa'
-                        : undefined
-                    }
-                    onClick={() => onEdit(c)}
-                  >
-                    Sửa
-                  </button>
-                  {canPublish &&
-                    (c.status !== 'published' ? (
-                      <button
-                        type="button"
-                        className="cms-pill cms-pill--publish"
-                        onClick={() =>
-                          void act(() => adminApi.publish(c.id), {
-                            success: `Đã đăng “${c.title}”`,
-                          })
-                        }
-                      >
-                        Đăng
-                      </button>
-                    ) : (
+      <div className="cms-card">
+        {loading ? (
+          <p className="cms__status">Đang tải…</p>
+        ) : items.length === 0 ? (
+          <p className="cms__status">Chưa có nội dung nào.</p>
+        ) : (
+          <table className="cms-table">
+            <thead>
+              <tr>
+                <th>Tiêu đề</th>
+                {isMusic && <th>Album</th>}
+                <th>Trạng thái</th>
+                <th>Cập nhật</th>
+                <th className="cms-table__actions">
+                  <span className="sr-only">Thao tác</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((c) => {
+                const locked = !canPublish && c.status === 'published'
+                const more = [
+                  ...(canPublish
+                    ? [
+                        c.status !== 'published'
+                          ? {
+                              label: 'Đăng',
+                              onClick: () =>
+                                void act(() => adminApi.publish(c.id), { success: `Đã đăng “${c.title}”` }),
+                            }
+                          : {
+                              label: 'Gỡ về nháp',
+                              onClick: () =>
+                                void act(() => adminApi.unpublish(c.id), {
+                                  success: `Đã gỡ “${c.title}” về nháp`,
+                                  undo: () => adminApi.publish(c.id),
+                                }),
+                            },
+                      ]
+                    : []),
+                  ...(canPublish && c.status !== 'archived'
+                    ? [
+                        {
+                          label: 'Lưu trữ',
+                          onClick: () =>
+                            void act(() => adminApi.archive(c.id), {
+                              success: `Đã lưu trữ “${c.title}”`,
+                              undo: () =>
+                                c.status === 'published' ? adminApi.publish(c.id) : adminApi.unpublish(c.id),
+                            }),
+                        },
+                      ]
+                    : []),
+                  {
+                    label: 'Nhân bản',
+                    onClick: () =>
+                      void act(() => adminApi.duplicate(c.id), { success: `Đã nhân bản “${c.title}”` }),
+                  },
+                  ...(canPublish ? [{ label: 'Xoá', danger: true, onClick: () => setPendingDelete(c) }] : []),
+                ]
+                return (
+                  <tr key={c.id}>
+                    <td className="cms-table__main">
+                      <span className="cms-table__title">{c.title}</span>
+                      <span className="cms-table__sub">
+                        /{c.slug}
+                        {c.author_email && ` · ${c.author_email}`}
+                      </span>
+                    </td>
+                    {isMusic && (
+                      <td className="cms-table__type">
+                        {c.album_id ? (
+                          <>
+                            {albumNames.get(c.album_id) ?? 'Album'}
+                            {c.track_no && ` · #${c.track_no}`}
+                          </>
+                        ) : (
+                          'Bài lẻ'
+                        )}
+                      </td>
+                    )}
+                    <td className="cms-table__status">
+                      <span className={`cms-badge cms-badge--${c.status}`}>{STATUS_LABEL[c.status]}</span>
+                    </td>
+                    <td className="cms-table__time">{fmtTime(c.updated_at)}</td>
+                    <td className="cms-table__actions">
+                      <div className="cms-table__btns">
                       <button
                         type="button"
                         className="cms-pill"
-                        onClick={() =>
-                          void act(() => adminApi.unpublish(c.id), {
-                            success: `Đã gỡ “${c.title}” về nháp`,
-                            undo: () => adminApi.publish(c.id),
-                          })
-                        }
+                        disabled={locked}
+                        title={locked ? 'Nhân bản bài đã đăng để đề xuất chỉnh sửa' : undefined}
+                        onClick={() => onEdit(c)}
                       >
-                        Gỡ
+                        Sửa
                       </button>
-                    ))}
-                  {canPublish && c.status !== 'archived' && (
-                    <button
-                      type="button"
-                      className="cms-pill"
-                      onClick={() =>
-                        void act(() => adminApi.archive(c.id), {
-                          success: `Đã lưu trữ “${c.title}”`,
-                          // Hoàn tác: trả về trạng thái trước đó
-                          undo: () =>
-                            c.status === 'published'
-                              ? adminApi.publish(c.id)
-                              : adminApi.unpublish(c.id),
-                        })
-                      }
-                    >
-                      Lưu trữ
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="cms-pill"
-                    onClick={() =>
-                      void act(() => adminApi.duplicate(c.id), {
-                        success: `Đã nhân bản “${c.title}”`,
-                      })
-                    }
-                  >
-                    Nhân bản
-                  </button>
-                  {canPublish && (
-                    <button
-                      type="button"
-                      className="cms-pill cms-pill--danger"
-                      onClick={() => setPendingDelete(c)}
-                    >
-                      Xoá
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+                      <RowMenu label={`Thao tác khác cho “${c.title}”`} items={more} />
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       <CmsPagination
         page={page}
@@ -1551,6 +1692,89 @@ function CmsContent({
         />
       )}
     </>
+  )
+}
+
+function RowMenu({ label, items }: {
+  label: string
+  items: { label: string; danger?: boolean; onClick: () => void }[]
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const initialFocus = useRef<'first' | 'last'>('first')
+  const menuId = useId()
+  const close = () => { setOpen(false); trigger.current?.focus() }
+  useEffect(() => {
+    if (!open) return
+    const controls = ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    controls?.[initialFocus.current === 'last' ? controls.length - 1 : 0]?.focus()
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [open])
+  return (
+    <div className="cms-menu" ref={ref}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false) }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); close() }
+      }}>
+      <button
+        type="button"
+        ref={trigger}
+        className="cms-pill cms-pill--icon"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => { initialFocus.current = 'first'; setOpen((v) => !v) }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            initialFocus.current = e.key === 'ArrowUp' ? 'last' : 'first'
+            setOpen(true)
+          }
+        }}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+          <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+          <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+        </svg>
+      </button>
+      {open && (
+        <div className="cms-menu__list" role="menu" id={menuId} aria-label={label}
+          onKeyDown={(e) => {
+            if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
+            e.preventDefault()
+            const controls = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+            const index = controls.indexOf(document.activeElement as HTMLElement)
+            const next = e.key === 'Home' ? 0 : e.key === 'End' ? controls.length - 1
+              : (index + (e.key === 'ArrowDown' ? 1 : -1) + controls.length) % controls.length
+            controls[next]?.focus()
+          }}>
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              className={item.danger ? 'cms-menu__item cms-menu__item--danger' : 'cms-menu__item'}
+              onClick={() => {
+                close()
+                item.onClick()
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

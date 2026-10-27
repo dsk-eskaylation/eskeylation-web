@@ -185,7 +185,16 @@ def check_ui(password: str, tag: str) -> None:
                 f"browser-{role}-{tag}@test.dev"
             )
             page.get_by_label("Mật khẩu", exact=True).fill(password)
-            page.get_by_role("button", name="Đăng nhập", exact=True).click()
+            with page.expect_response(
+                lambda response: (
+                    response.request.method == "POST"
+                    and response.url.endswith("/auth/login")
+                )
+            ) as response:
+                page.get_by_role("button", name="Đăng nhập", exact=True).click()
+            assert response.value.status == 200, (
+                f"Fixture login rejected: {response.value.status}"
+            )
             page.wait_for_url("**/community" if role == "member" else "**/cms")
             page.wait_for_load_state("networkidle")
 
@@ -330,11 +339,11 @@ def check_ui(password: str, tag: str) -> None:
             pager = page.get_by_role("navigation", name="Phân trang nội dung")
             pager.get_by_role("button", name="Trang sau").click()
             expect(pager).to_contain_text("Trang 2/")
-            page.locator(".cms__filters").get_by_role(
+            page.get_by_role("complementary", name="Điều hướng quản trị").get_by_role(
                 "button", name="Nhạc", exact=True
             ).click()
             expect(pager).to_contain_text("Trang 1/")
-            page.get_by_role("button", name="+ Nội dung mới", exact=True).click()
+            page.get_by_role("button", name="+ Thêm bài nhạc", exact=True).click()
             dialog = page.get_by_role("dialog")
             title = "Browser created " + tag
             dialog.get_by_label("Tên bài hát", exact=True).fill(title)
@@ -357,8 +366,13 @@ def check_ui(password: str, tag: str) -> None:
             )
             dialog.get_by_role("button", name="Lưu", exact=True).click()
             expect(dialog).to_have_count(0)
-            row = page.locator(".cms__row").filter(has_text=title)
-            row.get_by_role("button", name="Đăng", exact=True).click()
+            row = page.locator(".cms-table tbody tr").filter(has_text=title)
+
+            def row_action(name):
+                row.get_by_role("button", name=f"Thao tác khác cho “{title}”").click()
+                page.get_by_role("menuitem", name=name, exact=True).click()
+
+            row_action("Đăng")
             expect(row).to_contain_text("Đã đăng")
             public_music = page.request.get(
                 BASE + "/api/music", params={"q": title}
@@ -366,9 +380,9 @@ def check_ui(password: str, tag: str) -> None:
             assert len(public_music) == 1
             assert public_music[0]["body"]["audio_url"] == uploaded_audio_url
             passed("CMS MP3 upload, inline playback, published audio URL")
-            row.get_by_role("button", name="Gỡ", exact=True).click()
+            row_action("Gỡ về nháp")
             expect(row).to_contain_text("Nháp")
-            row.get_by_role("button", name="Xoá", exact=True).click()
+            row_action("Xoá")
             dialog.get_by_role("button", name="Xoá vĩnh viễn", exact=True).click()
             expect(row).to_have_count(0)
             page.get_by_role("button", name="Tổng quan", exact=True).click()
@@ -513,6 +527,9 @@ def check_ui(password: str, tag: str) -> None:
             member_context.close()
             check_cms_mapping(BASE, context, login, passed)
             check_cms_fields(BASE, context, login, passed, EVIDENCE)
+            from scripts.music_release_browser_checks import check_music_release
+
+            check_music_release(BASE, context, login, passed)
             check_design_flows(BASE, context, login, passed, EVIDENCE)
             from scripts.review_browser_checks import check_review_fixes
 
@@ -532,12 +549,14 @@ def check_ui(password: str, tag: str) -> None:
                         page.get_by_role("button", name="Tài khoản", exact=True)
                     ).to_have_count(0)
                     if role == "author":
-                        expect(
-                            page.get_by_role("button", name="Đăng", exact=True)
-                        ).to_have_count(0)
-                        expect(
-                            page.get_by_role("button", name="Xoá", exact=True)
-                        ).to_have_count(0)
+                        page.locator(".cms-table tbody tr").first.get_by_role(
+                            "button", name="Thao tác khác"
+                        ).click()
+                        expect(page.get_by_role("menu")).to_be_visible()
+                        for action in ["Đăng", "Xoá"]:
+                            expect(
+                                page.get_by_role("menuitem", name=action, exact=True)
+                            ).to_have_count(0)
                 passed(f"{role} UI permission boundary")
                 ctx.close()
         except BaseException:

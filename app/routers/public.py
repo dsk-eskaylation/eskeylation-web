@@ -8,9 +8,10 @@ from app.config import get_settings
 from app.db import SessionLocal, get_session
 from app.dependencies import PaginationParams
 from app.models.enums import ContentType
+from app.schemas.album import AlbumDetail, AlbumOut, GenreCount
 from app.schemas.pagination import Page
 from app.schemas.public import ContentOut
-from app.services import content_query
+from app.services import albums, content_query
 from app.services.catalog_revision import database_revision
 from app.services.drive_catalog import catalog
 from app.services.serialize import content_to_out
@@ -50,8 +51,15 @@ async def _list_page(
     pagination: PaginationParams,
     q: str | None,
     filters: dict[str, str | None] | None = None,
+    album: str | None = None,
+    singles: bool = False,
 ) -> Page[ContentOut]:
     if get_settings().public_content_source == "drive":
+        # The Drive catalog has no albums.
+        if album or singles:
+            return Page.create(
+                items=[], total=0, page=pagination.page, page_size=pagination.page_size
+            )
         return await catalog.page(
             type_, pagination.page, pagination.page_size, q, filters
         )
@@ -62,6 +70,8 @@ async def _list_page(
         page_size=pagination.page_size,
         q=q,
         filters=filters,
+        album=album,
+        singles=singles,
     )
     return Page.create(
         items=[content_to_out(c) for c in items],
@@ -90,6 +100,8 @@ async def list_music(
     q: str | None = Query(None, description="Tìm theo từ khoá (không dấu)"),
     category: str | None = None,
     artist: str | None = None,
+    album: str | None = Query(None, max_length=255),
+    singles: bool = Query(False, description="Chỉ bài chưa thuộc album"),
     session: AsyncSession | None = Depends(get_public_session),
 ) -> Page[ContentOut]:
     return await _list_page(
@@ -98,6 +110,41 @@ async def list_music(
         pagination,
         q,
         {"category": category, "artist": artist},
+        album,
+        singles,
+    )
+
+
+@router.get("/music/genres", response_model=list[GenreCount])
+async def music_genres(
+    session: AsyncSession | None = Depends(get_public_session),
+) -> list[GenreCount]:
+    if session is None:
+        return [GenreCount(name=g, count=0) for g in get_settings().music_genres]
+    return await albums.genre_counts(session)
+
+
+@router.get("/albums", response_model=list[AlbumOut])
+async def list_albums(
+    session: AsyncSession | None = Depends(get_public_session),
+) -> list[AlbumOut]:
+    return [] if session is None else await albums.list_public(session)
+
+
+@router.get("/albums/{slug}", response_model=AlbumDetail)
+async def get_album(
+    slug: str, session: AsyncSession | None = Depends(get_public_session)
+) -> AlbumDetail:
+    found = await albums.get_public(session, slug) if session else None
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy album")
+    album, count = found
+    tracks, _ = await content_query.list_published(
+        session, ContentType.music, page=1, page_size=500, album=slug
+    )
+    return AlbumDetail(
+        **albums.to_out(album, count).model_dump(),
+        tracks=[content_to_out(c) for c in tracks],
     )
 
 

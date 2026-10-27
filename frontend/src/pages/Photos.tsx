@@ -62,20 +62,23 @@ export function Photos() {
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const topRef = useRef<HTMLDivElement>(null)
-
+  const swipeX = useRef<number | null>(null)
   const pageCount = Math.max(1, Math.ceil(photos.length / PER_PAGE))
-  // Kẹp page khi số ảnh đổi (vd data mới về)
   const safePage = Math.min(page, pageCount)
-  const start = (safePage - 1) * PER_PAGE
-  const pagePhotos = photos.slice(start, start + PER_PAGE)
+  const shown = photos.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
 
   const active = photos.findIndex((photo) => photo.id === activeId)
   const cur = active >= 0 ? photos[active] : null
 
+  function go(delta: number) {
+    const next = active + delta
+    if (next >= 0 && next < photos.length) setActiveId(photos[next].id)
+  }
+
   function goPage(nextPage: number) {
     setParams((previous) => {
       const next = new URLSearchParams(previous)
-      if (nextPage === 1) next.delete('page')
+      if (nextPage <= 1) next.delete('page')
       else next.set('page', String(nextPage))
       return next
     })
@@ -119,7 +122,7 @@ export function Photos() {
       <h1 className="sr-only">Thư viện ảnh</h1>
       <div ref={topRef} className="photos__anchor" aria-hidden="true" />
       <div className="photos__grid">
-        {pagePhotos.map((p, i) => (
+        {shown.map((p, i) => (
           <button
             type="button"
             className="photos__item"
@@ -138,12 +141,22 @@ export function Photos() {
 
       {cur && (
         <Modal onClose={() => setActiveId(null)} label="Xem ảnh" variant="bare" showClose>
-          <figure className="photos__viewer">
+          <figure
+            className="photos__viewer"
+            onPointerDown={(e) => { swipeX.current = e.clientX }}
+            onPointerUp={(e) => {
+              if (swipeX.current === null) return
+              const dx = e.clientX - swipeX.current
+              swipeX.current = null
+              if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1)
+            }}
+            onPointerCancel={() => { swipeX.current = null }}
+          >
             {active > 0 && (
               <button
                 type="button"
                 className="photos__nav photos__nav--prev"
-                onClick={() => setActiveId(photos[active - 1].id)}
+                onClick={() => go(-1)}
                 aria-label="Ảnh trước"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -156,7 +169,7 @@ export function Photos() {
               <button
                 type="button"
                 className="photos__nav photos__nav--next"
-                onClick={() => setActiveId(photos[active + 1].id)}
+                onClick={() => go(1)}
                 aria-label="Ảnh sau"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">

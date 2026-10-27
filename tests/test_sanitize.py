@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.services.sanitize import (
+    music_source,
     sanitize_body,
     sanitize_html,
     sanitize_summary,
@@ -64,3 +65,55 @@ def test_validate_embeds_chan_ip_noi_bo():
 
 def test_validate_embeds_khong_co_key_ok():
     validate_embeds({"title": "không có embed"})
+
+
+@pytest.mark.parametrize(
+    ("url", "provider", "player"),
+    [
+        (
+            "https://soundcloud.com/sdrecords-vn/dsk-lon-roi",
+            "soundcloud",
+            "https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com"
+            "%2Fsdrecords-vn%2Fdsk-lon-roi&auto_play=true&visual=false"
+            "&show_comments=false",
+        ),
+        (
+            "https://m.soundcloud.com/da_sun_kid/co-sao-dau-dsk?si=abc",
+            "soundcloud",
+            "https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com"
+            "%2Fda_sun_kid%2Fco-sao-dau-dsk&auto_play=true&visual=false"
+            "&show_comments=false",
+        ),
+        (
+            "https://www.youtube.com/watch?v=IdU2YDea9d0",
+            "youtube",
+            "https://www.youtube.com/embed/IdU2YDea9d0?autoplay=1",
+        ),
+        (
+            "https://youtu.be/IdU2YDea9d0",
+            "youtube",
+            "https://www.youtube.com/embed/IdU2YDea9d0?autoplay=1",
+        ),
+        (
+            "https://vimeo.com/76979871",
+            "vimeo",
+            "https://player.vimeo.com/video/76979871?autoplay=1",
+        ),
+    ],
+)
+def test_music_source_builds_player_url(url, provider, player):
+    assert music_source(url) == (provider, player)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://soundcloud.com/sdrecords-vn",
+        "ftp://soundcloud.com/a/b",
+        "https://soundcloud.com.evil.com/a/b",
+        "https://evil.com/soundcloud.com/a/b",
+        None,
+    ],
+)
+def test_music_source_rejects_non_track_links(url):
+    assert music_source(url) is None

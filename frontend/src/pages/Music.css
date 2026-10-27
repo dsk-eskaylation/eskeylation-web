@@ -1,11 +1,11 @@
 /* Nghe nhạc — trải nghiệm phát trực tuyến, giữ token Eskaylation */
 .music {
-  padding-top: 170px;
+  padding-top: 136px;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
 }
-.music__heading { display: flex; flex-direction: column; gap: 8px; }
+.music__heading { display: flex; flex-direction: column; gap: 6px; }
 .music__side { gap: 20px; }
 .music__side .search-bar { width: 100%; }
 .music__hint { color: var(--color-text-muted); font-size: 14px; line-height: 1.5; }
@@ -13,7 +13,7 @@
 .music__row:disabled { cursor: not-allowed; opacity: .5; }
 .music__list li { content-visibility: auto; contain-intrinsic-size: auto 62px; }
 .music__heading p { margin: 0; color: var(--color-text-muted); font-size: 12px; letter-spacing: .18em; }
-.music__heading h1 { margin: 0; font-size: clamp(26px, 4vw, 48px); font-family: var(--font-accent); letter-spacing: -.04em; }
+.music__heading h1 { margin: 0; font-size: clamp(24px, 3vw, 38px); font-family: var(--font-accent); letter-spacing: -.04em; }
 .music__heading > span { color: var(--color-text-muted); font-size: 14px; }
 
 /* Topbar: thể loại dải tab ngang căn giữa */
@@ -196,6 +196,44 @@
   flex-direction: column;
   gap: 14px;
 }
+.music__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.music__tool {
+  height: 48px;
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 52px;
+  background-color: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 0.25s ease, background-color 0.25s ease;
+}
+.music__tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  cursor: pointer;
+}
+.music__tool svg {
+  width: 16px;
+  height: 16px;
+}
+.music__tool:hover:not(:disabled) {
+  border-color: var(--color-text);
+  background-color: var(--glass-hover);
+}
+.music__tool:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 2px;
+}
+.music__tool:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 .music__side-head {
   display: flex;
   align-items: baseline;
@@ -206,6 +244,10 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-text-muted);
+}
+.music__see-links {
+  display: flex;
+  gap: 16px;
 }
 .music__see-all {
   font-size: 14px;

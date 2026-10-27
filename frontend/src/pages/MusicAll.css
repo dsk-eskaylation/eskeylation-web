@@ -1,15 +1,62 @@
 /* Xem tất cả — Figma frame "Nghe nhạc/ Xem tất cả" #1:1167 (nội dung từ y=87) */
 .music-all {
-  padding-top: 160px;
+  padding-top: 136px;
   display: flex;
   flex-direction: column;
-  gap: 75px; /* Figma #1:1384 gap 75 */
+  gap: 32px;
 }
 
+.music-all__views {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--glass-bg);
+}
+.music-all__view {
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.music-all__view:hover {
+  color: var(--color-text);
+}
+.music-all__view--on,
+.music-all__view--on:hover {
+  background: var(--glass-active);
+  color: var(--color-text-bright);
+}
+.music-all__view:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 2px;
+}
+.music-all__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1 1 520px;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+.music-all__filters .dropdown {
+  flex: 0 1 300px;
+}
+/* The control sits at the right edge here, so open the list leftwards */
+.music-all__filters .dropdown__list {
+  left: auto;
+  right: 0;
+  width: min(400px, calc(100vw - 32px));
+}
 .music-all__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 20px;
   flex-wrap: wrap;
 }

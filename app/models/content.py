@@ -7,6 +7,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -17,11 +18,12 @@ from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from app.db import Base
-from app.models.enums import ContentStatus, ContentType
+from app.models.enums import ContentStatus, ContentType, MusicProvider
 from app.models.interaction_target import InteractionTarget
 from app.models.mixins import TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.album import Album
     from app.models.media import ContentMedia
 
 
@@ -56,6 +58,21 @@ class Content(TimestampMixin, Base):
     # Dữ liệu riêng theo từng loại nội dung (music/gallery/community/homepage).
     body: Mapped[dict] = mapped_column(JSONB, default=dict)
 
+    source_url: Mapped[str | None] = mapped_column(Text)
+    source_provider: Mapped[MusicProvider | None] = mapped_column(
+        Enum(MusicProvider, native_enum=False, length=16)
+    )
+    cover_url: Mapped[str | None] = mapped_column(Text)
+    album_id: Mapped[int | None] = mapped_column(
+        ForeignKey("albums.id", ondelete="SET NULL"), index=True
+    )
+    track_no: Mapped[int | None] = mapped_column(SmallInteger)
+    # Eager because serializers read it after the async session context; selectin, not
+    # joined, since a LEFT JOIN breaks the SELECT ... FOR UPDATE loads on contents.
+    album: Mapped["Album | None"] = relationship(
+        back_populates="tracks", lazy="selectin"
+    )
+
     author_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
@@ -77,6 +94,31 @@ class Content(TimestampMixin, Base):
         CheckConstraint(f"type IN ({_values(ContentType)})", name="ck_contents_type"),
         CheckConstraint(
             f"status IN ({_values(ContentStatus)})", name="ck_contents_status"
+        ),
+        CheckConstraint(
+            f"source_provider IN ({_values(MusicProvider)})",
+            name="ck_contents_source_provider",
+        ),
+        CheckConstraint(
+            "(source_url IS NULL) = (source_provider IS NULL)",
+            name="ck_contents_source_pair",
+        ),
+        CheckConstraint(
+            "cover_url IS NULL OR cover_url LIKE 'https://%'",
+            name="ck_contents_cover_https",
+        ),
+        CheckConstraint(
+            "album_id IS NULL OR type = 'music'", name="ck_contents_album_music"
+        ),
+        CheckConstraint(
+            "track_no IS NULL OR track_no > 0", name="ck_contents_track_no"
+        ),
+        Index(
+            "uq_contents_album_track",
+            "album_id",
+            "track_no",
+            unique=True,
+            postgresql_where=text("album_id IS NOT NULL AND track_no IS NOT NULL"),
         ),
         # published bắt buộc có published_at (db-review M1)
         CheckConstraint(

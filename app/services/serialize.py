@@ -1,8 +1,8 @@
 from app.models.content import Content
 from app.models.enums import ContentType
-from app.schemas.public import ContentOut, MediaOut
+from app.schemas.public import AlbumRef, ContentOut, MediaOut
 from app.services.media_processing import derived_keys
-from app.services.sanitize import restore_plain_values
+from app.services.sanitize import player_url, restore_plain_values
 from app.services.storage import get_storage
 
 
@@ -72,4 +72,20 @@ def content_to_out(content: Content) -> ContentOut:
         body=body,
         published_at=content.published_at,
         media=media,
+        source_url=content.source_url,
+        source_provider=content.source_provider,
+        player_url=player_url(content.source_url),
+        cover_url=content.cover_url
+        or (content.album.cover_url if content.album else None),
+        album=(
+            AlbumRef(
+                slug=content.album.slug,
+                title=content.album.title,
+                kind=content.album.kind,
+                year=content.album.year,
+            )
+            if content.album
+            else None
+        ),
+        track_no=content.track_no,
     )
