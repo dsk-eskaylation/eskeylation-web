@@ -84,6 +84,17 @@ async def seed(password: str, tag: str) -> None:
             )
             session.add(user)
             users[role.value] = user
+        # Dedicated accounts for the community check stay clear of the per-email
+        # login rate limit the shared role fixtures hit.
+        for name, role in [("poster", UserRole.member), ("moderator", UserRole.admin)]:
+            session.add(
+                User(
+                    email=f"browser-{name}-{tag}@test.dev",
+                    hashed_password=hash_password(password),
+                    role=role,
+                    is_active=True,
+                )
+            )
         await session.flush()
         image = Media(
             storage_key="ui-image.png",
@@ -179,10 +190,10 @@ def check_ui(password: str, tag: str) -> None:
             )
             return ctx
 
-        def login(page, role):
+        def login(page, role, account=None):
             page.goto(BASE + "/login", wait_until="networkidle")
             page.get_by_label("Email", exact=True).fill(
-                f"browser-{role}-{tag}@test.dev"
+                f"browser-{account or role}-{tag}@test.dev"
             )
             page.get_by_label("Mật khẩu", exact=True).fill(password)
             with page.expect_response(
@@ -562,6 +573,9 @@ def check_ui(password: str, tag: str) -> None:
                             ).to_have_count(0)
                 passed(f"{role} UI permission boundary")
                 ctx.close()
+            from scripts.community_browser_checks import check_member_posting
+
+            check_member_posting(BASE, context, login, passed)
         except BaseException:
             if page is not None and not page.is_closed():
                 page.screenshot(path=str(EVIDENCE / "failure.png"))

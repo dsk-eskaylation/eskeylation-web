@@ -88,11 +88,6 @@ function ComposerDialog({ name, onClose }: { name: string; onClose: () => void }
     setImages((list) => list.filter((image) => image.key !== key))
   }
 
-  function close() {
-    if ((text.trim() || images.length) && !window.confirm('Bỏ bài viết đang soạn?')) return
-    onClose()
-  }
-
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (!ready) return
@@ -117,7 +112,7 @@ function ComposerDialog({ name, onClose }: { name: string; onClose: () => void }
   }
 
   return (
-    <Modal onClose={close} label="Tạo bài viết" showClose={false}>
+    <Modal onClose={onClose} label="Tạo bài viết" showClose={false}>
       <form
         className={dragging ? 'composer composer--drag' : 'composer'}
         onSubmit={submit}
@@ -126,7 +121,7 @@ function ComposerDialog({ name, onClose }: { name: string; onClose: () => void }
         onDrop={onDrop}
       >
         <header className="composer__head">
-          <button type="button" className="composer__link" onClick={close}>Huỷ</button>
+          <button type="button" className="composer__link" onClick={onClose}>Huỷ</button>
           <h2>Tạo bài viết</h2>
           <button type="submit" className="composer__post" disabled={!ready}>
             {sending ? 'Đang gửi…' : 'Đăng'}

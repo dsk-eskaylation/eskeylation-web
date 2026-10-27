@@ -93,6 +93,8 @@ export function CommunityPost({
   const [inter, setInter] = useState<InteractionOut | null>(null);
   const [expanded, setExpanded] = useState(detail);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Xác nhận xoá ngay trong dòng bình luận, không mở hộp thoại.
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
   const openComments = () => {
     if (onOpen) onOpen();
     else if (detail) inputRef.current?.focus();
@@ -372,7 +374,7 @@ export function CommunityPost({
   }
 
   async function removeComment(c: CommentOut) {
-    if (!window.confirm("Xoá bình luận này?")) return;
+    setConfirmingId(null);
     try {
       await community.deleteComment(id, c.id);
       removeCommentLocally(c.id);
@@ -384,7 +386,7 @@ export function CommunityPost({
   }
 
   async function adminRemoveComment(c: CommentOut) {
-    if (!window.confirm(`Xoá bình luận của ${c.author_name}?`)) return;
+    setConfirmingId(null);
     try {
       await adminApi.deleteComment(c.id);
       removeCommentLocally(c.id);
@@ -589,7 +591,27 @@ export function CommunityPost({
                   )}
                 </div>
                 {/* Hàng thao tác dưới mỗi bình luận */}
-                {editingId !== c.id && (
+                {editingId !== c.id && confirmingId === c.id && (
+                  <div className="cpost__comment-actions" role="group" aria-label="Xác nhận xoá bình luận">
+                    <span className="cpost__comment-confirm">Xoá bình luận này?</span>
+                    <button
+                      type="button"
+                      className="cpost__comment-act cpost__comment-act--danger"
+                      onClick={() => void (c.is_mine ? removeComment(c) : adminRemoveComment(c))}
+                      autoFocus
+                    >
+                      Xoá
+                    </button>
+                    <button
+                      type="button"
+                      className="cpost__comment-act"
+                      onClick={() => setConfirmingId(null)}
+                    >
+                      Huỷ
+                    </button>
+                  </div>
+                )}
+                {editingId !== c.id && confirmingId !== c.id && (
                   <div className="cpost__comment-actions">
                     {loggedIn && (
                       <ReactionControl
@@ -619,7 +641,7 @@ export function CommunityPost({
                         <button
                           type="button"
                           className="cpost__comment-act cpost__comment-act--danger"
-                          onClick={() => void removeComment(c)}
+                          onClick={() => setConfirmingId(c.id)}
                         >
                           Xoá
                         </button>
@@ -629,7 +651,7 @@ export function CommunityPost({
                       <button
                         type="button"
                         className="cpost__comment-act cpost__comment-act--danger"
-                        onClick={() => void adminRemoveComment(c)}
+                        onClick={() => setConfirmingId(c.id)}
                       >
                         Xoá (admin)
                       </button>
