@@ -27,6 +27,7 @@ const ACTION_FILTERS: { value: string | null; label: string }[] = [
   { value: 'user_update', label: 'Sửa TK' },
   { value: 'lyrics_accept', label: 'Duyệt lời nhạc' },
   { value: 'lyrics_reject', label: 'Từ chối lời nhạc' },
+  { value: 'content_blocked', label: 'Bị chặn (spam)' },
 ]
 
 const TYPE_LABEL: Record<ContentType, string> = {
@@ -59,6 +60,7 @@ const ACTION_VERB: Record<string, string> = {
   comment_delete: 'đã xoá bình luận',
   lyrics_accept: 'đã duyệt lời nhạc',
   lyrics_reject: 'đã từ chối lời nhạc',
+  content_blocked: 'bị chặn vì từ khóa nhạy cảm',
 }
 
 const ACTION_TONE: Record<string, string> = {
@@ -76,6 +78,7 @@ const ACTION_TONE: Record<string, string> = {
   comment_delete: 'danger',
   lyrics_accept: 'ok',
   lyrics_reject: 'warn',
+  content_blocked: 'danger',
 }
 
 const FIELD_LABEL: Record<string, string> = {
@@ -109,6 +112,9 @@ function relTime(iso: string): string {
 
 /** Mô tả chi tiết bổ sung của một hành động (VD: "sửa: tiêu đề, media"). */
 function activityDetail(e: ActivityEntry): string | null {
+  if (e.action === 'content_blocked' && Array.isArray(e.detail.words)) {
+    return `từ khóa: ${(e.detail.words as string[]).join(', ')}`
+  }
   if (e.action === 'update') {
     const parts: string[] = []
     // Diff tiêu đề cũ → mới (nếu có)

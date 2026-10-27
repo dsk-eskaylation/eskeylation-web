@@ -22,6 +22,7 @@ import {
   REACTION_ORDER,
 } from "./reactionIcons";
 import "./CommunityPost.css";
+import { adminApi } from "../api/admin";
 
 function fmtDate(iso: string | null) {
   if (!iso) return "";
@@ -67,10 +68,12 @@ function ReactionSummaryChips({
 export function CommunityPost({
   content,
   loggedIn,
+  isAdmin = false,
   priority = false,
 }: {
   content: ContentOut;
   loggedIn: boolean;
+  isAdmin?: boolean;
   priority?: boolean;
 }) {
   const id = content.id;
@@ -367,6 +370,18 @@ export function CommunityPost({
     }
   }
 
+  async function adminRemoveComment(c: CommentOut) {
+    if (!window.confirm(`Xoá bình luận của ${c.author_name}?`)) return;
+    try {
+      await adminApi.deleteComment(c.id);
+      removeCommentLocally(c.id);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Không xoá được bình luận", {
+        tone: "error",
+      });
+    }
+  }
+
   async function commentReact(c: CommentOut, kind: ReactionKind) {
     try {
       const summary =
@@ -592,6 +607,15 @@ export function CommunityPost({
                           Xoá
                         </button>
                       </>
+                    )}
+                    {isAdmin && !c.is_mine && (
+                      <button
+                        type="button"
+                        className="cpost__comment-act cpost__comment-act--danger"
+                        onClick={() => void adminRemoveComment(c)}
+                      >
+                        Xoá (admin)
+                      </button>
                     )}
                   </div>
                 )}

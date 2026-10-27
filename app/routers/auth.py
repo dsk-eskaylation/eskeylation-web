@@ -169,7 +169,7 @@ async def update_me(
     session: AsyncSession = Depends(get_session),
 ) -> UserRead:
     bio = sanitize_summary(data.bio or "") or ""
-    await moderation.assert_clean(session, text=bio)
+    await moderation.assert_clean(session, text=bio, actor=user, entity_type="bio")
     user.bio = bio.strip() or None
     await session.commit()
     await session.refresh(user)

@@ -27,6 +27,7 @@ USER_UPDATE = "user_update"
 BANNED_ADD = "banned_add"
 BANNED_REMOVE = "banned_remove"
 COMMENT_DELETE = "comment_delete"
+CONTENT_BLOCKED = "content_blocked"
 
 
 async def log(

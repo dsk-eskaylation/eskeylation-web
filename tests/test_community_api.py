@@ -148,3 +148,42 @@ async def test_cap_nhat_bio(client, make_user):
     r = await client.patch("/auth/me", json={"bio": "  Fan DSK  "}, headers=auth(token))
     assert r.status_code == 200, r.text
     assert r.json()["bio"] == "Fan DSK"
+
+
+async def test_thanh_vien_gui_bai_cho_duyet_va_tu_cam_duoc_bao(client, db, make_user):
+    from sqlalchemy import select
+
+    from app.models.activity import ActivityLog
+    from app.models.content import Content
+    from app.models.moderation import BannedWord
+    from app.services import moderation
+
+    _, token = await token_for(client, make_user, UserRole.member)
+    r = await client.post(
+        "/api/community/posts",
+        json={"title": "Kỷ niệm", "summary": "Lần đầu nghe DSK"},
+        headers=auth(token),
+    )
+    assert r.status_code == 201, r.text
+    post = await db.scalar(select(Content).where(Content.title == "Kỷ niệm"))
+    assert post.status == ContentStatus.draft and post.body["author"]
+
+    db.add(BannedWord(word="tukhoacam"))
+    await db.commit()
+    moderation.invalidate()
+    blocked = await client.post(
+        "/api/community/posts",
+        json={"title": "Bài xấu", "summary": "có tukhoacam"},
+        headers=auth(token),
+    )
+    assert blocked.status_code == 422
+    assert blocked.json()["detail"] == moderation.BLOCKED_MESSAGE
+    entry = await db.scalar(
+        select(ActivityLog).where(ActivityLog.action == "content_blocked")
+    )
+    assert entry.detail == {"words": ["tukhoacam"]}
+    await db.delete(
+        await db.scalar(select(BannedWord).where(BannedWord.word == "tukhoacam"))
+    )
+    await db.commit()
+    moderation.invalidate()

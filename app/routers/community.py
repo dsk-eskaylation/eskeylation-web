@@ -17,6 +17,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -29,6 +30,7 @@ from app.dependencies import (
 from app.models.content import Content
 from app.models.enums import ContentType, ReactionType
 from app.models.user import User
+from app.schemas.admin import ContentCreate
 from app.schemas.community import (
     CommentIn,
     CommentOut,
@@ -39,7 +41,7 @@ from app.schemas.community import (
 )
 from app.schemas.pagination import Page
 from app.schemas.public import ContentOut
-from app.services import community, moderation, realtime
+from app.services import community, content_admin, moderation, realtime
 from app.services.ratelimit import check_rate
 from app.services.sanitize import sanitize_summary
 from app.services.serialize import content_to_out
@@ -191,7 +193,7 @@ async def create_comment(
             detail="Nội dung bình luận trống",
         )
     # Chặn bình luận chứa từ ngữ không phù hợp (kiểm duyệt)
-    await moderation.assert_clean(session, text=body)
+    await moderation.assert_clean(session, text=body, actor=user, entity_type="comment")
     comment = await community.create_comment(session, content_id, user, body)
     out = _comment_out(comment, is_mine=True)
     # Broadcast bản KHÔNG kèm is_mine cho người khác (is_mine tính theo mỗi client)
@@ -221,7 +223,7 @@ async def edit_comment(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Nội dung bình luận trống",
         )
-    await moderation.assert_clean(session, text=body)
+    await moderation.assert_clean(session, text=body, actor=user, entity_type="comment")
     updated = await community.update_comment_body(session, comment, body)
     reactions = await community.comment_reaction_summary(session, comment_id, user.id)
     await realtime.publish(
@@ -374,6 +376,39 @@ async def my_saved(
         page=pagination.page,
         page_size=pagination.page_size,
     )
+
+
+class PostIn(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    summary: str = Field(min_length=1, max_length=5000)
+
+
+@router.post("/posts", status_code=status.HTTP_201_CREATED)
+async def submit_post(
+    payload: PostIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, str]:
+    """Thành viên gửi bài cộng đồng -> nằm ở Nháp, chỉ hiện sau khi admin duyệt."""
+    await check_rate(f"post:{user.id}", limit=3, window_seconds=600)
+    await moderation.assert_clean(
+        session,
+        text=payload.title,
+        summary=payload.summary,
+        actor=user,
+        entity_type="community_post",
+    )
+    await content_admin.create_content(
+        session,
+        ContentCreate(
+            type=ContentType.community,
+            title=payload.title.strip(),
+            summary=payload.summary,
+            body={"author": community.author_name(user)},
+        ),
+        user.id,
+    )
+    return {"message": "Đã gửi bài. Bài sẽ hiển thị sau khi admin duyệt."}
 
 
 # ---- Realtime WebSocket ----

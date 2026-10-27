@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Pagination } from '../components/Pagination'
 import { api } from '../api/client'
 import { useLiveApi } from '../api/useLiveApi'
 import { getSession } from '../api/auth'
+import { community } from '../api/community'
 import { CommunityPost } from '../components/CommunityPost'
 import { EmptyState } from '../components/EmptyState'
 import './Community.css'
@@ -27,6 +28,7 @@ const DEFAULT_SUPPORT_INTRO = 'Việc kêu gọi ủng hộ nhằm duy trì, v�
     mỗi bài có cảm xúc, bình luận realtime (WebSocket), lưu bài. */
 export function Community() {
   const [loggedIn, setLoggedIn] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [params, setParams] = useSearchParams()
   const tabParam = params.get('tab')
   const tab: Tab = TABS.some((t) => t.key === tabParam) ? tabParam as Tab : 'feed'
@@ -53,7 +55,11 @@ export function Community() {
 
   useEffect(() => {
     let alive = true
-    getSession().then((u) => alive && setLoggedIn(u !== null))
+    getSession().then((u) => {
+      if (!alive) return
+      setLoggedIn(u !== null)
+      setIsAdmin(u?.role === 'admin')
+    })
     return () => {
       alive = false
     }
@@ -97,6 +103,7 @@ export function Community() {
     <div className="community">
       <h1 className="sr-only">Cộng đồng Eskaylation</h1>
       {nav}
+      {loggedIn && <PostComposer />}
       <div ref={topRef} className="community__anchor" aria-hidden="true" />
       {state.status === 'loading' && (
         <div className="community__feed" aria-busy="true" />
@@ -114,6 +121,7 @@ export function Community() {
             key={item.id}
             content={item}
             loggedIn={loggedIn}
+            isAdmin={isAdmin}
             priority={index === 0}
           />
         ))}
@@ -201,5 +209,55 @@ function CommunityInfo({ tab }: { tab: Exclude<Tab, 'feed'> }) {
         </>
       )}
     </section>
+  )
+}
+
+/** Thành viên gửi bài; bài vào hàng chờ và chỉ hiện sau khi admin duyệt. */
+function PostComposer() {
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [summary, setSummary] = useState('')
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setMsg(null)
+    try {
+      const res = await community.submitPost(title.trim(), summary.trim())
+      setTitle('')
+      setSummary('')
+      setOpen(false)
+      setMsg({ tone: 'ok', text: res.message })
+    } catch (err) {
+      setMsg({ tone: 'error', text: err instanceof Error ? err.message : 'Chưa gửi được bài.' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="community__composer">
+      {open ? (
+        <form onSubmit={submit}>
+          <label>
+            <span>Tiêu đề</span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={255} required />
+          </label>
+          <label>
+            <span>Nội dung</span>
+            <textarea value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={5000} rows={4} required />
+          </label>
+          <div className="community__composer-actions">
+            <button type="submit" disabled={busy || !title.trim() || !summary.trim()}>Gửi bài</button>
+            <button type="button" onClick={() => setOpen(false)} disabled={busy}>Huỷ</button>
+          </div>
+        </form>
+      ) : (
+        <button type="button" onClick={() => { setOpen(true); setMsg(null) }}>+ Đăng bài</button>
+      )}
+      {msg && <p role={msg.tone === 'error' ? 'alert' : 'status'}>{msg.text}</p>}
+    </div>
   )
 }

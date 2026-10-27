@@ -21,6 +21,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.moderation import BannedWord
+from app.models.user import User
+from app.services import activity
 
 BLOCKED_MESSAGE = "Không thể đăng được do chứa từ khóa nhạy cảm"
 _TTL = 30.0  # giây — độ trễ tối đa để từ cấm mới có hiệu lực toàn tiến trình
@@ -82,11 +84,14 @@ async def assert_clean(
     summary: str | None = None,
     body: dict | None = None,
     text: str | None = None,
+    actor: User | None = None,
+    entity_type: str | None = None,
 ) -> None:
     """Ném 422 nếu bất kỳ đoạn văn bản nào chứa từ cấm.
 
     - summary/text: chuỗi phẳng.
     - body: dict -> duyệt đệ quy mọi chuỗi bên trong.
+    - actor: người dùng gửi nội dung -> lần bị chặn được ghi nhật ký cho admin xem.
     """
     words = await get_words(session)
     if not words:
@@ -99,6 +104,16 @@ async def assert_clean(
         for s in _iter_strings(body):
             hits |= _find_hits(s, words)
     if hits:
+        if actor is not None:
+            excerpt = next((t for t in (text, summary) if t), "")
+            await activity.log(
+                session,
+                actor=actor,
+                action=activity.CONTENT_BLOCKED,
+                entity_type=entity_type or "content",
+                entity_title=excerpt[:200] or None,
+                detail={"words": sorted(hits)},
+            )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=BLOCKED_MESSAGE,

@@ -56,6 +56,13 @@ const base = (id: number) => `/api/community/${id}`
 const jsonMut = () => ({ 'Content-Type': 'application/json', ...csrfHeaders() })
 
 export const community = {
+  submitPost: (title: string, summary: string) =>
+    fetch('/api/community/posts', {
+      method: 'POST',
+      credentials: 'include',
+      headers: jsonMut(),
+      body: JSON.stringify({ title, summary }),
+    }).then((r) => toJson<{ message: string }>(r)),
   /** Bài đã lưu (community) hoặc bài hát yêu thích (music) của tài khoản. */
   mySaved: (type: 'community' | 'music', page = 1) =>
     fetch(`/api/me/saved?type=${type}&page=${page}&page_size=100`, { credentials: 'include' }).then((r) =>
