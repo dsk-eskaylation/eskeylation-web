@@ -92,15 +92,22 @@ export function Music() {
     );
   }
 
+  // Albums keep their track order; the whole library plays A-Z by title.
+  const alphabetical = !album;
+  const byTitle = (list: ContentOut[]) =>
+    alphabetical ? [...list].sort((a, b) => a.title.localeCompare(b.title, "vi")) : list;
+
   function playAll(shuffled: boolean) {
     if (audioItems.length === 0) {
-      const track = embeddedItems[shuffled ? Math.floor(Math.random() * embeddedItems.length) : 0];
+      const track = shuffled
+        ? embeddedItems[Math.floor(Math.random() * embeddedItems.length)]
+        : byTitle(embeddedItems)[0];
       if (track) player.playEmbed(track);
       return;
     }
     if (player.shuffle !== shuffled) player.toggleShuffle();
     player.playQueue(
-      audioItems,
+      shuffled ? audioItems : byTitle(audioItems),
       shuffled ? Math.floor(Math.random() * audioItems.length) : 0,
     );
   }
@@ -218,7 +225,7 @@ export function Music() {
               <button
                 type="button"
                 className="music__tool"
-                aria-label={audioItems.length ? (mixedSources ? "Phát danh sách audio" : "Phát danh sách") : "Phát bài nhúng đầu tiên"}
+                aria-label={`${audioItems.length ? (mixedSources ? "Phát danh sách audio" : "Phát danh sách") : "Phát bài nhúng đầu tiên"}${alphabetical ? " theo thứ tự A-Z" : ""}`}
                 onClick={() => playAll(false)}
                 disabled={playableCount === 0}
               >
@@ -226,6 +233,7 @@ export function Music() {
                   <path d="M7 4.5v15l13-7.5z" fill="currentColor" />
                 </svg>
                 {audioItems.length ? (mixedSources ? "Phát audio" : "Phát") : "Phát bài"}
+                {alphabetical && " A-Z"}
               </button>
               <button
                 type="button"
