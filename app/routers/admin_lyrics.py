@@ -18,6 +18,7 @@ from app.models.user import User
 from app.schemas.lyrics import LyricReview, LyricStatus, LyricSuggestionOut
 from app.schemas.pagination import Page
 from app.services import moderation
+from app.services.community import author_name
 
 router = APIRouter(prefix="/admin/moderation/lyrics", tags=["moderation"])
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -105,7 +106,15 @@ async def review_lyrics(
         if content is None:
             raise HTTPException(409, "Bài hát chưa liên kết với CMS hoặc đã bị xóa")
         await moderation.assert_clean(session, body={"lyrics": suggestion.body})
-        content.body = {**content.body, "lyrics": suggestion.body}
+        content.body = {
+            **content.body,
+            "lyrics": suggestion.body,
+            "lyrics_credit": author_name(
+                await session.get(User, suggestion.user_id)
+                if suggestion.user_id
+                else None
+            ),
+        }
     suggestion.status = payload.status
     session.add(
         ActivityLog(

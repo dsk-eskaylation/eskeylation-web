@@ -308,6 +308,7 @@ async def test_admin_accept_updates_right_song_and_catalog_and_writes_log(
     public = (await client.get(f"/api/music/{song['slug']}")).json()
     assert public["id"] == item["content_id"]
     assert public["body"]["lyrics"] == item["body"]
+    assert public["body"]["lyrics_credit"] == item["user_email"].split("@")[0]
     assert public["body"]["artist"] == "Fake"
     assert (await client.get("/api/catalog")).json()["revision"] != before
     assert (

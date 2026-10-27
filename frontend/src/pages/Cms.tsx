@@ -634,7 +634,7 @@ function Editor({
               <ImageField image={media.find((asset) => asset.media_id === product.media_id)} label="sản phẩm" alt={`Ảnh ${product.name || 'sản phẩm'}`} busy={busy}
                 onUpload={(files) => void upload(files, (id) => setProduct((prev) => ({ ...prev, media_id: id })))}
                 onRemove={() => setProduct(({ media_id: _removed, ...rest }) => rest)} />
-              <label className="cms-field"><span>Giới thiệu quỹ ủng hộ</span>
+              <label className="cms-field"><span>Lời kêu gọi ủng hộ</span>
                 <textarea value={support.intro} onChange={(e) => setSupport((prev) => ({ ...prev, intro: e.target.value }))} rows={2} />
               </label>
               <label className="cms-field"><span>Số tiền hiện tại</span>

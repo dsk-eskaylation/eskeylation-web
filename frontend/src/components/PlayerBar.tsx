@@ -281,7 +281,12 @@ function LyricsPanel() {
       </div>
 
       {lyrics ? (
-        <pre className="pbpanel__lyrics">{lyrics}</pre>
+        <>
+          <pre className="pbpanel__lyrics">{lyrics}</pre>
+          {typeof current.body.lyrics_credit === 'string' && current.body.lyrics_credit && (
+            <p className="pbpanel__msg">Lời được đóng góp bởi {current.body.lyrics_credit}</p>
+          )}
+        </>
       ) : (
         <p className="pbpanel__empty">Chưa có lời cho bài này. Bạn hãy đóng góp nhé!</p>
       )}
