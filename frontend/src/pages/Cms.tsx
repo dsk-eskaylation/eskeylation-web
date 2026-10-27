@@ -631,6 +631,7 @@ function Editor({
               <label className="cms-field"><span>Link đăng ký mua (Google Form)</span>
                 <input type="url" value={product.form_url} onChange={(e) => setProduct((prev) => ({ ...prev, form_url: e.target.value }))} placeholder="https://forms.gle/…" />
               </label>
+              <span className="cms-field__hint">Ảnh sản phẩm</span>
               <ImageField image={media.find((asset) => asset.media_id === product.media_id)} label="sản phẩm" alt={`Ảnh ${product.name || 'sản phẩm'}`} busy={busy}
                 onUpload={(files) => void upload(files, (id) => setProduct((prev) => ({ ...prev, media_id: id })))}
                 onRemove={() => setProduct(({ media_id: _removed, ...rest }) => rest)} />
@@ -643,6 +644,7 @@ function Editor({
               <label className="cms-field"><span>Đã sử dụng (số tiền và mục đích)</span>
                 <textarea value={support.used} onChange={(e) => setSupport((prev) => ({ ...prev, used: e.target.value }))} rows={2} placeholder="Đã sử dụng … VNĐ với mục đích …" />
               </label>
+              <span className="cms-field__hint">Mã QR ủng hộ</span>
               <ImageField image={media.find((asset) => asset.media_id === support.qr_media_id)} label="mã QR ủng hộ" alt="Mã QR ủng hộ" busy={busy}
                 onUpload={(files) => void upload(files, (id) => setSupport((prev) => ({ ...prev, qr_media_id: id })))}
                 onRemove={() => setSupport(({ qr_media_id: _removed, ...rest }) => rest)} />

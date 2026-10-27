@@ -76,7 +76,9 @@
 }
 
 .composer {
-  width: min(560px, calc(100vw - 32px));
+  /* Trừ lề overlay + padding khung Modal để không tràn trên điện thoại */
+  width: min(560px, calc(100vw - 64px));
+  padding-bottom: 4px;
   display: grid;
   gap: 14px;
   border-radius: 14px;

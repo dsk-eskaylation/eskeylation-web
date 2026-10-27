@@ -149,6 +149,7 @@ function CommentsPanel() {
   const [draft, setDraft] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const id = p.current?.id
 
   useEffect(() => {
@@ -182,6 +183,7 @@ function CommentsPanel() {
 
   async function remove(commentId: number) {
     if (id === undefined) return
+    setConfirmingId(null)
     try {
       await community.deleteComment(id, commentId)
       setItems((list) => list.filter((c) => c.id !== commentId))
@@ -203,10 +205,17 @@ function CommentsPanel() {
           {items.map((c) => (
             <li key={c.id}>
               <strong>{c.author_name}</strong> {c.body}
-              {c.is_mine && (
-                <button type="button" className="pbpanel__link" onClick={() => remove(c.id)} aria-label={`Xoá bình luận: ${c.body}`}>
+              {c.is_mine && confirmingId !== c.id && (
+                <button type="button" className="pbpanel__link" onClick={() => setConfirmingId(c.id)} aria-label={`Xoá bình luận: ${c.body}`}>
                   Xoá
                 </button>
+              )}
+              {confirmingId === c.id && (
+                <span className="pbpanel__confirm" role="group" aria-label="Xác nhận xoá bình luận">
+                  Xoá bình luận này?
+                  <button type="button" className="pbpanel__link" onClick={() => remove(c.id)} autoFocus>Xoá</button>
+                  <button type="button" className="pbpanel__link" onClick={() => setConfirmingId(null)}>Huỷ</button>
+                </span>
               )}
             </li>
           ))}

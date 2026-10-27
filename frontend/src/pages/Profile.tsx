@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { getSession, updateProfile, type SessionUser } from '../api/auth'
 import { community } from '../api/community'
@@ -13,12 +13,12 @@ type Load<T> = { status: 'loading' } | { status: 'error' } | { status: 'ready'; 
 
 function useList(fetcher: () => Promise<ContentOut[]>): Load<ContentOut> {
   const [state, setState] = useState<Load<ContentOut>>({ status: 'loading' })
-  const [request] = useState(fetcher) // fetch once per mount
+  const fetchRef = useRef(fetcher)
   useEffect(() => {
     let live = true
-    request.then((items) => live && setState({ status: 'ready', items }), () => live && setState({ status: 'error' }))
+    fetchRef.current().then((items) => live && setState({ status: 'ready', items }), () => live && setState({ status: 'error' }))
     return () => { live = false }
-  }, [request])
+  }, [])
   return state
 }
 
@@ -27,10 +27,6 @@ const count = (state: Load<ContentOut>) => (state.status === 'ready' ? state.ite
 /** Hồ sơ cá nhân kiểu mạng xã hội: bài đăng, bài hát yêu thích, bài đã lưu (riêng tư). */
 export function Profile() {
   const [user, setUser] = useState<SessionUser | null | undefined>(undefined)
-  const [tab, setTab] = useState<Tab>('posts')
-  const posts = useList(() => community.myPosts())
-  const favorites = useList(() => community.mySaved('music').then((p) => p.items))
-  const saved = useList(() => community.mySaved('community').then((p) => p.items))
 
   useEffect(() => {
     let live = true
@@ -40,6 +36,15 @@ export function Profile() {
 
   if (user === undefined) return null
   if (user === null) return <Navigate to="/login?next=%2Fprofile" replace />
+  return <ProfileView user={user} />
+}
+
+/** Chỉ render khi đã đăng nhập, nên các danh sách riêng tư không bị gọi lúc chưa có phiên. */
+function ProfileView({ user }: { user: SessionUser }) {
+  const [tab, setTab] = useState<Tab>('posts')
+  const posts = useList(() => community.myPosts())
+  const favorites = useList(() => community.mySaved('music').then((p) => p.items))
+  const saved = useList(() => community.mySaved('community').then((p) => p.items))
   const name = user.email.split('@', 1)[0]
   const joined = user.created_at ? new Date(user.created_at).toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' }) : null
 

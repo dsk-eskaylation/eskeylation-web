@@ -80,3 +80,15 @@
   color: var(--color-bg);
   font-weight: 700;
 }
+
+/* Chuông không nằm sát mép phải (nút tài khoản ở bên cạnh): trên điện thoại
+   neo bảng theo màn hình để không tràn ra ngoài. */
+@media (max-width: 640px) {
+  .notif__panel {
+    position: fixed;
+    top: 80px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+  }
+}

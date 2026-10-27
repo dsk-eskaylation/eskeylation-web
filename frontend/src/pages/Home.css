@@ -368,7 +368,8 @@
 .home__leader-text {
   display: flex;
   flex-direction: column;
-  max-width: 360px;
+  width: max-content;
+  max-width: min(480px, 60vw);
   text-align: right;
 }
 .home__leader-name {
