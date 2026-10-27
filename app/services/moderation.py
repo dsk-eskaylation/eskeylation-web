@@ -5,15 +5,15 @@ mỗi lần tạo/sửa nội dung và gửi bình luận, danh sách được C
 (TTL ngắn) để không phải round-trip DB mỗi lần; cache tự làm mới sau TTL và bị
 xoá ngay khi admin thêm/xoá từ (invalidate()).
 
-Khớp KHÔNG phân biệt hoa/thường:
-- Từ đơn (không khoảng trắng): khớp theo TOKEN nguyên vẹn -> tránh dương tính giả
-  (vd 'du' không dính vào 'du lịch').
-- Cụm nhiều từ (có khoảng trắng): khớp theo chuỗi con.
-Admin tự thêm biến thể (có dấu / không dấu / viết tắt) tuỳ nhu cầu.
+Khớp KHÔNG phân biệt hoa/thường, sau khi chuẩn hoá NFC (bàn phím/macOS có thể gửi
+chữ Việt dạng tổ hợp NFD, làm 'người' tách thành 'ngu'+'o'+'i'). Từ và cụm từ đều
+phải đứng nguyên vẹn giữa ranh giới từ -> 'ngu' không dính 'người', 'óc chó' không
+dính 'móc chó'. Admin tự thêm biến thể (có dấu / không dấu / viết tắt) tuỳ nhu cầu.
 """
 
 import re
 import time
+import unicodedata
 from collections.abc import Iterator
 
 from fastapi import HTTPException, status
@@ -22,19 +22,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.moderation import BannedWord
 
-_TOKEN = re.compile(r"\w+", re.UNICODE)
+BLOCKED_MESSAGE = "Không thể đăng được do chứa từ khóa nhạy cảm"
 _TTL = 30.0  # giây — độ trễ tối đa để từ cấm mới có hiệu lực toàn tiến trình
 
-_cache: list[str] | None = None
+_cache: list[tuple[str, re.Pattern[str]]] | None = None
 _cache_at: float = 0.0
 
 
-async def _load(session: AsyncSession) -> list[str]:
+def normalize(text: str) -> str:
+    return unicodedata.normalize("NFC", text).lower()
+
+
+async def _load(session: AsyncSession) -> list[tuple[str, re.Pattern[str]]]:
     rows = await session.scalars(select(BannedWord.word))
-    return [w.lower() for w in rows.all()]
+    return _compile(rows.all())
 
 
-async def get_words(session: AsyncSession) -> list[str]:
+def _compile(words: list[str]) -> list[tuple[str, re.Pattern[str]]]:
+    unique = sorted({normalize(w) for w in words})
+    return [(w, re.compile(rf"(?<!\w){re.escape(w)}(?!\w)")) for w in unique]
+
+
+async def get_words(session: AsyncSession) -> list[tuple[str, re.Pattern[str]]]:
     global _cache, _cache_at
     now = time.monotonic()
     if _cache is None or now - _cache_at > _TTL:
@@ -49,16 +58,11 @@ def invalidate() -> None:
     _cache = None
 
 
-def _find_hits(text: str, words: list[str]) -> set[str]:
+def _find_hits(text: str, words: list[tuple[str, re.Pattern[str]]]) -> set[str]:
     if not text:
         return set()
-    low = text.lower()
-    tokens = set(_TOKEN.findall(low))
-    hits: set[str] = set()
-    for w in words:
-        if (" " in w and w in low) or (w in tokens):
-            hits.add(w)
-    return hits
+    low = normalize(text)
+    return {w for w, pattern in words if pattern.search(low)}
 
 
 def _iter_strings(value: object) -> Iterator[str]:
@@ -97,9 +101,5 @@ async def assert_clean(
     if hits:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                "Nội dung chứa từ ngữ không phù hợp: "
-                + ", ".join(sorted(hits))
-                + ". Vui lòng chỉnh sửa."
-            ),
+            detail=BLOCKED_MESSAGE,
         )

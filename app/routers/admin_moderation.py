@@ -37,7 +37,7 @@ async def add_banned_word(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(_admin),
 ) -> BannedWordOut:
-    word = data.word.strip().lower()
+    word = moderation.normalize(data.word.strip())
     if not word:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Từ trống"
