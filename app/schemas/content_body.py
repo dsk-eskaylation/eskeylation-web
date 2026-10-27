@@ -1,9 +1,10 @@
 """Validate fields consumed by public components while preserving legacy extras."""
 
 import math
+from urllib.parse import urlsplit
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from app.models.enums import ContentType
 
@@ -53,6 +54,47 @@ class Credits(BaseModel):
     names: list[str] | None = None
 
 
+FACEBOOK_HOSTS = {"facebook.com", "www.facebook.com", "m.facebook.com"}
+
+
+def _https(url: str, hosts: set[str] | None = None) -> str:
+    parts = urlsplit(url.strip())
+    if parts.scheme != "https" or not parts.hostname:
+        raise ValueError("Link phải bắt đầu bằng https://")
+    if hosts is not None and parts.hostname.lower() not in hosts:
+        raise ValueError("Link sao kê phải là bài viết Facebook")
+    return url.strip()
+
+
+class Product(BaseModel):
+    """Sản phẩm đang bán; không có tên -> trang hiện 'Hiện không có sản phẩm nào'."""
+
+    model_config = ConfigDict(strict=True, extra="allow")
+    name: str | None = None
+    description: str | None = None
+    form_url: str | None = None
+    media_id: int | None = None
+
+    @field_validator("form_url")
+    @classmethod
+    def _form_url(cls, value: str | None) -> str | None:
+        return _https(value) if value else None
+
+
+class Support(BaseModel):
+    model_config = ConfigDict(strict=True, extra="allow")
+    intro: str | None = None
+    amount: str | None = None
+    used: str | None = None
+    qr_media_id: int | None = None
+    statements: list[str] | None = None
+
+    @field_validator("statements")
+    @classmethod
+    def _statements(cls, value: list[str] | None) -> list[str] | None:
+        return [_https(url, FACEBOOK_HOSTS) for url in value] if value else value
+
+
 class HomepageBody(BaseModel):
     model_config = ConfigDict(strict=True, extra="allow")
     intro: str | None = None
@@ -60,11 +102,19 @@ class HomepageBody(BaseModel):
     leader: Person | None = None
     credits: list[Credits] | None = None
     sections: list[dict] | None = None
+    community_intro: str | None = None
+    community_rules: str | None = None
+    product: Product | None = None
+    support: Support | None = None
 
 
 def validate_content_body(type_: ContentType, body: dict) -> None:
     if type_ == ContentType.homepage:
         try:
             HomepageBody.model_validate(body)
-        except ValidationError:
-            raise HTTPException(422, "Dữ liệu Trang chủ sai định dạng") from None
+        except ValidationError as error:
+            link = next((e for e in error.errors() if "Link" in e["msg"]), None)
+            detail = link["msg"].removeprefix("Value error, ") if link else None
+            raise HTTPException(
+                422, detail or "Dữ liệu Trang chủ sai định dạng"
+            ) from None

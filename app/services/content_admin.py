@@ -111,13 +111,18 @@ async def _validate_homepage_avatars(
         for group in credits:
             if isinstance(group, dict) and isinstance(group.get("members"), list):
                 people.extend(group["members"])
+    # QR ủng hộ và ảnh sản phẩm (trang Cộng đồng) dùng chung quy tắc với avatar.
+    for key, field in (("support", "qr_media_id"), ("product", "media_id")):
+        section = body.get(key)
+        if isinstance(section, dict) and section.get(field) is not None:
+            people.append({"media_id": section[field]})
     refs = []
     for person in people:
         if not isinstance(person, dict) or person.get("media_id") is None:
             continue
         ref = person["media_id"]
         if type(ref) is not int or ref <= 0 or ref not in attached_ids:
-            raise HTTPException(422, "Ảnh shout out phải được gắn vào Trang chủ")
+            raise HTTPException(422, "Ảnh phải được gắn vào Trang chủ")
         refs.append(ref)
     if refs:
         images = set(
@@ -130,7 +135,7 @@ async def _validate_homepage_avatars(
             ).all()
         )
         if set(refs) != images:
-            raise HTTPException(422, "Ảnh shout out cần là file ảnh hợp lệ")
+            raise HTTPException(422, "Ảnh cần là file ảnh hợp lệ")
 
 
 def _link_fields(

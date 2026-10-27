@@ -108,3 +108,52 @@ async def test_legacy_homepage_names_are_preserved(client, make_user, track_cont
     )
     assert response.status_code == 200
     assert response.json()["body"] == body
+
+
+@pytest.mark.parametrize(
+    ("section", "expected"),
+    [
+        ({"support": {"statements": ["https://evil.example/post"]}}, "Facebook"),
+        ({"support": {"statements": ["javascript:alert(1)"]}}, "https://"),
+        ({"product": {"name": "Áo", "form_url": "http://forms.gle/x"}}, "https://"),
+    ],
+)
+async def test_community_page_links_are_validated(client, make_user, section, expected):
+    token = await token_for(client, make_user, UserRole.admin)
+    response = await client.post(
+        "/admin/content",
+        headers=auth(token),
+        json={"type": "homepage", "title": "Fake links", "body": section},
+    )
+    assert response.status_code == 422
+    assert expected in response.json()["detail"]
+
+
+async def test_support_qr_must_be_an_attached_image(client, make_user, make_media):
+    token = await token_for(client, make_user, UserRole.admin)
+    image = await make_media(mime_type="image/png")
+    body = {
+        "support": {
+            "amount": "1.800.000",
+            "qr_media_id": image.id,
+            "statements": ["https://www.facebook.com/eskaylation/posts/1"],
+        },
+        "product": {"name": "Áo", "form_url": "https://forms.gle/abc"},
+    }
+    unattached = await client.post(
+        "/admin/content",
+        headers=auth(token),
+        json={"type": "homepage", "title": "QR", "body": body},
+    )
+    assert unattached.status_code == 422
+    attached = await client.post(
+        "/admin/content",
+        headers=auth(token),
+        json={
+            "type": "homepage",
+            "title": "QR",
+            "body": body,
+            "media": [{"media_id": image.id}],
+        },
+    )
+    assert attached.status_code == 201, attached.text

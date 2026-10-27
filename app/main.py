@@ -93,7 +93,7 @@ _CSP = (
     "img-src 'self' data: blob: https:; "
     "media-src 'self' https:; "
     "frame-src https://www.youtube.com https://player.vimeo.com "
-    "https://w.soundcloud.com; "
+    "https://w.soundcloud.com https://www.facebook.com; "
     "connect-src 'self'; "
     "object-src 'none'; "
     "base-uri 'self'; form-action 'self'; "
