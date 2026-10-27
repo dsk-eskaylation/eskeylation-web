@@ -539,7 +539,7 @@ function Editor({
               />
             </label>
             <div className="cms-field">
-              <span>SHOUT OUT</span>
+              <span>TRI ÂN</span>
               <small className="cms-field__hint">Mỗi người có tên và ảnh riêng. Bỏ trống ảnh để hiển thị chữ cái tên.</small>
               <CreditMemberFields member={leader} label="Tên Leader" media={media} busy={busy}
                 onChange={setLeader} onUpload={(files) => void upload(files, (id) => setLeader((prev) => ({ ...prev, media_id: id })))} />

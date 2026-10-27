@@ -24,6 +24,13 @@ const DEFAULT_MAINTAIN = [
   'Được “sao kê" ở phần comment bài viết này',
 ]
 
+const THANKS = [
+  'Tất cả những người đã đăng tải âm nhạc và tư liệu trước đó',
+  'Những người đóng góp về công sức',
+  'Những người đóng góp về tài chính',
+  'Tất cả những người ủng hộ và chờ đón',
+]
+
 /* Dải chữ ESKAYLATION chạy ngang (Figma #1:215/#1:265) — 2 bản sao để loop liền mạch.
    JSX tĩnh hoist ra ngoài component để không phải tạo lại 22 item + 44 svg mỗi render. */
 const MARQUEE_ITEMS = Array.from({ length: 11 }).map((_, i) => (
@@ -116,7 +123,7 @@ function RoleColumn({ role, members, media }: { role: string; members: CreditMem
 }
 
 function initials(name: string) {
-  return name.trim().split(/\s+/u).map((part) => part[0]).slice(-2).join('').toLocaleUpperCase('vi')
+  return name.replace(/\(.*?\)/gu, '').trim().split(/\s+/u).map((part) => part[0]).slice(-2).join('').toLocaleUpperCase('vi')
 }
 
 export function Home() {
@@ -131,7 +138,7 @@ export function Home() {
   const credits = creditGroups(body.credits)
     .map((group) => ({ role: group.role.trim(), members: group.members.filter((member) => member.name.trim()) }))
     .filter((group) => group.role && group.members.length > 0)
-  const leader = Object.hasOwn(body, 'leader') ? creditMember(body.leader) : { name: 'Cỏ nhỏ' }
+  const leader = Object.hasOwn(body, 'leader') ? creditMember(body.leader) : { name: 'Cỏ Nhỏ (Huyền Trang)' }
   const avatarIds = new Set([
     leader?.media_id,
     ...credits.flatMap((group) => group.members.map((member) => member.media_id)),
@@ -207,18 +214,18 @@ export function Home() {
         <Marquee reverse />
       </section>
 
-      {/* SHOUT OUT (Figma #1:310) */}
+      {/* TRI ÂN (Figma #1:310) */}
       <section className="home__credits">
         <header className="home__section-title">
-          <h2>SHOUT OUT</h2>
-          <p>to the guys</p>
+          <h2>TRI ÂN</h2>
+          <p>Xin gửi lời cảm ơn chân thành đến những người đã cùng tạo ra trang web này cho cộng đồng ESKAYLATION</p>
         </header>
 
         <div className="home__credits-body">
           {leader?.name.trim() && <div className="home__leader">
             <div className="home__leader-text">
               <span className="home__leader-name">{leader.name}</span>
-              <span className="home__leader-role">Leader</span>
+              <span className="home__leader-role">Người sáng lập, kết nối nguồn lực, xây dựng website</span>
             </div>
             <MemberAvatar className="home__avatar" member={leader} media={media} />
           </div>}
@@ -229,6 +236,11 @@ export function Home() {
             ))}
           </div>}
         </div>
+
+        <ul className="home__thanks">
+          {THANKS.map((line) => <li key={line}>{line}</li>)}
+        </ul>
+        <p className="home__thanks-dsk">CẢM ƠN DSK</p>
       </section>
 
       {/* Maintain Website (Figma #1:363) */}
