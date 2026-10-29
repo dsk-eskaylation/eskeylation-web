@@ -99,6 +99,10 @@
     max-height: 92vh;
     padding: 16px;
   }
+  /* Panel trần (lightbox, chi tiết bài) tự lo khung — không thêm padding */
+  .modal__panel--bare {
+    padding: 0;
+  }
   .modal__close {
     top: 14px;
     right: 14px;

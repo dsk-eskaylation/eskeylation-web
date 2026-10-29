@@ -1,6 +1,4 @@
-/* Trang Ảnh — thư viện masonry, style tối Eskaylation.
-   Flex column cao tối thiểu 1 màn -> pager luôn bị đẩy xuống ĐÁY kể cả khi
-   trang ít ảnh (margin-top:auto), không lửng lơ giữa màn. */
+/* Trang Ảnh — thư viện masonry, style tối Eskaylation. */
 .photos {
   padding-top: 150px;
   min-height: calc(100dvh - 48px);
@@ -8,24 +6,32 @@
   flex-direction: column;
 }
 
-/* Masonry bằng CSS columns: số cột tự co theo bề rộng -> hợp mọi thiết bị */
+/* Masonry kiểu Pinterest: JS chia ảnh vào các cột (Photos.tsx toColumns) */
 .photos__grid {
-  column-width: 260px;
-  column-gap: 16px;
+  --gap: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap);
+}
+
+.photos__col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
 }
 
 .photos__item {
   position: relative;
   display: block;
   width: 100%;
-  margin: 0 0 16px;
   padding: 0;
   border: none;
   background: var(--color-surface);
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
-  break-inside: avoid; /* không cắt ảnh giữa 2 cột */
 }
 .photos__item img {
   width: 100%;
@@ -140,12 +146,6 @@
   background: rgba(6, 6, 6, 0.85);
 }
 
-/* Điểm neo để cuộn mượt về đầu thư viện khi đổi trang (chừa header cố định) */
-.photos__anchor {
-  position: relative;
-  scroll-margin-top: 150px;
-}
-
 /* Native image drag/selection swallows pointerup and breaks the swipe */
 .photos__viewer {
   touch-action: pan-y;
@@ -161,8 +161,7 @@
     padding-top: 130px;
   }
   .photos__grid {
-    column-width: 220px;
-    column-gap: 14px;
+    --gap: 14px;
   }
 }
 
@@ -172,11 +171,7 @@
     padding-top: 140px; /* chừa header mobile 2 hàng */
   }
   .photos__grid {
-    column-width: 150px; /* ~2 cột trên điện thoại */
-    column-gap: 10px;
-  }
-  .photos__item {
-    margin-bottom: 10px;
+    --gap: 10px;
   }
   /* Cảm ứng: hiện caption luôn, không dựa hover */
   .photos__cap {

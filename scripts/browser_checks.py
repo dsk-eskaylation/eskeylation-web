@@ -242,45 +242,41 @@ def check_ui(password: str, tag: str) -> None:
                 page = ctx.new_page()
                 page.emulate_media(reduced_motion="reduce")
                 page.goto(BASE + "/photos", wait_until="networkidle")
-                pager = page.get_by_role("navigation", name="Phân trang ảnh")
-                titles = set()
-                for number in range(1, 7):
-                    expect(pager).to_contain_text(f"Trang {number} / 6")
-                    assert page.locator(".photos__item").evaluate_all(
-                        "es=>es.every(e=>getComputedStyle(e).opacity==='1')"
-                    ), "Photo tiles must not wait invisibly for entrance animations"
-                    expect(page.locator(".photos__item")).to_have_count(
-                        2 if number == 6 else 12
-                    )
-                    for image in page.locator(".photos__item img").all():
-                        image.scroll_into_view_if_needed()
-                        expect(image).to_be_visible()
-                        assert image.evaluate("i=>i.complete&&i.naturalWidth>0")
-                    titles.update(
-                        page.locator(".photos__item").evaluate_all(
-                            "es=>es.map(e=>e.getAttribute('aria-label'))"
-                        )
-                    )
-                    assert pager.locator("button").evaluate_all(
-                        "es=>es.every(e=>e.offsetWidth<=44&&e.offsetHeight<=44)"
-                    )
-                    assert page.evaluate(
-                        "document.documentElement.scrollWidth<=innerWidth"
-                    )
-                    if number < 6:
-                        pager.get_by_role(
-                            "button", name="Trang sau", exact=True
-                        ).click()
+                expect(
+                    page.get_by_role("navigation", name="Phân trang ảnh")
+                ).to_have_count(0)
+                items = page.locator(".photos__item")
+                expect(items).to_have_count(24)
+                first = items.first.bounding_box()
+                for _ in range(60):
+                    if items.count() == 62:
+                        break
+                    page.mouse.wheel(0, 600)
+                    page.wait_for_timeout(100)
+                expect(items).to_have_count(62)
+                assert items.evaluate_all(
+                    "es=>es.every(e=>getComputedStyle(e).opacity==='1')"
+                ), "Photo tiles must not wait invisibly for entrance animations"
+                for image in page.locator(".photos__item img").all():
+                    image.scroll_into_view_if_needed()
+                    expect(image).to_be_visible()
+                    assert image.evaluate("i=>i.complete&&i.naturalWidth>0")
+                page.evaluate("scrollTo(0,0)")
+                assert items.first.bounding_box() == first, (
+                    "Loading more photos must not reflow tiles already shown"
+                )
+                titles = set(
+                    items.evaluate_all("es=>es.map(e=>e.getAttribute('aria-label'))")
+                )
+                assert page.evaluate("document.documentElement.scrollWidth<=innerWidth")
                 assert len(titles) == 62
                 page.reload(wait_until="networkidle")
-                expect(pager).to_contain_text("Trang 6 / 6")
                 page.locator(".photos__item").first.click()
                 expect(page.get_by_role("dialog")).to_be_visible()
+                expect(page.locator(".photos__viewer-sub")).to_contain_text("1/62")
                 page.keyboard.press("ArrowRight")
-                expect(page.locator(".photos__viewer-sub")).to_contain_text("62/62")
+                expect(page.locator(".photos__viewer-sub")).to_contain_text("2/62")
                 page.keyboard.press("Escape")
-                page.go_back(wait_until="networkidle")
-                expect(pager).to_contain_text("Trang 5 / 6")
                 expect(
                     page.locator('link[rel="icon"][type="image/svg+xml"]')
                 ).to_have_attribute("href", "/favicon.svg")
@@ -290,8 +286,8 @@ def check_ui(password: str, tag: str) -> None:
                     .startswith(b"\x89PNG\r\n\x1a\n")
                 )
                 passed(
-                    f"{width}px all 62 photos across six compact pages, "
-                    "URL/back navigation, lightbox, E favicon"
+                    f"{width}px all 62 photos load on scroll without reflow, "
+                    "lightbox, E favicon"
                 )
                 ctx.close()
 

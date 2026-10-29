@@ -129,3 +129,22 @@
   background: #fff;
 }
 
+@media (max-width: 640px) {
+  /* 4 tab một hàng; màn quá hẹp thì vuốt ngang thay vì rớt dòng */
+  .community__tabs {
+    flex-wrap: nowrap;
+    justify-content: safe center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .community__tabs button {
+    flex: none;
+    min-height: 38px;
+    padding: 0 8px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+}

@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Pagination } from '../components/Pagination'
 import { api } from '../api/client'
 import { useLiveApi } from '../api/useLiveApi'
 import type { ContentOut, MediaOut } from '../api/types'
@@ -23,7 +21,30 @@ interface Photo {
 /* Mảng rỗng ổn định — tránh useMemo chạy lại vì tạo [] mới mỗi render */
 const EMPTY_ITEMS: ContentOut[] = []
 
-const PER_PAGE = 12
+const BATCH = 24
+/* Nạp tiếp khi đã cuộn qua 70% chiều cao trang — ảnh dưới có sẵn trước khi người xem tới */
+const PRELOAD_AT = 0.7
+
+/* Bề rộng cột tối thiểu/gap — khớp breakpoint trong Photos.css */
+function columnSpec(width: number) {
+  if (width <= 640) return { min: 150, gap: 10 }
+  if (width <= 1100) return { min: 220, gap: 14 }
+  return { min: 260, gap: 16 }
+}
+
+/** Masonry kiểu Pinterest: mỗi ảnh vào cột đang thấp nhất, theo thứ tự.
+    Thêm ảnh mới chỉ nối vào cuối cột, ảnh đã hiện không bị xếp lại. */
+function toColumns<T extends { media: MediaOut }>(list: T[], count: number) {
+  const cols: T[][] = Array.from({ length: count }, () => [])
+  const heights = new Array<number>(count).fill(0)
+  for (const item of list) {
+    const { width, height } = item.media
+    const target = heights.indexOf(Math.min(...heights))
+    cols[target].push(item)
+    heights[target] += width && height ? height / width : 1
+  }
+  return cols
+}
 
 function fmtDate(iso: string | null) {
   if (!iso) return ''
@@ -35,9 +56,6 @@ function fmtDate(iso: string | null) {
     trải toàn bộ ảnh của mọi bài gallery thành lưới nhiều cột, bấm để xem lớn
     (lightbox có chuyển ảnh ←/→). Giữ style tối Eskaylation, responsive mọi thiết bị. */
 export function Photos() {
-  const [params, setParams] = useSearchParams()
-  const requestedPage = Number(params.get('page') ?? 1)
-  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
   const state = useLiveApi(() => api.listAll('photos'), [])
   const items: ContentOut[] =
     state.status === 'success' ? state.data.items : EMPTY_ITEMS
@@ -61,11 +79,13 @@ export function Photos() {
   )
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  const topRef = useRef<HTMLDivElement>(null)
   const swipeX = useRef<number | null>(null)
-  const pageCount = Math.max(1, Math.ceil(photos.length / PER_PAGE))
-  const safePage = Math.min(page, pageCount)
-  const shown = photos.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(BATCH)
+  const [columnCount, setColumnCount] = useState(1)
+  const shown = useMemo(() => photos.slice(0, visible), [photos, visible])
+  const columns = useMemo(() => toColumns(shown, columnCount), [shown, columnCount])
+  const hasMore = visible < photos.length
 
   const active = photos.findIndex((photo) => photo.id === activeId)
   const cur = active >= 0 ? photos[active] : null
@@ -75,25 +95,43 @@ export function Photos() {
     if (next >= 0 && next < photos.length) setActiveId(photos[next].id)
   }
 
-  function goPage(nextPage: number) {
-    setParams((previous) => {
-      const next = new URLSearchParams(previous)
-      if (nextPage <= 1) next.delete('page')
-      else next.set('page', String(nextPage))
-      return next
-    })
-    topRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })
-  }
-
+  // Số cột theo bề rộng thật của lưới
+  const hasGrid = photos.length > 0
   useEffect(() => {
-    if (state.status !== 'success' || page <= pageCount) return
-    setParams((previous) => {
-      const next = new URLSearchParams(previous)
-      if (pageCount === 1) next.delete('page')
-      else next.set('page', String(pageCount))
-      return next
-    }, { replace: true })
-  }, [page, pageCount, state.status, setParams])
+    const grid = gridRef.current
+    if (!grid) return
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width
+      const { min, gap } = columnSpec(window.innerWidth)
+      setColumnCount(Math.max(1, Math.floor((width + gap) / (min + gap))))
+    })
+    observer.observe(grid)
+    return () => observer.disconnect()
+  }, [hasGrid])
+
+  // Cuộn qua PRELOAD_AT trang (hoặc trang còn ngắn hơn màn hình) -> hiện thêm một đợt
+  useEffect(() => {
+    if (!hasMore) return
+    let frame = 0
+    const check = () => {
+      frame = 0
+      const root = document.documentElement
+      if (window.scrollY + window.innerHeight >= root.scrollHeight * PRELOAD_AT) {
+        setVisible((count) => count + BATCH)
+      }
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(check)
+    }
+    check()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [hasMore, visible])
 
   useEffect(() => {
     if (activeId !== null && active < 0 && state.status === 'success') setActiveId(null)
@@ -120,24 +158,25 @@ export function Photos() {
   return (
     <div className="photos">
       <h1 className="sr-only">Thư viện ảnh</h1>
-      <div ref={topRef} className="photos__anchor" aria-hidden="true" />
-      <div className="photos__grid">
-        {shown.map((p, i) => (
-          <button
-            type="button"
-            className="photos__item"
-            key={p.id}
-            onClick={() => setActiveId(p.id)}
-            aria-label={p.caption ?? p.postTitle}
-          >
-            <MediaImage media={p.media} alt={p.alt} loading={i < 4 ? 'eager' : 'lazy'} />
-            <span className="photos__frame" aria-hidden="true" />
-            {p.caption && <span className="photos__cap">{p.caption}</span>}
-          </button>
+      <div ref={gridRef} className="photos__grid" aria-busy={hasMore}>
+        {columns.map((column, c) => (
+          <div className="photos__col" key={c}>
+            {column.map((p) => (
+              <button
+                type="button"
+                className="photos__item"
+                key={p.id}
+                onClick={() => setActiveId(p.id)}
+                aria-label={p.caption ?? p.postTitle}
+              >
+                <MediaImage media={p.media} alt={p.alt} loading={photos.slice(0, 4).includes(p) ? 'eager' : 'lazy'} />
+                <span className="photos__frame" aria-hidden="true" />
+                {p.caption && <span className="photos__cap">{p.caption}</span>}
+              </button>
+            ))}
+          </div>
         ))}
       </div>
-
-      <Pagination page={safePage} pages={pageCount} label="Phân trang ảnh" onChange={goPage} />
 
       {cur && (
         <Modal onClose={() => setActiveId(null)} label="Xem ảnh" variant="bare" showClose>
