@@ -135,7 +135,7 @@ export function Photos() {
   return (
     <div className="photos">
       <h1 className="sr-only">Thư viện ảnh</h1>
-      <div ref={gridRef} className="photos__grid" aria-busy={hasMore}>
+      <div ref={gridRef} className="photos__grid">
         {columns.map((column, c) => (
           <div className="photos__col" key={c}>
             {column.map((p) => (

@@ -48,7 +48,11 @@ export function Community() {
     const head = state.status === 'success' ? state.data.items : []
     // Bài mới lên đầu đẩy bài cuối trang 1 sang trang 2 — bỏ trùng theo id.
     const seen = new Set(head.map((item) => item.id))
-    return head.concat(older.filter((item) => !seen.has(item.id) && seen.add(item.id)))
+    return head.concat(older.filter((item) => {
+      if (seen.has(item.id)) return false
+      seen.add(item.id)
+      return true
+    }))
   }, [state, older])
   const hasMore = state.status === 'success' && loadedPages < state.data.pages
 
@@ -69,7 +73,7 @@ export function Community() {
     }
   }
 
-  useScrollPreload(() => void loadMore(), tab === 'feed' && hasMore && !moreFailed, items.length)
+  useScrollPreload(() => void loadMore(), tab === 'feed' && hasMore && !moreFailed, loadedPages)
 
   useEffect(() => {
     let alive = true
