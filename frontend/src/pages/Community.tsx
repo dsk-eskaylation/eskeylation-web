@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Pagination } from '../components/Pagination'
 import { api } from '../api/client'
 import { useLiveApi } from '../api/useLiveApi'
 import { getSession } from '../api/auth'
@@ -9,6 +8,7 @@ import { EmptyState } from '../components/EmptyState'
 import { Modal } from '../components/Modal'
 import { PostComposer } from '../components/PostComposer'
 import type { ContentOut } from '../api/types'
+import { useScrollPreload } from '../utils/useScrollPreload'
 import './Community.css'
 
 const TABS = [
@@ -18,6 +18,8 @@ const TABS = [
   { key: 'support', label: 'Ủng hộ' },
 ] as const
 type Tab = (typeof TABS)[number]['key']
+
+const PAGE_SIZE = 20
 
 const DEFAULT_INTRO =
   'Website phi lợi nhuận được lập ra cho cộng đồng Eskaylation nhằm lưu giữ những tài nguyên quý báu mà DSK đã sáng tạo ra. ' +
@@ -35,26 +37,39 @@ export function Community() {
   const [params, setParams] = useSearchParams()
   const tabParam = params.get('tab')
   const tab: Tab = TABS.some((t) => t.key === tabParam) ? tabParam as Tab : 'feed'
-  const requestedPage = Number(params.get('page') ?? 1)
-  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
-  const topRef = useRef<HTMLDivElement>(null)
-  const state = useLiveApi(
-    () => api.list('community', { pageSize: 30, page }),
-    [page],
-  )
-  const items = state.status === 'success' ? state.data.items : []
-  const busy = state.status === 'success' && state.data.page !== page
+  // Trang đầu cập nhật live; các trang sau nạp dần khi cuộn và nối vào cuối.
+  const state = useLiveApi(() => api.list('community', { pageSize: PAGE_SIZE }), [])
+  const [older, setOlder] = useState<ContentOut[]>([])
+  const [loadedPages, setLoadedPages] = useState(1)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [moreFailed, setMoreFailed] = useState(false)
+  const loadingRef = useRef(false)
+  const items = useMemo(() => {
+    const head = state.status === 'success' ? state.data.items : []
+    // Bài mới lên đầu đẩy bài cuối trang 1 sang trang 2 — bỏ trùng theo id.
+    const seen = new Set(head.map((item) => item.id))
+    return head.concat(older.filter((item) => !seen.has(item.id) && seen.add(item.id)))
+  }, [state, older])
+  const hasMore = state.status === 'success' && loadedPages < state.data.pages
 
-  useEffect(() => {
-    if (state.status === 'success' && page > Math.max(1, state.data.pages)) {
-      setParams((previous) => {
-        const next = new URLSearchParams(previous)
-        if (state.data.pages <= 1) next.delete('page')
-        else next.set('page', String(state.data.pages))
-        return next
-      }, { replace: true })
+  async function loadMore() {
+    if (loadingRef.current) return
+    loadingRef.current = true
+    setLoadingMore(true)
+    setMoreFailed(false)
+    try {
+      const next = await api.list('community', { pageSize: PAGE_SIZE, page: loadedPages + 1 })
+      setOlder((previous) => previous.concat(next.items))
+      setLoadedPages((count) => count + 1)
+    } catch {
+      setMoreFailed(true)
+    } finally {
+      loadingRef.current = false
+      setLoadingMore(false)
     }
-  }, [state, page, setParams])
+  }
+
+  useScrollPreload(() => void loadMore(), tab === 'feed' && hasMore && !moreFailed, items.length)
 
   useEffect(() => {
     let alive = true
@@ -68,16 +83,6 @@ export function Community() {
       alive = false
     }
   }, [])
-
-  function goPage(nextPage: number) {
-    setParams((previous) => {
-      const next = new URLSearchParams(previous)
-      if (nextPage === 1) next.delete('page')
-      else next.set('page', String(nextPage))
-      return next
-    })
-    topRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })
-  }
 
   const openSlug = params.get('post')
   function openPost(slug: string | null) {
@@ -118,7 +123,6 @@ export function Community() {
       <h1 className="sr-only">Cộng đồng Eskaylation</h1>
       {nav}
       {loggedIn && <PostComposer name={userName} />}
-      <div ref={topRef} className="community__anchor" aria-hidden="true" />
       {state.status === 'loading' && (
         <div className="community__feed" aria-busy="true" />
       )}
@@ -129,7 +133,7 @@ export function Community() {
         <EmptyState title="Hiện tại chưa có bài viết." />
       )}
 
-      <div className="community__feed" aria-busy={busy}>
+      <div className="community__feed" aria-busy={loadingMore}>
         {items.map((item, index) => (
           <CommunityPost
             key={item.id}
@@ -150,9 +154,11 @@ export function Community() {
           onClose={() => openPost(null)}
         />
       )}
-      {state.status === 'success' && (
-        <Pagination page={Math.min(page, Math.max(1, state.data.pages))}
-          pages={state.data.pages} label="Phân trang cộng đồng" onChange={goPage} busy={busy} />
+      {loadingMore && <p className="community__more" role="status">Đang tải thêm bài…</p>}
+      {moreFailed && (
+        <button type="button" className="community__more page-action" onClick={() => void loadMore()}>
+          Không tải được bài cũ hơn — thử lại
+        </button>
       )}
     </div>
   )

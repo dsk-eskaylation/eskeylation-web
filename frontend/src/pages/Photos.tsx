@@ -5,6 +5,7 @@ import type { ContentOut, MediaOut } from '../api/types'
 import { MediaImage } from '../components/MediaImage'
 import { Modal } from '../components/Modal'
 import { EmptyState } from '../components/EmptyState'
+import { useScrollPreload } from '../utils/useScrollPreload'
 import './Photos.css'
 
 interface Photo {
@@ -22,8 +23,6 @@ interface Photo {
 const EMPTY_ITEMS: ContentOut[] = []
 
 const BATCH = 24
-/* Nạp tiếp khi đã cuộn qua 70% chiều cao trang — ảnh dưới có sẵn trước khi người xem tới */
-const PRELOAD_AT = 0.7
 
 /* Bề rộng cột tối thiểu/gap — khớp breakpoint trong Photos.css */
 function columnSpec(width: number) {
@@ -109,29 +108,7 @@ export function Photos() {
     return () => observer.disconnect()
   }, [hasGrid])
 
-  // Cuộn qua PRELOAD_AT trang (hoặc trang còn ngắn hơn màn hình) -> hiện thêm một đợt
-  useEffect(() => {
-    if (!hasMore) return
-    let frame = 0
-    const check = () => {
-      frame = 0
-      const root = document.documentElement
-      if (window.scrollY + window.innerHeight >= root.scrollHeight * PRELOAD_AT) {
-        setVisible((count) => count + BATCH)
-      }
-    }
-    const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(check)
-    }
-    check()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
-    return () => {
-      if (frame) cancelAnimationFrame(frame)
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
-    }
-  }, [hasMore, visible])
+  useScrollPreload(() => setVisible((count) => count + BATCH), hasMore, visible)
 
   useEffect(() => {
     if (activeId !== null && active < 0 && state.status === 'success') setActiveId(null)
