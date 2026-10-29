@@ -119,6 +119,25 @@
   height: 15px;
 }
 
+/* CMS: nút thao tác của mỗi dòng nằm sát mép phải và dưới cùng -> đưa toast lên
+   giữa phía trên vùng nội dung (chỉ có tiêu đề trang) để không che nút.
+   232px/1280px khớp --cms-side và max-width của .cms__main. */
+body:has(.cms) .toast-stack {
+  top: 16px;
+  bottom: auto;
+  right: auto;
+  left: calc(232px + min(100vw - 232px, 1280px) / 2);
+  transform: translateX(-50%);
+  width: max-content;
+  flex-direction: column;
+}
+@media (max-width: 900px) {
+  body:has(.cms) .toast-stack {
+    left: 50%;
+    max-width: calc(100vw - 24px);
+  }
+}
+
 @media (max-width: 600px) {
   .toast-stack {
     left: 12px;
