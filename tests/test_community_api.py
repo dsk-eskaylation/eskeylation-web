@@ -236,7 +236,7 @@ async def test_bai_cua_toi_gom_ca_bai_cho_duyet(client, make_user):
         json={"title": "Chờ duyệt", "summary": "Nội dung"},
         headers=auth(token),
     )
-    mine = (await client.get("/api/me/posts", headers=auth(token))).json()
+    mine = (await client.get("/api/me/posts", headers=auth(token))).json()["items"]
     assert [(p["title"], p["body"]["review_status"]) for p in mine] == [
         ("Chờ duyệt", "draft")
     ]

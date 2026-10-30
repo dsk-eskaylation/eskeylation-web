@@ -76,7 +76,7 @@ def check_member_posting(base, context, login, passed):
         post_button.click()
         expect(composer).to_have_count(0)
         expect(page.get_by_text("Bài sẽ hiển thị sau khi admin duyệt")).to_be_visible()
-        mine = page.request.get(base + "/api/me/posts").json()
+        mine = page.request.get(base + "/api/me/posts").json()["items"]
         post = next(p for p in mine if p["title"] == "Ảnh buổi offline")
         assert post["body"]["review_status"] == "draft" and len(post["media"]) == 1
         passed("Member post with photo: picker, type check, remove, submit for review")

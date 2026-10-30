@@ -381,19 +381,22 @@ async def list_saved(
     return list(rows.all()), total or 0
 
 
-async def list_authored(session: AsyncSession, user_id: int) -> list[Content]:
-    rows = await session.scalars(
-        select(Content)
-        .where(
-            Content.author_id == user_id,
-            Content.type == ContentType.community,
-            Content.status != ContentStatus.archived,
-        )
-        .options(selectinload(Content.media_links).joinedload(ContentMedia.media))
-        .order_by(Content.created_at.desc())
-        .limit(100)
+async def list_authored(
+    session: AsyncSession, user_id: int, page: int, page_size: int
+) -> tuple[list[Content], int]:
+    base = select(Content).where(
+        Content.author_id == user_id,
+        Content.type == ContentType.community,
+        Content.status != ContentStatus.archived,
     )
-    return list(rows.all())
+    total = await session.scalar(select(func.count()).select_from(base.subquery()))
+    rows = await session.scalars(
+        base.options(selectinload(Content.media_links).joinedload(ContentMedia.media))
+        .order_by(Content.created_at.desc(), Content.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    return list(rows.all()), total or 0
 
 
 async def ensure_own_unused_images(

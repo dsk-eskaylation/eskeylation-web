@@ -60,7 +60,7 @@ function ComposerDialog({ name, onClose }: { name: string; onClose: () => void }
   }, [])
 
   const uploading = images.some((image) => image.status === 'uploading')
-  const ready = text.trim().length > 0 && !uploading && !sending
+  const ready = text.trim().length > 0 && !uploading && !sending && !images.some((image) => image.status === 'error')
 
   function addFiles(files: FileList | File[]) {
     setError(null)
@@ -184,6 +184,9 @@ function ComposerDialog({ name, onClose }: { name: string; onClose: () => void }
         </div>
 
         {error && <p className="composer__error" role="alert">{error}</p>}
+        {images.some((image) => image.status === 'error') && (
+          <p className="composer__error" role="alert">Có ảnh chưa tải được. Gỡ ảnh lỗi và chọn lại trước khi đăng.</p>
+        )}
         <p className="composer__hint">Bài viết sẽ hiển thị sau khi được admin duyệt. Kéo thả ảnh vào đây để thêm nhanh.</p>
       </form>
     </Modal>

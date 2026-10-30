@@ -75,8 +75,8 @@ export const community = {
     ),
   readNotifications: () =>
     fetch('/api/me/notifications/read', { method: 'POST', credentials: 'include', headers: csrfHeaders() }).then(ensureOk),
-  myPosts: () =>
-    fetch('/api/me/posts', { credentials: 'include' }).then((r) => toJson<ContentOut[]>(r)),
+  myPosts: (page = 1) =>
+    fetch(`/api/me/posts?page=${page}&page_size=100`, { credentials: 'include' }).then((r) => toJson<Page<ContentOut>>(r)),
   submitPost: (summary: string, mediaIds: number[]) =>
     fetch('/api/community/posts', {
       method: 'POST',

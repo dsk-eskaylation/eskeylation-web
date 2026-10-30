@@ -142,6 +142,10 @@ export function Home() {
   const avatarIds = new Set([
     leader?.media_id,
     ...credits.flatMap((group) => group.members.map((member) => member.media_id)),
+    ...(body.product && typeof body.product === 'object' && !Array.isArray(body.product)
+      ? [(body.product as Record<string, unknown>).media_id] : []),
+    ...(body.support && typeof body.support === 'object' && !Array.isArray(body.support)
+      ? [(body.support as Record<string, unknown>).qr_media_id] : []),
   ].filter((id) => id !== undefined))
   const uploadedImages = media.filter((m) => m.mime_type.startsWith('image/') && m.url && (m.media_id == null || !avatarIds.has(m.media_id))).map((m) => m.original_url || m.url)
   const heroImages = uploadedImages.length ? uploadedImages : HERO_IMAGES

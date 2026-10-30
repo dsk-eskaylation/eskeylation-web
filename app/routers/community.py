@@ -409,18 +409,27 @@ async def read_notifications(
     await notifications.mark_all_read(session, user.id)
 
 
-@me_router.get("/posts", response_model=list[ContentOut])
+@me_router.get("/posts", response_model=Page[ContentOut])
 async def my_posts(
+    pagination: PaginationParams = Depends(),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> list[ContentOut]:
+) -> Page[ContentOut]:
     """Bài cộng đồng của tôi, kể cả bài đang chờ duyệt (body.status cho biết)."""
-    return [
-        content_to_out(c).model_copy(
-            update={"body": {**c.body, "review_status": c.status.value}}
-        )
-        for c in await community.list_authored(session, user.id)
-    ]
+    items, total = await community.list_authored(
+        session, user.id, pagination.page, pagination.page_size
+    )
+    return Page.create(
+        items=[
+            content_to_out(c).model_copy(
+                update={"body": {**c.body, "review_status": c.status.value}}
+            )
+            for c in items
+        ],
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )
 
 
 @me_router.get("/saved", response_model=Page[ContentOut])

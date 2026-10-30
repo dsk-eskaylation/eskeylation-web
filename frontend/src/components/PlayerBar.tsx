@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getSession } from '../api/auth'
 import { usePlayer, usePlayerProgress, artistOf, coverUrl } from '../player/PlayerContext'
@@ -97,10 +97,13 @@ function FavoriteButton({ track }: { track: ContentOut }) {
   const navigate = useNavigate()
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
   useEffect(() => {
     let live = true
     setSaved(false)
-    if (loggedIn) community.interactions(track.id).then((i) => live && setSaved(i.saved), () => {})
+    setLoading(true)
+    if (loggedIn) community.interactions(track.id).then((i) => live && setSaved(i.saved), () => {}).finally(() => live && setLoading(false))
+    else setLoading(false)
     return () => { live = false }
   }, [track.id, loggedIn])
 
@@ -121,7 +124,7 @@ function FavoriteButton({ track }: { track: ContentOut }) {
       type="button"
       className={saved ? 'pbtn pbtn--sm pbtn--on' : 'pbtn pbtn--sm'}
       onClick={toggle}
-      disabled={busy}
+      disabled={busy || loading || loggedIn === null}
       aria-pressed={saved}
       aria-label={saved ? 'Bỏ khỏi bài hát yêu thích' : 'Thêm vào bài hát yêu thích'}
       title={saved ? 'Bỏ yêu thích' : 'Yêu thích'}
@@ -150,18 +153,32 @@ function CommentsPanel() {
   const [msg, setMsg] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  const [cursor, setCursor] = useState<number | undefined>(undefined)
+  const [attempt, setAttempt] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const lastLoadedId = useRef<number | undefined>(undefined)
+  const removedIds = useRef(new Set<number>())
   const id = p.current?.id
 
   useEffect(() => {
     if (id === undefined) return
     let live = true
-    setStatus('loading')
-    community.comments(id).then(
-      (page) => { if (live) { setItems(page.items); setStatus('ready') } },
+    if (cursor === undefined) setStatus('loading')
+    setLoadingMore(true)
+    community.comments(id, 1, cursor).then(
+      (page) => {
+        if (!live) return
+        lastLoadedId.current = page.items.at(-1)?.id
+        setItems((previous) => [...new Map(previous.concat(page.items)
+          .filter((item) => !removedIds.current.has(item.id)).map((item) => [item.id, item])).values()])
+        setHasMore(page.items.length === 50)
+        setStatus('ready')
+      },
       () => live && setStatus('error'),
-    )
+    ).finally(() => live && setLoadingMore(false))
     return () => { live = false }
-  }, [id])
+  }, [id, cursor, attempt, loggedIn])
 
   if (!p.current || id === undefined) return null
 
@@ -172,7 +189,7 @@ function CommentsPanel() {
     setMsg(null)
     try {
       const comment = await community.addComment(id, body)
-      setItems((list) => [...list, comment])
+      setItems((list) => [...new Map([...list, comment].map((item) => [item.id, item])).values()])
       setDraft('')
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Có lỗi xảy ra.')
@@ -186,6 +203,7 @@ function CommentsPanel() {
     setConfirmingId(null)
     try {
       await community.deleteComment(id, commentId)
+      removedIds.current.add(commentId)
       setItems((list) => list.filter((c) => c.id !== commentId))
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Có lỗi xảy ra.')
@@ -199,6 +217,14 @@ function CommentsPanel() {
       </div>
       {status === 'loading' && <p className="pbpanel__empty" role="status">Đang tải bình luận…</p>}
       {status === 'error' && <p className="pbpanel__empty" role="alert">Không tải được bình luận.</p>}
+      {(status === 'error' || hasMore) && (
+        <button type="button" className="pbpanel__link" disabled={loadingMore} onClick={() => {
+          if (status === 'error') setAttempt((value) => value + 1)
+          else setCursor(lastLoadedId.current)
+        }}>
+          {loadingMore ? 'Đang tải…' : status === 'error' ? 'Thử lại bình luận' : 'Xem thêm bình luận'}
+        </button>
+      )}
       {status === 'ready' && items.length === 0 && <p className="pbpanel__empty">Chưa có bình luận. Hãy là người đầu tiên!</p>}
       {items.length > 0 && (
         <ul className="pbpanel__comments">
@@ -371,7 +397,7 @@ export function PlayerBar() {
         <div className="player-bar__panel">
           {panel === 'queue' && <QueuePanel />}
           {panel === 'lyrics' && <LyricsPanel />}
-          {panel === 'comments' && <CommentsPanel />}
+          {panel === 'comments' && <CommentsPanel key={p.current.id} />}
           {panel === 'device' && <DevicePanel />}
         </div>
       )}
@@ -498,7 +524,7 @@ export function PlayerBar() {
 
         {/* Phải: lời, hàng chờ, thiết bị, đóng */}
         <div className="player-bar__right">
-          <FavoriteButton track={p.current} />
+          <FavoriteButton key={p.current.id} track={p.current} />
           <label className="player-bar__volume">
             <span aria-hidden="true">♪</span>
             <input type="range" min="0" max="1" step="0.05" value={p.volume} onChange={(e) => p.setVolume(Number(e.target.value))} aria-label="Âm lượng" />

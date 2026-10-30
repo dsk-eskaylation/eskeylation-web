@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
-import { useLiveApi } from '../api/useLiveApi'
+import { useCatalogRevision, useLiveApi } from '../api/useLiveApi'
 import { getSession } from '../api/auth'
 import { CommunityPost } from '../components/CommunityPost'
 import { EmptyState } from '../components/EmptyState'
@@ -20,6 +20,9 @@ const TABS = [
 type Tab = (typeof TABS)[number]['key']
 
 const PAGE_SIZE = 20
+type FeedState = { status: 'loading' | 'error' } | {
+  status: 'success'; data: { items: ContentOut[]; pages: number; loadedPages: number }
+}
 
 const DEFAULT_INTRO =
   'Website phi lợi nhuận được lập ra cho cộng đồng Eskaylation nhằm lưu giữ những tài nguyên quý báu mà DSK đã sáng tạo ra. ' +
@@ -37,43 +40,70 @@ export function Community() {
   const [params, setParams] = useSearchParams()
   const tabParam = params.get('tab')
   const tab: Tab = TABS.some((t) => t.key === tabParam) ? tabParam as Tab : 'feed'
-  // Trang đầu cập nhật live; các trang sau nạp dần khi cuộn và nối vào cuối.
-  const state = useLiveApi(() => api.list('community', { pageSize: PAGE_SIZE }), [])
-  const [older, setOlder] = useState<ContentOut[]>([])
-  const [loadedPages, setLoadedPages] = useState(1)
+  const revision = useCatalogRevision()
+  const [state, setState] = useState<FeedState>({ status: 'loading' })
+  const [requestedPages, setRequestedPages] = useState(1)
+  const [attempt, setAttempt] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreFailed, setMoreFailed] = useState(false)
   const loadingRef = useRef(false)
-  const items = useMemo(() => {
-    const head = state.status === 'success' ? state.data.items : []
-    // Bài mới lên đầu đẩy bài cuối trang 1 sang trang 2 — bỏ trùng theo id.
-    const seen = new Set(head.map((item) => item.id))
-    return head.concat(older.filter((item) => {
-      if (seen.has(item.id)) return false
-      seen.add(item.id)
-      return true
-    }))
-  }, [state, older])
+  const retryDelay = useRef(5000)
+  const items = state.status === 'success' ? state.data.items : []
+  const loadedPages = state.status === 'success' ? state.data.loadedPages : 1
   const hasMore = state.status === 'success' && loadedPages < state.data.pages
 
-  async function loadMore() {
-    if (loadingRef.current) return
+  // Refresh the whole visible window on revision changes. Never mix an old tail
+  // with a new first page, and discard requests from a superseded revision.
+  useEffect(() => {
+    let live = true
+    let retry: ReturnType<typeof setTimeout> | undefined
     loadingRef.current = true
     setLoadingMore(true)
     setMoreFailed(false)
-    try {
-      const next = await api.list('community', { pageSize: PAGE_SIZE, page: loadedPages + 1 })
-      setOlder((previous) => previous.concat(next.items))
-      setLoadedPages((count) => count + 1)
-    } catch {
-      setMoreFailed(true)
-    } finally {
-      loadingRef.current = false
-      setLoadingMore(false)
+    async function refresh() {
+      try {
+        if (document.hidden) {
+          retry = setTimeout(() => setAttempt((value) => value + 1), 15000)
+          return
+        }
+        const first = await api.list('community', { pageSize: PAGE_SIZE })
+        const count = Math.min(requestedPages, Math.max(1, first.pages))
+        const all = [...first.items]
+        // Bound concurrency when refreshing a long feed.
+        for (let page = 2; page <= count; page += 3) {
+          const batch = await Promise.all(Array.from({ length: Math.min(3, count - page + 1) }, (_, i) =>
+            api.list('community', { pageSize: PAGE_SIZE, page: page + i })))
+          if (!live) return
+          all.push(...batch.flatMap((result) => result.items))
+        }
+        if (live) {
+          retryDelay.current = 5000
+          setState({ status: 'success', data: {
+            items: [...new Map(all.map((item) => [item.id, item])).values()], pages: first.pages, loadedPages: count,
+          } })
+        }
+      } catch {
+        if (!live) return
+        setMoreFailed(true)
+        setState((previous) => previous.status === 'success' ? previous : { status: 'error' })
+        retry = setTimeout(() => setAttempt((value) => value + 1), retryDelay.current)
+        retryDelay.current = Math.min(retryDelay.current * 2, 60000)
+      } finally {
+        if (live) { loadingRef.current = false; setLoadingMore(false) }
+      }
     }
+    void refresh()
+    return () => { live = false; clearTimeout(retry) }
+  }, [revision, requestedPages, attempt])
+
+  function loadMore() {
+    if (loadingRef.current) return
+    loadingRef.current = true
+    if (moreFailed) setAttempt((value) => value + 1)
+    else setRequestedPages(loadedPages + 1)
   }
 
-  useScrollPreload(() => void loadMore(), tab === 'feed' && hasMore && !moreFailed, loadedPages)
+  useScrollPreload(loadMore, tab === 'feed' && hasMore && !moreFailed && !loadingMore, loadedPages)
 
   useEffect(() => {
     let alive = true
@@ -151,6 +181,7 @@ export function Community() {
       </div>
       {openSlug && (
         <PostDetail
+          key={openSlug}
           slug={openSlug}
           cached={items.find((item) => item.slug === openSlug)}
           loggedIn={loggedIn}
@@ -161,7 +192,7 @@ export function Community() {
       {loadingMore && <p className="community__more" role="status">Đang tải thêm bài…</p>}
       {moreFailed && (
         <button type="button" className="community__more page-action" onClick={() => void loadMore()}>
-          Không tải được bài cũ hơn — thử lại
+          Không tải được bài viết — thử lại
         </button>
       )}
     </div>

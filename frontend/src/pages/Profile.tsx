@@ -2,27 +2,53 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { getSession, updateProfile, type SessionUser } from '../api/auth'
 import { community } from '../api/community'
-import type { ContentOut } from '../api/types'
+import type { ContentOut, Page } from '../api/types'
 import { EmptyState } from '../components/EmptyState'
 import { MediaImage } from '../components/MediaImage'
 import { artistOf, audioUrl, coverUrl, usePlayer } from '../player/PlayerContext'
 import './Profile.css'
 
 type Tab = 'posts' | 'favorites' | 'saved'
-type Load<T> = { status: 'loading' } | { status: 'error' } | { status: 'ready'; items: T[] }
+type Load<T> = { status: 'loading' } | { status: 'error' } | ({ status: 'ready' } & Page<T>)
 
-function useList(fetcher: () => Promise<ContentOut[]>): Load<ContentOut> {
+function useList(fetcher: (page: number) => Promise<Page<ContentOut>>) {
   const [state, setState] = useState<Load<ContentOut>>({ status: 'loading' })
+  const [page, setPage] = useState(1)
+  const [attempt, setAttempt] = useState(0)
+  const [busy, setBusy] = useState(true)
+  const [failed, setFailed] = useState(false)
+  const busyRef = useRef(true)
   const fetchRef = useRef(fetcher)
   useEffect(() => {
     let live = true
-    fetchRef.current().then((items) => live && setState({ status: 'ready', items }), () => live && setState({ status: 'error' }))
+    busyRef.current = true
+    setBusy(true)
+    setFailed(false)
+    fetchRef.current(page).then((data) => {
+      if (!live) return
+      setState((previous) => {
+        const items = page > 1 && previous.status === 'ready' ? previous.items.concat(data.items) : data.items
+        return { ...data, status: 'ready', items: [...new Map(items.map((item) => [item.id, item])).values()] }
+      })
+    }, () => {
+      if (!live) return
+      setFailed(true)
+      setState((previous) => previous.status === 'ready' ? previous : { status: 'error' })
+    }).finally(() => {
+      if (live) { busyRef.current = false; setBusy(false) }
+    })
     return () => { live = false }
-  }, [])
-  return state
+  }, [page, attempt])
+  function loadMore() {
+    if (busyRef.current) return
+    busyRef.current = true
+    setPage(state.status === 'ready' ? state.page + 1 : 1)
+    setAttempt((value) => value + 1)
+  }
+  return { state, busy, failed, loadMore, hasMore: state.status === 'ready' && state.page < state.pages }
 }
 
-const count = (state: Load<ContentOut>) => (state.status === 'ready' ? state.items.length : '–')
+const count = (list: ReturnType<typeof useList>) => (list.state.status === 'ready' ? list.state.total : '–')
 
 /** Hồ sơ cá nhân kiểu mạng xã hội: bài đăng, bài hát yêu thích, bài đã lưu (riêng tư). */
 export function Profile() {
@@ -42,9 +68,10 @@ export function Profile() {
 /** Chỉ render khi đã đăng nhập, nên các danh sách riêng tư không bị gọi lúc chưa có phiên. */
 function ProfileView({ user }: { user: SessionUser }) {
   const [tab, setTab] = useState<Tab>('posts')
-  const posts = useList(() => community.myPosts())
-  const favorites = useList(() => community.mySaved('music').then((p) => p.items))
-  const saved = useList(() => community.mySaved('community').then((p) => p.items))
+  const posts = useList((page) => community.myPosts(page))
+  const favorites = useList((page) => community.mySaved('music', page))
+  const saved = useList((page) => community.mySaved('community', page))
+  const activeList = { posts, favorites, saved }[tab]
   const name = user.email.split('@', 1)[0]
   const joined = user.created_at ? new Date(user.created_at).toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' }) : null
 
@@ -82,9 +109,15 @@ function ProfileView({ user }: { user: SessionUser }) {
       </div>
 
       <div role="tabpanel">
-        {tab === 'posts' && <PostGrid state={posts} empty="Bạn chưa đăng bài nào. Vào Cộng đồng và bấm “+ Đăng bài”." />}
-        {tab === 'favorites' && <Favorites state={favorites} />}
-        {tab === 'saved' && <PostGrid state={saved} empty="Bấm Lưu trên bài cộng đồng để xem lại ở đây." />}
+        {tab === 'posts' && <PostGrid state={posts.state} empty="Bạn chưa đăng bài nào. Vào Cộng đồng và bấm “+ Đăng bài”." />}
+        {tab === 'favorites' && <Favorites state={favorites.state} />}
+        {tab === 'saved' && <PostGrid state={saved.state} empty="Bấm Lưu trên bài cộng đồng để xem lại ở đây." />}
+        {activeList.failed && <p role="alert">Không tải được danh sách. Bạn có thể thử lại.</p>}
+        {(activeList.hasMore || activeList.failed) && (
+          <button type="button" className="profile__edit" disabled={activeList.busy} onClick={activeList.loadMore}>
+            {activeList.busy ? 'Đang tải…' : activeList.failed ? 'Thử lại' : 'Xem thêm'}
+          </button>
+        )}
       </div>
     </div>
   )

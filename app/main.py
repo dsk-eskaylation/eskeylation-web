@@ -106,10 +106,11 @@ _MUTATING = {"POST", "PATCH", "PUT", "DELETE"}
 
 @app.middleware("http")
 async def csrf_guard(request, call_next):
-    """CSRF double-submit cho phiên cookie: request mutating vào /admin hoặc
-    /auth/logout mà xác thực bằng cookie (không có Authorization header) phải
-    kèm X-CSRF-Token khớp cookie esk_csrf. Auth bằng header thì miễn — trình
-    duyệt không tự gửi header cross-site được nên không dính CSRF."""
+    """Protect every cookie-authenticated mutation, including newly added routes.
+
+    Login/register are public and use the origin check below. Bearer API clients
+    do not rely on cookies automatically attached by the browser.
+    """
     authorization = request.headers.get("authorization", "").split()
     bearer_auth = len(authorization) == 2 and authorization[0].lower() == "bearer"
     if request.method == "POST" and request.url.path in {
@@ -125,12 +126,7 @@ async def csrf_guard(request, call_next):
             )
     if (
         request.method in _MUTATING
-        and (
-            request.url.path.startswith("/admin")
-            or request.url.path.startswith("/api/community")
-            or request.url.path.startswith("/api/music")
-            or request.url.path == "/auth/logout"
-        )
+        and request.url.path.rstrip("/") not in {"/auth/login", "/auth/register"}
         and not bearer_auth
         and SESSION_COOKIE in request.cookies
     ):
