@@ -100,6 +100,10 @@
 .community__muted {
   color: var(--color-text-muted);
 }
+.community__purposes {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  padding-left: 1.5em;
+}
 .community__card {
   display: grid;
   gap: var(--space-3);

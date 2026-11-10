@@ -3,26 +3,14 @@ import { api } from '../api/client'
 import { useLiveApi } from '../api/useLiveApi'
 import { creditGroups, creditMember, type CreditMember } from '../homepage'
 import type { MediaOut } from '../api/types'
-import hero1 from '../assets/figma/hero-1-4ee723.png'
-import hero2 from '../assets/figma/hero-2-25801d.png'
-import hero3 from '../assets/figma/hero-3-5a4166.png'
-import hero4 from '../assets/figma/hero-4-575400.png'
-import hero5 from '../assets/figma/hero-5-1f00f4.png'
+import heroBg from '../assets/home-hero.webp'
 import './Home.css'
-
-const HERO_IMAGES = [hero1, hero2, hero3, hero4, hero5]
 
 const DEFAULT_INTRO =
   'Là cộng đồng được thành hình bởi một người. Họ gọi anh là huyền thoại. ' +
   'Âm nhạc của anh là một người bạn đồng hành trong cuộc sống của chúng tôi, ' +
   'ít nhất là một giai đoạn nào đó trong đời. Website này do cộng đồng thành ' +
   'lập nhằm lưu giữ kỉ niệm.'
-
-const DEFAULT_MAINTAIN = [
-  'Quỹ: Forever Eskay',
-  'Nội dung CK: Fes',
-  'Được “sao kê" ở phần comment bài viết này',
-]
 
 const THANKS = [
   'Tất cả những người đã đăng tải âm nhạc và tư liệu trước đó',
@@ -147,11 +135,10 @@ export function Home() {
     ...(body.support && typeof body.support === 'object' && !Array.isArray(body.support)
       ? [(body.support as Record<string, unknown>).qr_media_id] : []),
   ].filter((id) => id !== undefined))
-  const uploadedImages = media.filter((m) => m.mime_type.startsWith('image/') && m.url && (m.media_id == null || !avatarIds.has(m.media_id))).map((m) => m.original_url || m.url)
-  const heroImages = uploadedImages.length ? uploadedImages : HERO_IMAGES
-  const maintain = Array.isArray(body.maintain)
-    ? body.maintain.filter((line): line is string => typeof line === 'string')
-    : DEFAULT_MAINTAIN
+  const heroUploads = media.filter((m) => m.mime_type.startsWith('image/') && m.url && (m.media_id == null || !avatarIds.has(m.media_id)))
+  const uploaded = heroUploads.find((m) => m.is_primary) ?? heroUploads[0]
+  // Waiting for the API would flash the default image before an uploaded one.
+  const heroImage = state.status === 'loading' ? undefined : uploaded ? uploaded.original_url || uploaded.url : heroBg
 
   return (
     <div className="home">
@@ -162,16 +149,9 @@ export function Home() {
         <span className="home__orb home__orb--sharp" />
       </div>
 
-      {/* Hero: dải 5 ảnh + tên + nút cuộn (Figma #1:203) */}
+      {/* Hero: ảnh nền full màn + tên + nút cuộn */}
       <section className="home__hero">
-        <div className="home__hero-strip" aria-hidden="true">
-          {/* Băng chuyền chạy ngang trái -> phải; nhân đôi ảnh để loop liền mạch */}
-          <div className="home__hero-track">
-            {[...heroImages, ...heroImages].map((src, i) => (
-              <img src={src} alt="" key={i} />
-            ))}
-          </div>
-        </div>
+        {heroImage && <img className="home__hero-bg" src={heroImage} alt="" fetchPriority="high" />}
         <div className="home__hero-title">
           <h1 className="home__brand">ESKAYLATION</h1>
           <button
@@ -245,15 +225,6 @@ export function Home() {
           {THANKS.map((line) => <li key={line}>{line}</li>)}
         </ul>
         <p className="home__thanks-dsk">CẢM ƠN DSK</p>
-      </section>
-
-      {/* Maintain Website (Figma #1:363) */}
-      <section className="home__maintain">
-        <div className="home__maintain-info">
-          {maintain.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </div>
       </section>
 
       <div className="home__respect" aria-hidden="true">

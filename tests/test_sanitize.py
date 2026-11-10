@@ -48,6 +48,19 @@ def test_sanitize_body_de_quy():
     assert out["num"] == 5
 
 
+def test_sanitize_body_quy_ung_ho_la_chu_thuong():
+    out = sanitize_body(
+        {
+            "support": {
+                "purposes": ["Tên miền & hosting", "<b>In</b> ấn"],
+                "used_amount": "1.000.000 & hơn",
+            }
+        }
+    )
+    assert out["support"]["purposes"] == ["Tên miền & hosting", "In ấn"]
+    assert out["support"]["used_amount"] == "1.000.000 & hơn"
+
+
 def test_validate_embeds_cho_phep_youtube():
     validate_embeds({"embed_url": "https://www.youtube.com/watch?v=abc"})
 

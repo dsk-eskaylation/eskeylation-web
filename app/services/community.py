@@ -8,7 +8,7 @@ GROUP BY + bool_or) thay vì nhiều câu tuần tự.
 import json
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -402,7 +402,7 @@ async def list_authored(
 async def ensure_own_unused_images(
     session: AsyncSession, media_ids: list[int], user_id: int
 ) -> None:
-    """Thành viên chỉ gắn được ảnh chính mình vừa tải và chưa thuộc bài nào."""
+    """Thành viên chỉ gắn được ảnh/video chính mình vừa tải và chưa thuộc bài nào."""
     if not media_ids:
         return
     ok = await session.scalar(
@@ -411,9 +411,14 @@ async def ensure_own_unused_images(
         .where(
             Media.id.in_(media_ids),
             Media.uploaded_by == user_id,
-            Media.mime_type.startswith("image/"),
+            or_(
+                Media.mime_type.startswith("image/"),
+                Media.mime_type.startswith("video/"),
+            ),
             ~select(ContentMedia.id).where(ContentMedia.media_id == Media.id).exists(),
         )
     )
     if ok != len(media_ids):
-        raise HTTPException(422, "Ảnh không hợp lệ hoặc không phải ảnh bạn tải lên")
+        raise HTTPException(
+            422, "Ảnh/video không hợp lệ hoặc không phải file bạn tải lên"
+        )

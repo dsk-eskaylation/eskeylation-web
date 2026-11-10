@@ -147,7 +147,7 @@ export function Video() {
         <div className="video-list">
           <div className="video-list__head">
             <span className="video-list__label">Danh sách video</span>
-            <Link to="/video/all" className="video-list__all" title="Xem toàn bộ kho video">
+            <Link to="/video" className="video-list__all" title="Xem toàn bộ kho video">
               Xem tất cả
             </Link>
           </div>

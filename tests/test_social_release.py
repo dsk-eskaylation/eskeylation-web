@@ -106,6 +106,42 @@ async def test_member_image_upload_is_throttled_and_does_not_create_more_media(
     ).all() == []
 
 
+async def test_large_member_upload_uses_stricter_video_quota(
+    client, make_user, monkeypatch
+):
+    from fastapi import HTTPException
+
+    from app.routers import community as router
+
+    calls = []
+
+    async def video_blocked(key, **kwargs):
+        calls.append(key)
+        if key.startswith("post-video-upload:"):
+            raise HTTPException(429, "video limit")
+
+    member, token = await token_for(client, make_user, UserRole.member)
+    monkeypatch.setattr(router, "check_rate", video_blocked)
+
+    async def chunks():
+        yield b"not multipart"
+
+    # Không khai báo Content-Length (chunked) -> tính như video.
+    r = await client.post(
+        "/api/community/uploads", content=chunks(), headers=auth(token)
+    )
+    assert r.status_code == 429
+    assert calls == [f"post-upload:{member.id}", f"post-video-upload:{member.id}"]
+
+    # Request nhỏ cỡ ảnh chỉ dùng hạn mức chung.
+    calls.clear()
+    r = await client.post(
+        "/api/community/uploads", content=b"not multipart", headers=auth(token)
+    )
+    assert r.status_code == 422
+    assert calls == [f"post-upload:{member.id}"]
+
+
 @pytest.mark.parametrize("size", [0, 100, 101, 201])
 async def test_authored_posts_paging_and_ownership(
     client, db, make_user, track_content, size

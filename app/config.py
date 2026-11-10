@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     max_image_size: int = 10 * 1024 * 1024  # 10 MB
     max_video_size: int = 200 * 1024 * 1024  # 200 MB
     max_audio_size: int = 100 * 1024 * 1024  # 100 MB
+    # Video thành viên đăng kèm bài Cộng đồng (đăng ký mở nên giới hạn chặt hơn).
+    max_post_video_size: int = 50 * 1024 * 1024  # 50 MB
     allowed_image_types: list[str] = [
         "image/jpeg",
         "image/png",

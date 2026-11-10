@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { PlayerProvider } from './player/PlayerContext'
 import { ToastProvider } from './components/Toast'
@@ -19,6 +19,12 @@ const Register = lazy(() => import('./pages/Register').then((m) => ({ default: m
 const Cms = lazy(() => import('./pages/Cms').then((m) => ({ default: m.Cms })))
 const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })))
 
+/** /video mở thẳng Thư viện video; /video?v=id là trang phát video đó. */
+function VideoIndex() {
+  const [params] = useSearchParams()
+  return params.has('v') ? <Video /> : <VideoAll />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -31,8 +37,8 @@ export default function App() {
           <Route index element={<Home />} />
           <Route path="music" element={<Music />} />
           <Route path="music/all" element={<MusicAll />} />
-          <Route path="video" element={<Video />} />
-          <Route path="video/all" element={<VideoAll />} />
+          <Route path="video" element={<VideoIndex />} />
+          <Route path="video/all" element={<Navigate to="/video" replace />} />
           <Route path="photos" element={<Photos />} />
           <Route path="community" element={<Community />} />
           <Route path="profile" element={<Profile />} />

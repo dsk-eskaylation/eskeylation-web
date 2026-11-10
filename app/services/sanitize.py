@@ -24,6 +24,8 @@ _TEXT_KEYS = {
     "role",
     "names",
     "maintain",
+    "purposes",
+    "used_amount",
 }
 
 

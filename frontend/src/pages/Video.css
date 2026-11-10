@@ -117,27 +117,6 @@
   gap: 20px;
   flex-wrap: wrap;
 }
-.video-all__back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.06em;
-  color: var(--color-text);
-  transition: text-shadow var(--dur-fast) ease, transform var(--dur-fast) ease;
-}
-.video-all__back svg {
-  width: 24px;
-  height: 24px;
-  transition: transform 0.25s var(--ease-out);
-}
-.video-all__back:hover {
-  text-shadow: var(--glow-text);
-}
-.video-all__back:hover svg {
-  transform: translateX(-4px);
-}
 
 /* ---- Danh sách video: strip cuộn ngang (lướt sang phải xem thêm) ---- */
 .video-list {

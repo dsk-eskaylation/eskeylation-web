@@ -5,7 +5,6 @@
   flex-direction: column;
   align-items: center;
   gap: 190px; /* Figma #1:201 gap 190 */
-  padding-top: 365px; /* Figma: khối nội dung bắt đầu y=365 */
   overflow: visible;
 }
 
@@ -45,75 +44,36 @@
   opacity: 0.6;
 }
 
-/* ---- Hero ---- */
+/* ---- Hero: ảnh nền full màn hình, tên + nút cuộn ở đáy ---- */
 .home__hero {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   align-items: center;
-  gap: 51px; /* Figma #1:203 gap 51 */
   width: 100vw;
-}
-
-.home__hero-strip {
-  display: flex;
-  align-items: center;
+  height: 100vh;
+  height: 100svh;
+  padding-bottom: clamp(32px, 8vh, 96px);
   overflow: hidden;
+}
+.home__hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   width: 100%;
-  /* mờ dần hai mép cho băng chuyền liền mạch */
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent,
-    #000 8%,
-    #000 92%,
-    transparent
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent,
-    #000 8%,
-    #000 92%,
-    transparent
-  );
-}
-
-/* Băng chuyền: chứa 2 bản ảnh, chạy từ trái sang phải, lặp liền mạch */
-.home__hero-track {
-  display: flex;
-  align-items: center;
-  width: max-content;
-  animation: hero-marquee 45s linear infinite;
-}
-.home__hero-strip:hover .home__hero-track {
-  animation-play-state: paused;
-}
-
-.home__hero-strip img {
-  width: 360px;
-  height: 152px;
+  height: 100%;
   object-fit: cover;
-  flex-shrink: 0;
-  transition: filter 0.5s ease;
-  filter: saturate(0.9);
+  object-position: center 30%;
 }
-.home__hero-strip img:hover {
-  filter: saturate(1.1);
-}
-
-/* Chạy sang PHẢI: dịch từ -50% (nửa sau) về 0 (nửa đầu) */
-@keyframes hero-marquee {
-  from {
-    transform: translateX(-50%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home__hero-track {
-    animation: none;
-    transform: translateX(-50%);
-  }
+/* Mờ dần xuống nền trang để tên và nút cuộn luôn đọc được */
+.home__hero::after {
+  content: '';
+  position: absolute;
+  inset: 40% 0 0;
+  z-index: -1;
+  background: linear-gradient(transparent, var(--color-bg, #090909));
 }
 
 @keyframes hero-in {
@@ -508,26 +468,6 @@
   transform: rotate(180deg);
 }
 
-/* ---- Maintain ---- */
-.home__maintain {
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-  gap: 82px; /* Figma #1:363 gap 82 */
-}
-.home__maintain-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  color: var(--color-text);
-  font-size: 32px;
-  text-align: center;
-}
-.home__maintain-info p {
-  margin: 0;
-}
-
 /* ---- "Respect." ---- */
 .home__respect {
   align-self: flex-start;
@@ -550,12 +490,7 @@
 /* ---- iPad ---- */
 @media (max-width: 1280px) {
   .home {
-    padding-top: 280px;
     gap: 140px;
-  }
-  .home__hero-strip img {
-    width: 280px;
-    height: 118px;
   }
   .home__orb {
     width: 760px;
@@ -572,11 +507,6 @@
 @media (max-width: 900px) {
   .home {
     gap: 96px;
-    padding-top: 180px;
-  }
-  .home__hero-strip img {
-    width: 200px;
-    height: 85px;
   }
   .home__about {
     flex-direction: column;
@@ -602,9 +532,6 @@
     font-size: 18px;
     padding: 0 var(--space-4);
   }
-  .home__maintain-info {
-    font-size: 22px;
-  }
   .home__orb {
     display: none;
   }
@@ -626,14 +553,6 @@
 @media (max-width: 480px) {
   .home {
     gap: 72px;
-    padding-top: 140px;
-  }
-  .home__hero-strip {
-    gap: 4px;
-  }
-  .home__hero-strip img {
-    width: 132px;
-    height: 56px;
   }
   .home__brand {
     font-size: 40px;
@@ -680,10 +599,6 @@
     width: 80px;
     height: 79px;
     border-radius: 20px;
-  }
-  .home__maintain-info {
-    font-size: 17px;
-    padding: 0 var(--space-2);
   }
   .home__section-title h2 {
     font-size: 30px;

@@ -6,18 +6,20 @@ import './PostComposer.css'
 
 const MAX_IMAGES = 10
 const MAX_CHARS = 5000
-const ACCEPT = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const ACCEPT = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm']
+const MAX_VIDEO_MB = 50 // khớp max_post_video_size phía server
 
 interface Picked {
   key: string
   preview: string
   name: string
+  video: boolean
   status: 'uploading' | 'done' | 'error'
   mediaId?: number
   error?: string
 }
 
-/** Ô "Bạn đang nghĩ gì?" mở hộp thoại tạo bài: chữ + tối đa 10 ảnh, chờ admin duyệt. */
+/** Ô "Bạn đang nghĩ gì?" mở hộp thoại tạo bài: chữ + tối đa 10 ảnh/video, chờ admin duyệt. */
 export function PostComposer({ name }: { name: string }) {
   const [open, setOpen] = useState(false)
   return (
@@ -27,7 +29,7 @@ export function PostComposer({ name }: { name: string }) {
         <button type="button" className="composer-bar__prompt" onClick={() => setOpen(true)}>
           Bạn đang nghĩ gì về ESKAYLATION?
         </button>
-        <button type="button" className="composer-bar__photo" onClick={() => setOpen(true)} aria-label="Đăng ảnh">
+        <button type="button" className="composer-bar__photo" onClick={() => setOpen(true)} aria-label="Đăng ảnh hoặc video">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <rect x="3" y="5" width="18" height="14" rx="3" />
             <circle cx="9" cy="10" r="1.6" />
@@ -66,20 +68,25 @@ function ComposerDialog({ name, onClose }: { name: string; onClose: () => void }
     setError(null)
     const list = Array.from(files)
     const room = MAX_IMAGES - images.length
-    if (list.length > room) setError(`Mỗi bài tối đa ${MAX_IMAGES} ảnh.`)
+    if (list.length > room) setError(`Mỗi bài tối đa ${MAX_IMAGES} ảnh/video.`)
     for (const file of list.slice(0, Math.max(room, 0))) {
       if (!ACCEPT.includes(file.type)) {
-        setError('Chỉ hỗ trợ ảnh JPG, PNG, WebP hoặc GIF.')
+        setError('Chỉ hỗ trợ ảnh JPG, PNG, WebP, GIF hoặc video MP4, WebM.')
+        continue
+      }
+      const video = file.type.startsWith('video/')
+      if (video && file.size > MAX_VIDEO_MB * 1024 * 1024) {
+        setError(`Video tối đa ${MAX_VIDEO_MB} MB.`)
         continue
       }
       const key = `${file.name}-${file.size}-${Math.random()}`
       const preview = URL.createObjectURL(file)
       previews.current.add(preview)
-      setImages((list) => [...list, { key, preview, name: file.name, status: 'uploading' }])
+      setImages((list) => [...list, { key, preview, name: file.name, video, status: 'uploading' }])
       community.uploadImage(file).then(
         (media) => setImages((list) => list.map((i) => (i.key === key ? { ...i, status: 'done', mediaId: media.id } : i))),
         (err: unknown) => setImages((list) => list.map((i) => (i.key === key
-          ? { ...i, status: 'error', error: err instanceof Error ? err.message : 'Tải ảnh thất bại' } : i))),
+          ? { ...i, status: 'error', error: err instanceof Error ? err.message : 'Tải lên thất bại' } : i))),
       )
     }
   }
@@ -149,10 +156,12 @@ function ComposerDialog({ name, onClose }: { name: string; onClose: () => void }
           <ul className={`composer__images composer__images--n${Math.min(images.length, 3)}`}>
             {images.map((image) => (
               <li key={image.key} className={`composer__image composer__image--${image.status}`}>
-                <img src={image.preview} alt={image.name} />
+                {image.video
+                  ? <video src={image.preview} muted playsInline preload="metadata" aria-label={image.name} />
+                  : <img src={image.preview} alt={image.name} />}
                 {image.status === 'uploading' && <span className="composer__state" role="status">Đang tải…</span>}
                 {image.status === 'error' && <span className="composer__state" role="alert">{image.error}</span>}
-                <button type="button" className="composer__remove" onClick={() => remove(image.key)} aria-label={`Gỡ ảnh ${image.name}`}>×</button>
+                <button type="button" className="composer__remove" onClick={() => remove(image.key)} aria-label={`Gỡ ${image.name}`}>×</button>
               </li>
             ))}
           </ul>
@@ -170,7 +179,7 @@ function ComposerDialog({ name, onClose }: { name: string; onClose: () => void }
               <circle cx="9" cy="10" r="1.6" />
               <path d="m4 17 5-5 4 4 2.5-2.5L20 17" />
             </svg>
-            Thêm ảnh {images.length > 0 && `(${images.length}/${MAX_IMAGES})`}
+            Thêm ảnh/video {images.length > 0 && `(${images.length}/${MAX_IMAGES})`}
           </button>
           <input
             ref={fileRef}
@@ -185,9 +194,9 @@ function ComposerDialog({ name, onClose }: { name: string; onClose: () => void }
 
         {error && <p className="composer__error" role="alert">{error}</p>}
         {images.some((image) => image.status === 'error') && (
-          <p className="composer__error" role="alert">Có ảnh chưa tải được. Gỡ ảnh lỗi và chọn lại trước khi đăng.</p>
+          <p className="composer__error" role="alert">Có file chưa tải được. Gỡ file lỗi và chọn lại trước khi đăng.</p>
         )}
-        <p className="composer__hint">Bài viết sẽ hiển thị sau khi được admin duyệt. Kéo thả ảnh vào đây để thêm nhanh.</p>
+        <p className="composer__hint">Bài viết sẽ hiển thị sau khi được admin duyệt. Kéo thả ảnh/video vào đây để thêm nhanh.</p>
       </form>
     </Modal>
   )

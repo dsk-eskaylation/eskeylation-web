@@ -189,7 +189,7 @@ def check_design_flows(base, context, login, passed, evidence):
 
         for route_name, kind, noun in [
             ("/music/all", "music", "bài hát"),
-            ("/video/all", "video", "video"),
+            ("/video", "video", "video"),
         ]:
             payload = page.request.get(base + f"/api/{kind}?page_size=60").json()
             case = {"state": "loading", "pending": []}
@@ -240,7 +240,6 @@ def check_design_flows(base, context, login, passed, evidence):
             "/music",
             "/music/all",
             "/video",
-            "/video/all",
             "/photos",
             "/community",
             "/login",

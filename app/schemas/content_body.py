@@ -85,7 +85,9 @@ class Support(BaseModel):
     model_config = ConfigDict(strict=True, extra="allow")
     intro: str | None = None
     amount: str | None = None
-    used: str | None = None
+    used: str | None = None  # bản cũ: một dòng chữ tự do
+    used_amount: str | None = None
+    purposes: list[str] | None = None
     qr_media_id: int | None = None
     statements: list[str] | None = None
 

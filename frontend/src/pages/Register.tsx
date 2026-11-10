@@ -1,18 +1,18 @@
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { register } from '../api/auth'
 import { FormError } from '../components/FormError'
 import './Login.css'
 
 /** Trang đăng ký — tái dùng toàn bộ style Login (cùng design language).
-    Tài khoản tạo ra ở trạng thái chờ quản trị viên duyệt. */
+    Đăng ký xong là đăng nhập luôn, vào thẳng trang Cộng đồng. */
 export function Register() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [invalidField, setInvalidField] = useState<string | undefined>()
-  const [done, setDone] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const onSubmit = async (e: FormEvent) => {
@@ -32,31 +32,12 @@ export function Register() {
     setBusy(true)
     try {
       await register(email, password)
-      setDone(true)
+      navigate('/community', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đăng ký thất bại')
     } finally {
       setBusy(false)
     }
-  }
-
-  if (done) {
-    return (
-      <main className="login">
-        <span className="login__orb" aria-hidden="true" />
-        <div className="login__card page-enter">
-          <span className="login__brand">ESKAYLATION</span>
-          <h1 className="login__sub">Đăng ký thành công!</h1>
-          <p className="login__sub">
-            Tài khoản của bạn đang chờ quản trị viên duyệt —
-            bạn sẽ đăng nhập được sau khi được kích hoạt.
-          </p>
-          <Link to="/" className="login__submit login__submit--center">
-            Về trang chủ
-          </Link>
-        </div>
-      </main>
-    )
   }
 
   return (
@@ -67,7 +48,7 @@ export function Register() {
         <Link to="/" className="login__brand">
           ESKAYLATION
         </Link>
-        <h1 className="login__sub">Tạo tài khoản — cần quản trị viên duyệt</h1>
+        <h1 className="login__sub">Tạo tài khoản Eskaylation</h1>
 
         <label className="login__field">
           <span className="login__label">Email</span>

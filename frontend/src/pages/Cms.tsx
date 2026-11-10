@@ -122,7 +122,16 @@ function ImageField({ image, label, alt, busy, onUpload, onRemove }: {
 }
 
 interface ProductForm { name: string; description: string; form_url: string; media_id?: number }
-interface SupportForm { intro: string; amount: string; used: string; statements: string; qr_media_id?: number }
+interface SupportForm { intro: string; amount: string; used_amount: string; purposes: string; statements: string; qr_media_id?: number }
+
+/** Trang chủ lưu luôn nội dung trang Cộng đồng; mỗi phần được sửa ở mục CMS riêng. */
+type HomepagePart = 'home' | 'intro' | 'products' | 'support'
+const HOMEPAGE_PARTS: { value: Exclude<HomepagePart, 'home'>; label: string }[] = [
+  { value: 'intro', label: 'Lời mở đầu' },
+  { value: 'products', label: 'Sản phẩm' },
+  { value: 'support', label: 'Ủng hộ' },
+]
+const lines = (value: string) => value.split('\n').map((line) => line.trim()).filter(Boolean)
 
 function section(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -134,11 +143,13 @@ const imageId = (value: unknown) => (typeof value === 'number' && Number.isSafeI
 function Editor({
   initial,
   defaultType,
+  part = 'home',
   onClose,
   onSaved,
 }: {
   initial: ContentAdmin | null // null = tạo mới
   defaultType: ContentType
+  part?: HomepagePart
   onClose: () => void
   onSaved: (message?: string) => void
 }) {
@@ -172,11 +183,8 @@ function Editor({
   const [coverLink, setCoverLink] = useState(initial?.cover_url ?? '')
   const [lookup, setLookup] = useState<'idle' | 'busy' | string>('idle')
   const [author, setAuthor] = useState(bstr('author'))
-  // Trang chủ: giới thiệu, các dòng "bảo trì", và các nhóm credits (vai trò + tên)
+  // Trang chủ: giới thiệu và các nhóm credits (vai trò + tên)
   const [intro, setIntro] = useState(bstr('intro'))
-  const [maintainText, setMaintainText] = useState(
-    Array.isArray(b.maintain) ? (b.maintain as string[]).join('\n') : '',
-  )
   const [credits, setCredits] = useState<CreditGroup[]>(() => creditGroups(b.credits))
   const [leader, setLeader] = useState<CreditMember>(() =>
     creditMember(b.leader) ?? { name: Object.hasOwn(b, 'leader') ? '' : 'Cỏ nhỏ' })
@@ -190,7 +198,9 @@ function Editor({
   const [support, setSupport] = useState<SupportForm>(() => {
     const p = section(b.support)
     return {
-      intro: text(p.intro), amount: text(p.amount), used: text(p.used), qr_media_id: imageId(p.qr_media_id),
+      intro: text(p.intro), amount: text(p.amount), used_amount: text(p.used_amount), qr_media_id: imageId(p.qr_media_id),
+      // Bản cũ chỉ có một ô chữ "used" -> đưa vào danh sách mục đích để sửa tiếp.
+      purposes: Array.isArray(p.purposes) ? p.purposes.filter((u): u is string => typeof u === 'string').join('\n') : text(p.used),
       statements: Array.isArray(p.statements) ? p.statements.filter((u): u is string => typeof u === 'string').join('\n') : '',
     }
   })
@@ -213,8 +223,9 @@ function Editor({
   )
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const partLabel = HOMEPAGE_PARTS.find((item) => item.value === part)?.label
 
-  const draft = JSON.stringify({ type, title, summary, artist, audioUrl, lyrics, embedUrl, albumId, trackNo, sourceUrl, coverLink, author, intro, maintainText, credits, leader, communityIntro, communityRules, product, support, media })
+  const draft = JSON.stringify({ type, title, summary, artist, audioUrl, lyrics, embedUrl, albumId, trackNo, sourceUrl, coverLink, author, intro, credits, leader, communityIntro, communityRules, product, support, media })
   const [initialDraft] = useState(draft)
 
   // Cập nhật một nhóm credits của trang chủ
@@ -293,12 +304,6 @@ function Editor({
       set('author', author)
     } else if (type === 'homepage') {
       set('intro', intro)
-      const lines = maintainText
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean)
-      if (lines.length) body.maintain = lines
-      else delete body.maintain
       const cr = credits
         .map((c) => ({
           role: c.role.trim(),
@@ -317,10 +322,10 @@ function Editor({
       const productBody = trimmed(product)
       if (Object.keys(productBody).length) body.product = productBody
       else delete body.product
-      const { statements, ...supportFields } = support
+      const { statements, purposes, ...supportFields } = support
       const supportBody = trimmed(supportFields)
-      const links = statements.split('\n').map((line) => line.trim()).filter(Boolean)
-      if (links.length) supportBody.statements = links
+      if (lines(purposes).length) supportBody.purposes = lines(purposes)
+      if (lines(statements).length) supportBody.statements = lines(statements)
       if (Object.keys(supportBody).length) body.support = supportBody
       else delete body.support
       // New homepage forms must provide the sections required by publishing.
@@ -331,7 +336,6 @@ function Editor({
           ...(leader.name.trim() ? [{ type: 'leader' }] : []),
           ...(media.some((asset) => !asset.purpose) ? [{ type: 'hero' }] : []),
           ...(cr.length ? [{ type: 'credits', groups: cr }] : []),
-          ...(lines.length ? [{ type: 'support', items: lines }] : []),
         ]
       }
     }
@@ -367,7 +371,7 @@ function Editor({
     try {
       if (initial) {
         await adminApi.update(initial.id, { ...payload, expected_updated_at: initial.updated_at })
-        onSaved(`Đã cập nhật “${savedTitle}”`)
+        onSaved(`Đã cập nhật “${partLabel ?? savedTitle}”`)
       } else {
         await adminApi.create({ ...payload, type })
         onSaved(`Đã tạo “${savedTitle}”`)
@@ -379,13 +383,12 @@ function Editor({
     }
   }
 
+  const heading = initial ? `Sửa: ${partLabel ?? initial.title}` : 'Nội dung mới'
   return (
-    <UnsavedChangesModal onClose={onClose} dirty={draft !== initialDraft} busy={busy} label={initial ? `Sửa: ${initial.title}` : 'Nội dung mới'}>
+    <UnsavedChangesModal onClose={onClose} dirty={draft !== initialDraft} busy={busy} label={heading}>
       {(requestClose) => (
       <form className="cms-editor" onSubmit={onSubmit} aria-describedby={error ? 'cms-editor-error' : undefined} aria-busy={busy}>
-        <h2 className="cms-editor__title">
-          {initial ? `Sửa: ${initial.title}` : 'Nội dung mới'}
-        </h2>
+        <h2 className="cms-editor__title">{heading}</h2>
 
         {!initial && (
           <div className="cms-editor__types">
@@ -569,7 +572,7 @@ function Editor({
           </label>
         )}
 
-        {type === 'homepage' && (
+        {type === 'homepage' && part === 'home' && (
           <>
             <label className="cms-field">
               <span>Giới thiệu (đoạn “ESKAYLATION là gì?”)</span>
@@ -577,15 +580,6 @@ function Editor({
                 value={intro}
                 onChange={(e) => setIntro(e.target.value)}
                 rows={3}
-              />
-            </label>
-            <label className="cms-field">
-              <span>Thông tin đóng góp — mỗi dòng một mục</span>
-              <textarea
-                value={maintainText}
-                onChange={(e) => setMaintainText(e.target.value)}
-                rows={3}
-                placeholder={'Quỹ: Forever Eskay\nNội dung CK: Fes'}
               />
             </label>
             <div className="cms-field">
@@ -613,50 +607,70 @@ function Editor({
                 <button type="button" className="cms-pill" disabled={busy} onClick={() => setCredits((prev) => [...prev, { role: '', members: [{ name: '' }] }])}>+ Thêm nhóm</button>
               </div>
             </div>
-            <fieldset className="cms-credit-group" disabled={busy}>
-              <legend>Trang Cộng đồng</legend>
-              <label className="cms-field"><span>Lời mở đầu</span>
-                <textarea value={communityIntro} onChange={(e) => setCommunityIntro(e.target.value)} rows={4} placeholder="Để trống để dùng lời mở đầu mặc định" />
-              </label>
-              <label className="cms-field"><span>Văn hóa cộng đồng</span>
-                <textarea value={communityRules} onChange={(e) => setCommunityRules(e.target.value)} rows={2} placeholder="Yêu cầu tôn trọng, văn minh, hòa đồng" />
-              </label>
-              <small className="cms-field__hint">Sản phẩm: để trống tên thì trang hiện “Hiện không có sản phẩm nào”.</small>
-              <label className="cms-field"><span>Tên sản phẩm</span>
-                <input value={product.name} onChange={(e) => setProduct((prev) => ({ ...prev, name: e.target.value }))} maxLength={255} />
-              </label>
-              <label className="cms-field"><span>Mô tả sản phẩm</span>
-                <textarea value={product.description} onChange={(e) => setProduct((prev) => ({ ...prev, description: e.target.value }))} rows={3} />
-              </label>
-              <label className="cms-field"><span>Link đăng ký mua (Google Form)</span>
-                <input type="url" value={product.form_url} onChange={(e) => setProduct((prev) => ({ ...prev, form_url: e.target.value }))} placeholder="https://forms.gle/…" />
-              </label>
-              <span className="cms-field__hint">Ảnh sản phẩm</span>
-              <ImageField image={media.find((asset) => asset.media_id === product.media_id)} label="sản phẩm" alt={`Ảnh ${product.name || 'sản phẩm'}`} busy={busy}
-                onUpload={(files) => void upload(files, (id) => setProduct((prev) => ({ ...prev, media_id: id })))}
-                onRemove={() => setProduct(({ media_id: _removed, ...rest }) => rest)} />
-              <label className="cms-field"><span>Lời kêu gọi ủng hộ</span>
-                <textarea value={support.intro} onChange={(e) => setSupport((prev) => ({ ...prev, intro: e.target.value }))} rows={2} />
-              </label>
-              <label className="cms-field"><span>Số tiền hiện tại</span>
-                <input value={support.amount} onChange={(e) => setSupport((prev) => ({ ...prev, amount: e.target.value }))} placeholder="1.800.000" />
-              </label>
-              <label className="cms-field"><span>Đã sử dụng (số tiền và mục đích)</span>
-                <textarea value={support.used} onChange={(e) => setSupport((prev) => ({ ...prev, used: e.target.value }))} rows={2} placeholder="Đã sử dụng … VNĐ với mục đích …" />
-              </label>
-              <span className="cms-field__hint">Mã QR ủng hộ</span>
-              <ImageField image={media.find((asset) => asset.media_id === support.qr_media_id)} label="mã QR ủng hộ" alt="Mã QR ủng hộ" busy={busy}
-                onUpload={(files) => void upload(files, (id) => setSupport((prev) => ({ ...prev, qr_media_id: id })))}
-                onRemove={() => setSupport(({ qr_media_id: _removed, ...rest }) => rest)} />
-              <label className="cms-field"><span>Sao kê — link bài Facebook, mỗi dòng một link</span>
-                <textarea value={support.statements} onChange={(e) => setSupport((prev) => ({ ...prev, statements: e.target.value }))} rows={3} placeholder="https://www.facebook.com/…" />
-              </label>
-            </fieldset>
           </>
         )}
 
-        <div className="cms-editor__media">
-          {type === 'homepage' && <p className="cms-field__hint">Ảnh tải lên sẽ thay dải ảnh đầu trang. Nếu không có ảnh, website dùng bộ ảnh mặc định.</p>}
+        {type === 'homepage' && part === 'intro' && (
+          <fieldset className="cms-credit-group" disabled={busy}>
+            <legend>Trang Cộng đồng — Lời mở đầu</legend>
+            <label className="cms-field"><span>Lời mở đầu</span>
+              <textarea value={communityIntro} onChange={(e) => setCommunityIntro(e.target.value)} rows={4} placeholder="Để trống để dùng lời mở đầu mặc định" />
+            </label>
+            <label className="cms-field"><span>Văn hóa cộng đồng</span>
+              <textarea value={communityRules} onChange={(e) => setCommunityRules(e.target.value)} rows={2} placeholder="Yêu cầu tôn trọng, văn minh, hòa đồng" />
+            </label>
+          </fieldset>
+        )}
+
+        {type === 'homepage' && part === 'products' && (
+          <fieldset className="cms-credit-group" disabled={busy}>
+            <legend>Trang Cộng đồng — Sản phẩm</legend>
+            <small className="cms-field__hint">Để trống tên thì trang hiện “Hiện không có sản phẩm nào”.</small>
+            <label className="cms-field"><span>Tên sản phẩm</span>
+              <input value={product.name} onChange={(e) => setProduct((prev) => ({ ...prev, name: e.target.value }))} maxLength={255} />
+            </label>
+            <label className="cms-field"><span>Mô tả sản phẩm</span>
+              <textarea value={product.description} onChange={(e) => setProduct((prev) => ({ ...prev, description: e.target.value }))} rows={3} />
+            </label>
+            <label className="cms-field"><span>Link đăng ký mua (Google Form)</span>
+              <input type="url" value={product.form_url} onChange={(e) => setProduct((prev) => ({ ...prev, form_url: e.target.value }))} placeholder="https://forms.gle/…" />
+            </label>
+            <span className="cms-field__hint">Ảnh sản phẩm</span>
+            <ImageField image={media.find((asset) => asset.media_id === product.media_id)} label="sản phẩm" alt={`Ảnh ${product.name || 'sản phẩm'}`} busy={busy}
+              onUpload={(files) => void upload(files, (id) => setProduct((prev) => ({ ...prev, media_id: id })))}
+              onRemove={() => setProduct(({ media_id: _removed, ...rest }) => rest)} />
+          </fieldset>
+        )}
+
+        {type === 'homepage' && part === 'support' && (
+          <fieldset className="cms-credit-group" disabled={busy}>
+            <legend>Trang Cộng đồng — Ủng hộ</legend>
+            <label className="cms-field"><span>Giới thiệu quỹ</span>
+              <textarea value={support.intro} onChange={(e) => setSupport((prev) => ({ ...prev, intro: e.target.value }))} rows={2} placeholder="Việc kêu gọi ủng hộ nhằm duy trì, vận hành website, cộng đồng về lâu dài." />
+            </label>
+            <div className="cms-editor__row">
+              <label className="cms-field"><span>Số tiền hiện tại (VNĐ)</span>
+                <input value={support.amount} onChange={(e) => setSupport((prev) => ({ ...prev, amount: e.target.value }))} placeholder="3.000.000" />
+              </label>
+              <label className="cms-field"><span>Đã sử dụng (VNĐ)</span>
+                <input value={support.used_amount} onChange={(e) => setSupport((prev) => ({ ...prev, used_amount: e.target.value }))} placeholder="1.000.000" />
+              </label>
+            </div>
+            <label className="cms-field"><span>Mục đích sử dụng — mỗi dòng một mục</span>
+              <textarea value={support.purposes} onChange={(e) => setSupport((prev) => ({ ...prev, purposes: e.target.value }))} rows={3} placeholder={'Duy trì máy chủ\nTên miền\n…'} />
+            </label>
+            <span className="cms-field__hint">Mã QR ủng hộ</span>
+            <ImageField image={media.find((asset) => asset.media_id === support.qr_media_id)} label="mã QR ủng hộ" alt="Mã QR ủng hộ" busy={busy}
+              onUpload={(files) => void upload(files, (id) => setSupport((prev) => ({ ...prev, qr_media_id: id })))}
+              onRemove={() => setSupport(({ qr_media_id: _removed, ...rest }) => rest)} />
+            <label className="cms-field"><span>Sao kê — link bài Facebook, mỗi dòng một link</span>
+              <textarea value={support.statements} onChange={(e) => setSupport((prev) => ({ ...prev, statements: e.target.value }))} rows={3} placeholder="https://www.facebook.com/…" />
+            </label>
+          </fieldset>
+        )}
+
+        {part === 'home' && <div className="cms-editor__media">
+          {type === 'homepage' && <p className="cms-field__hint">Ảnh chính (★) làm ảnh nền full màn hình đầu trang. Nếu không có ảnh, website dùng ảnh nền mặc định.</p>}
           <div className="cms-editor__media-head">
             <span>{type === 'homepage' ? 'Ảnh đầu trang' : type === 'music' ? 'Âm thanh và ảnh bìa' : 'Media'} ({media.filter((m) => !m.purpose).length})</span>
             <label className="cms-pill cms-editor__upload">
@@ -716,7 +730,7 @@ function Editor({
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
         {error && (
           <FormError id="cms-editor-error" message={error} className="cms-error" />
@@ -1294,12 +1308,13 @@ export function Cms() {
   const isAdmin = me?.role === 'admin'
   const canManageAlbums = isAdmin || me?.role === 'editor'
   const requestedView = params.get('tab')
+  const part = canManageAlbums ? HOMEPAGE_PARTS.find((item) => item.value === requestedView) : undefined
   const view =
     isAdmin && (requestedView === 'users' || requestedView === 'dashboard' || requestedView === 'moderation')
       ? requestedView
       : canManageAlbums && requestedView === 'albums'
         ? 'albums'
-        : 'content'
+        : part?.value ?? 'content'
   const type = TYPES.find((item) => item.value === params.get('type'))?.value ?? 'music'
   const status = STATUSES.find((item) => item.value === params.get('status'))?.value ?? null
   const requestedPage = Number(params.get('page') ?? 1)
@@ -1352,6 +1367,10 @@ export function Cms() {
         ...(canManageAlbums ? [viewItem('albums', 'Album')] : []),
         ...otherTypes.map(typeItem),
       ],
+    },
+    {
+      label: 'Trang Cộng đồng',
+      items: canManageAlbums ? HOMEPAGE_PARTS.map((item) => viewItem(item.value, item.label)) : [],
     },
     {
       label: 'Hệ thống',
@@ -1543,6 +1562,8 @@ export function Cms() {
         <UsersPanel meId={me?.id ?? null} />
       ) : view === 'albums' ? (
         <AlbumsPanel />
+      ) : part ? (
+        <HomepagePartPanel key={part.value} part={part.value} label={part.label} />
       ) : (
         <CmsContent
           type={type}
@@ -1574,6 +1595,43 @@ export function Cms() {
             setEditing(null)
             void load()
             if (msg) notify(msg, { tone: 'success' })
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/** Lời mở đầu / Sản phẩm / Ủng hộ: sửa riêng từng mục trên Trang chủ đang hiển thị. */
+function HomepagePartPanel({ part, label }: { part: Exclude<HomepagePart, 'home'>; label: string }) {
+  const { notify } = useToast()
+  const [version, setVersion] = useState(0)
+  const [editing, setEditing] = useState(false)
+  const state = useApi(async () => {
+    const { id } = await api.homepage()
+    return id ? adminApi.get(id) : null
+  }, [version])
+  return (
+    <div className="cms-card">
+      {state.status === 'loading' ? <p className="cms__status" role="status">Đang tải…</p>
+        : state.status === 'error' ? <p className="cms__status">Không tải được nội dung. Hãy tải lại trang.</p>
+        : !state.data ? <p className="cms__status">Chưa có Trang chủ đã đăng. Hãy tạo và đăng ở mục Nội dung → Trang chủ trước.</p>
+        : <div className="cms__status">
+          <p>Nội dung mục “{label}” trên trang Cộng đồng.</p>
+          <button type="button" className="cms-pill cms-pill--active" onClick={() => setEditing(true)}>Chỉnh sửa {label}</button>
+          {' '}
+          <a className="cms-pill" href={`/community?tab=${part}`} target="_blank" rel="noopener noreferrer">Xem trên trang</a>
+        </div>}
+      {editing && state.status === 'success' && state.data && (
+        <Editor
+          initial={state.data}
+          defaultType="homepage"
+          part={part}
+          onClose={() => setEditing(false)}
+          onSaved={(message) => {
+            setEditing(false)
+            setVersion((value) => value + 1)
+            if (message) notify(message, { tone: 'success' })
           }}
         />
       )}

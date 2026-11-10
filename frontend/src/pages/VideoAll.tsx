@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useDebounced } from '../api/useApi'
 import { useLiveApi } from '../api/useLiveApi'
@@ -17,8 +17,8 @@ function artistOf(c: ContentOut) {
   return typeof c.body.artist === 'string' ? c.body.artist : 'DSK'
 }
 
-/** Trang Xem tất cả video — toàn bộ kho, có tìm kiếm. Bấm một video sẽ về
-    /video và phát ngay trên trang (qua ?v=id). */
+/** Trang đầu của mục Video — toàn bộ kho, có tìm kiếm. Bấm một video sẽ
+    phát ngay trên trang /video?v=id. */
 export function VideoAll() {
   const { q, page, setPage, setQuery } = useLibraryParams()
   const debouncedQ = useDebounced(q)
@@ -39,12 +39,6 @@ export function VideoAll() {
     <div className="video-all">
       <h1 className="page-heading">Thư viện video</h1>
       <header className="video-all__head">
-        <Link to="/video" className="video-all__back">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <polyline points="14,5 7,12 14,19" fill="none" stroke="currentColor" strokeWidth="2" />
-          </svg>
-          Quay về
-        </Link>
         <SearchBar value={q} placeholder="Tìm kiếm video" onChange={setQuery} onClear={() => setQuery('')} />
       </header>
 

@@ -261,7 +261,10 @@ async def test_thanh_vien_dang_bai_kem_anh_cua_minh(client, db, make_user):
     mine = (await upload(token)).json()["id"]
     theirs = (await upload(other_token)).json()["id"]
     video = await upload(token, "clip.mp4", mp4_bytes(), "video/mp4")
-    assert video.status_code == 415
+    assert video.status_code == 201, video.text
+    clip = video.json()["id"]
+    audio = await upload(token, "song.mp3", b"ID3" + b"\x00" * 64, "audio/mpeg")
+    assert audio.status_code == 415
 
     stolen = await client.post(
         "/api/community/posts",
@@ -272,14 +275,14 @@ async def test_thanh_vien_dang_bai_kem_anh_cua_minh(client, db, make_user):
 
     r = await client.post(
         "/api/community/posts",
-        json={"summary": "Buổi offline\nĐông vui lắm", "media_ids": [mine]},
+        json={"summary": "Buổi offline\nĐông vui lắm", "media_ids": [mine, clip]},
         headers=auth(token),
     )
     assert r.status_code == 201, r.text
     post = await db.scalar(select(Content).where(Content.author_id == member.id))
     await db.refresh(post, ["media_links"])
     assert post.title == "Buổi offline"
-    assert [link.media_id for link in post.media_links] == [mine]
+    assert sorted(link.media_id for link in post.media_links) == sorted([mine, clip])
 
     reused = await client.post(
         "/api/community/posts",

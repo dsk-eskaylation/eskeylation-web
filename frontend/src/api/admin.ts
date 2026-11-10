@@ -207,6 +207,8 @@ export const adminApi = {
   deleteAlbum: (id: number) =>
     request<void>(`/admin/albums/${id}`, { method: 'DELETE' }),
 
+  get: (id: number) => request<ContentAdmin>(`/admin/content/${id}`),
+
   create: (payload: ContentPayload & { type: ContentType; title: string }) =>
     request<ContentAdmin>('/admin/content', jsonInit('POST', payload)),
 

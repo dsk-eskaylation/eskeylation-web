@@ -1,4 +1,4 @@
-"""Test tích hợp đăng ký công khai + duyệt tài khoản + rate limit."""
+"""Test tích hợp đăng ký công khai + đăng nhập ngay + rate limit."""
 
 import pytest
 from sqlalchemy import delete, select
@@ -16,7 +16,7 @@ async def _cleanup(db, email: str) -> None:
     await db.commit()
 
 
-async def test_register_tao_tai_khoan_cho_duyet(client, db, make_user):
+async def test_register_kich_hoat_va_dang_nhap_luon(client, db):
     email = f"{unique_slug('reg')}@test.dev"
     try:
         r = await client.post(
@@ -24,25 +24,14 @@ async def test_register_tao_tai_khoan_cho_duyet(client, db, make_user):
         )
         assert r.status_code == 201, r.text
         data = r.json()
-        assert data["is_active"] is False  # chờ duyệt
+        assert data["is_active"] is True  # không cần admin duyệt
         assert data["role"] == "member"
         assert "password" not in data and "hashed_password" not in data
-
-        # Chưa duyệt -> login bị chặn 403 (tài khoản khoá)
-        r = await client.post(
-            "/auth/login", data={"username": email, "password": "matkhau-8kytu"}
-        )
-        assert r.status_code == 403
-
-        # Admin duyệt qua PATCH -> login được
-        admin_token = await token_for(client, make_user, UserRole.admin)
-        r = await client.patch(
-            f"/admin/users/{data['id']}",
-            json={"is_active": True},
-            headers=auth(admin_token),
-        )
+        # Đăng ký xong là có phiên: cookie vừa set dùng được ngay.
+        assert "esk_session" in r.cookies
+        r = await client.get("/auth/session")
         assert r.status_code == 200
-        assert r.json()["is_active"] is True
+        assert r.json()["email"] == email
 
         r = await client.post(
             "/auth/login", data={"username": email, "password": "matkhau-8kytu"}

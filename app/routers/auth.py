@@ -71,6 +71,28 @@ def _set_session_cookies(response: Response, token: str) -> None:
     )
 
 
+async def _start_session(session: AsyncSession, user: User, response: Response) -> str:
+    """Tạo phiên mới (dọn phiên hết hạn), commit, rồi set cookie."""
+    session_id = str(uuid4())
+    now = datetime.now(UTC)
+    await session.execute(
+        delete(UserSession).where(
+            UserSession.user_id == user.id, UserSession.expires_at <= now
+        )
+    )
+    session.add(
+        UserSession(
+            id=session_id,
+            user_id=user.id,
+            expires_at=now + timedelta(minutes=settings.access_token_expire_minutes),
+        )
+    )
+    await session.commit()
+    token = create_access_token(str(user.id), session_id)
+    _set_session_cookies(response, token)
+    return token
+
+
 @router.post("/login", response_model=Token)
 async def login(
     request: Request,
@@ -107,23 +129,7 @@ async def login(
         )
     if upgraded:
         user.hashed_password = upgraded
-    session_id = str(uuid4())
-    now = datetime.now(UTC)
-    await session.execute(
-        delete(UserSession).where(
-            UserSession.user_id == user.id, UserSession.expires_at <= now
-        )
-    )
-    session.add(
-        UserSession(
-            id=session_id,
-            user_id=user.id,
-            expires_at=now + timedelta(minutes=settings.access_token_expire_minutes),
-        )
-    )
-    await session.commit()
-    token = create_access_token(str(user.id), session_id)
-    _set_session_cookies(response, token)
+    token = await _start_session(session, user, response)
     # Vẫn trả token trong body cho API client/tool dùng Authorization header.
     return Token(access_token=token)
 
@@ -188,12 +194,12 @@ async def session_info(
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def register(
     request: Request,
+    response: Response,
     data: UserCreate,
     session: AsyncSession = Depends(get_session),
 ) -> UserRead:
-    """Đăng ký công khai: tài khoản tạo ra ở trạng thái CHỜ DUYỆT
-    (is_active=False, role=member). Admin kích hoạt qua PATCH /admin/users/{id}.
-    Không cho tự chọn role — chống leo quyền."""
+    """Đăng ký công khai: kích hoạt ngay và đăng nhập luôn (không chờ duyệt).
+    Luôn là role=member — không cho tự chọn role, chống leo quyền."""
     ip = _client_ip(request)
     await check_rate(f"register:{ip}", limit=10, window_seconds=300)
 
@@ -206,7 +212,6 @@ async def register(
         email=data.email,
         hashed_password=await run_in_threadpool(hash_password, data.password),
         role=UserRole.member,  # người dùng cộng đồng không có quyền biên tập
-        is_active=False,  # chờ admin duyệt
     )
     session.add(user)
     try:
@@ -218,4 +223,5 @@ async def register(
             status_code=status.HTTP_409_CONFLICT, detail="Email đã tồn tại"
         ) from exc
     await session.refresh(user)
+    await _start_session(session, user, response)
     return UserRead.model_validate(user)

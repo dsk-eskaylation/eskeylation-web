@@ -74,7 +74,7 @@ async def create_media(
     alt_text: str | None = None,
     *,
     uploaded_by: int | None = None,
-    images_only: bool = False,
+    visual_only: bool = False,
 ) -> Media:
     header = await file.read(261)
     await file.seek(0)
@@ -84,10 +84,13 @@ async def create_media(
     # Xác định MIME từ NỘI DUNG (magic bytes), không tin đuôi file.
     kind = filetype.guess(header)
     mime = kind.mime if kind else None
-    if images_only and mime not in settings.allowed_image_types:
+    if visual_only and mime not in (
+        *settings.allowed_image_types,
+        *settings.allowed_video_types,
+    ):
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Chỉ hỗ trợ ảnh JPG, PNG, WebP hoặc GIF",
+            detail="Chỉ hỗ trợ ảnh JPG, PNG, WebP, GIF hoặc video MP4, WebM",
         )
 
     if mime in settings.allowed_image_types:

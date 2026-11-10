@@ -75,18 +75,21 @@ export async function logout(): Promise<void> {
   clearSessionCache()
 }
 
-/** POST /auth/register — tài khoản tạo ra ở trạng thái chờ admin duyệt. */
+/** POST /auth/register — tài khoản kích hoạt ngay, server set cookie phiên. */
 export async function register(email: string, password: string): Promise<void> {
   const res = await fetch('/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
+    credentials: 'include',
   })
   if (!res.ok) {
     const data = await res.json().catch(() => null)
     const detail = typeof data?.detail === 'string' ? data.detail : null
     throw new Error(detail ?? `Đăng ký lỗi ${res.status}`)
   }
+  await res.body?.cancel()
+  clearSessionCache()
 }
 
 export async function updateProfile(bio: string): Promise<SessionUser> {

@@ -250,12 +250,21 @@ function CommunityInfo({ tab }: { tab: Exclude<Tab, 'feed'> }) {
   const statements = Array.isArray(support.statements)
     ? support.statements.filter((url): url is string => typeof url === 'string')
     : []
+  const purposes = Array.isArray(support.purposes)
+    ? support.purposes.map(str).filter(Boolean)
+    : []
+  const usedAmount = str(support.used_amount)
   return (
     <section className="community__info">
       <h2>Ủng hộ</h2>
       <p className="community__muted">{str(support.intro) || DEFAULT_SUPPORT_INTRO}</p>
       {str(support.amount) && <p className="community__amount">Số tiền hiện tại: <strong>{str(support.amount)} VNĐ</strong></p>}
-      {str(support.used) && <p>{str(support.used)}</p>}
+      {usedAmount || purposes.length ? (
+        <>
+          <p>Đã sử dụng{usedAmount && <> <strong>{usedAmount} VNĐ</strong></>}{purposes.length > 0 && ' với mục đích:'}</p>
+          {purposes.length > 0 && <ol className="community__purposes">{purposes.map((item, index) => <li key={index}>{item}</li>)}</ol>}
+        </>
+      ) : str(support.used) && <p>{str(support.used)}</p>}
       {qr && <img className="community__qr" src={qr} alt="Mã QR ủng hộ" />}
       {statements.length > 0 && (
         <>

@@ -481,16 +481,22 @@ async def upload_post_image(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> MediaRead:
-    """Thành viên tải ảnh cho bài sắp đăng (chỉ ảnh, ghi lại người tải)."""
+    """Thành viên tải ảnh/video cho bài sắp đăng (ghi lại người tải)."""
     # Auth + rate limit trước khi đọc body upload.
     await check_rate(f"post-upload:{user.id}", limit=30, window_seconds=600)
-    form = await parse_upload(request, max_bytes=settings.max_image_size)
+    # Đăng ký mở: request lớn hơn trần ảnh (hoặc không khai báo cỡ) tính như video,
+    # hạn mức chặt hơn để một tài khoản không đổ hàng GB vào storage.
+    length = request.headers.get("content-length", "")
+    if not length.isdigit() or int(length) > settings.max_image_size + 64 * 1024:
+        await check_rate(f"post-video-upload:{user.id}", limit=5, window_seconds=3600)
+    # Ảnh vẫn bị create_media chặn ở max_image_size; đây là trần cho video.
+    form = await parse_upload(request, max_bytes=settings.max_post_video_size)
     try:
         file = form.get("file")
         if not isinstance(file, UploadFile):
-            raise HTTPException(422, "Thiếu file ảnh")
+            raise HTTPException(422, "Thiếu file ảnh hoặc video")
         media = await media_service.create_media(
-            session, file, uploaded_by=user.id, images_only=True
+            session, file, uploaded_by=user.id, visual_only=True
         )
         return MediaRead.from_model(media)
     finally:
