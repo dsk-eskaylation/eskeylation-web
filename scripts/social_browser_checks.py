@@ -194,7 +194,7 @@ def check_social_release(base, context, passed, evidence):
         expect(dialog.locator(".composer__image--error")).to_have_count(1)
         expect(dialog.get_by_role("button", name="Đăng", exact=True)).to_be_disabled()
         assert state["submitted"] is None
-        dialog.get_by_role("button", name="Gỡ ảnh test.png").click()
+        dialog.get_by_role("button", name="Gỡ test.png").click()
         state["upload_error"] = False
         dialog.locator("input[type=file]").set_input_files(file)
         expect(dialog.locator(".composer__image--done")).to_have_count(1)
@@ -325,11 +325,9 @@ def check_social_release(base, context, passed, evidence):
         ]
         ctx.route("**/api/homepage", lambda r: r.fulfill(json=homepage))
         page.goto(base + "/", wait_until="networkidle")
-        expect(page.locator(".home__hero-track img")).to_have_count(2)
-        sources = page.locator(".home__hero-track img").evaluate_all(
-            "els=>els.map(e=>e.getAttribute('src'))"
+        expect(page.locator(".home__hero-bg")).to_have_attribute(
+            "src", "/fixture.png?kind=hero"
         )
-        assert sources == ["/fixture.png?kind=hero"] * 2
         page.goto(base + "/community?tab=products", wait_until="networkidle")
         expect(page.locator(".community__card img")).to_have_attribute(
             "src", "/fixture.png?kind=product"

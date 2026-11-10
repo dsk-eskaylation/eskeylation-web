@@ -142,11 +142,7 @@ def check_cms_fields(base, context_factory, login, passed, evidence):
         expect(public.locator(".home__member-avatar img")).to_have_attribute(
             "src", avatar["url"]
         )
-        assert set(
-            public.locator(".home__hero-track img").evaluate_all(
-                "images => images.map(image => image.getAttribute('src'))"
-            )
-        ) == {hero["url"]}
+        expect(public.locator(".home__hero-bg")).to_have_attribute("src", hero["url"])
         public.get_by_role("button", name="Xem thêm", exact=True).click()
         expect(public.get_by_text("Fake member two", exact=True)).to_be_visible()
         passed(
@@ -172,9 +168,7 @@ def check_cms_fields(base, context_factory, login, passed, evidence):
         public.reload(wait_until="networkidle")
         expect(public.locator(".home__member-avatar img")).to_have_count(0)
         expect(public.locator(".home__member-avatar").first).to_have_text("MO")
-        expect(public.locator(".home__hero-track img").first).to_have_attribute(
-            "src", hero["url"]
-        )
+        expect(public.locator(".home__hero-bg")).to_have_attribute("src", hero["url"])
         dialog = edit(cleared)
         dialog.get_by_role("button", name="Xoá nhóm 1", exact=True).click()
         save(dialog)

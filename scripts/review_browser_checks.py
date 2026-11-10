@@ -184,7 +184,8 @@ def check_review_fixes(base, context_factory, login, passed, evidence):
     )
     page.goto(base, wait_until="networkidle")
     expect(page.get_by_role("heading", name="ESKAYLATION", exact=True)).to_be_visible()
-    expect(page.get_by_text("Valid legacy line", exact=True)).to_be_visible()
+    # Khối quỹ "maintain" đã bỏ khỏi trang chủ: dữ liệu cũ bị bỏ qua, không lỗi.
+    expect(page.get_by_text("Valid legacy line", exact=True)).to_have_count(0)
     assert not errors, errors
-    passed("Legacy malformed support entries cannot crash the homepage")
+    passed("Legacy support entries are ignored without crashing the homepage")
     ctx.close()

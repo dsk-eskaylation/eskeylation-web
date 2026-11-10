@@ -90,7 +90,6 @@ def check_cms_mapping(base, context_factory, login, passed):
             "Fake mapped homepage",
             {
                 "intro": "Fake CMS introduction",
-                "maintain": ["Fake support before"],
                 "sections": [{"type": "intro", "text": "Fake"}],
             },
         )
@@ -106,17 +105,13 @@ def check_cms_mapping(base, context_factory, login, passed):
                 "body": {
                     **home["body"],
                     "intro": "Fake introduction updated",
-                    "maintain": ["Fake support after"],
                 }
             },
         )
         expect(public.locator(".home__about-text")).to_have_text(
             "Fake introduction updated", timeout=6000
         )
-        expect(public.locator(".home__maintain-info")).to_contain_text(
-            "Fake support after"
-        )
-        passed("Homepage intro and support follow CMS edits without reload")
+        passed("Homepage intro follows CMS edits without reload")
         image = admin.request.get(base + "/media/ui-image.png")
         assert image.status == 200
         response = admin.request.post(
@@ -138,15 +133,15 @@ def check_cms_mapping(base, context_factory, login, passed):
             f"/admin/content/{home['id']}",
             {"media": [{"media_id": media["id"], "is_primary": True}]},
         )
-        expect(public.locator(".home__hero-track img").first).to_have_attribute(
+        expect(public.locator(".home__hero-bg")).to_have_attribute(
             "src", media["url"], timeout=6000
         )
         api("PATCH", f"/admin/content/{home['id']}", {"media": []})
-        expect(public.locator(".home__hero-track img").first).not_to_have_attribute(
+        expect(public.locator(".home__hero-bg")).not_to_have_attribute(
             "src", media["url"], timeout=6000
         )
         passed(
-            "Homepage uploaded hero images and default fallback follow CMS media edits"
+            "Homepage uploaded hero image and default fallback follow CMS media edits"
         )
         public.close()
 

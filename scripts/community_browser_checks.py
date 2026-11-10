@@ -68,7 +68,7 @@ def check_member_posting(base, context, login, passed):
         )
         expect(composer.get_by_role("alert")).to_contain_text("Chỉ hỗ trợ ảnh")
         expect(composer.locator(".composer__image--done")).to_have_count(2)
-        composer.get_by_role("button", name="Gỡ ảnh blue.png").click()
+        composer.get_by_role("button", name="Gỡ blue.png").click()
         expect(composer.locator(".composer__image")).to_have_count(1)
         expect(post_button).to_be_disabled()
         composer.get_by_label("Nội dung bài viết").fill("Ảnh buổi offline\nVui quá")
