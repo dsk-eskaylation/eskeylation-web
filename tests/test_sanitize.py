@@ -61,6 +61,18 @@ def test_sanitize_body_quy_ung_ho_la_chu_thuong():
     assert out["support"]["used_amount"] == "1.000.000 & hơn"
 
 
+def test_sanitize_body_so_tien_va_mo_ta_khong_bi_escape():
+    out = sanitize_body(
+        {
+            "support": {"amount": "3.000.000 & 5 USD", "used": "Tên miền & hosting"},
+            "product": {"description": "Áo & mũ <script>x</script>"},
+        }
+    )
+    assert out["support"]["amount"] == "3.000.000 & 5 USD"
+    assert out["support"]["used"] == "Tên miền & hosting"
+    assert out["product"]["description"] == "Áo & mũ x"
+
+
 def test_validate_embeds_cho_phep_youtube():
     validate_embeds({"embed_url": "https://www.youtube.com/watch?v=abc"})
 

@@ -86,7 +86,13 @@ export async function register(email: string, password: string): Promise<void> {
   if (!res.ok) {
     const data = await res.json().catch(() => null)
     const detail = typeof data?.detail === 'string' ? data.detail : null
-    throw new Error(detail ?? `Đăng ký lỗi ${res.status}`)
+    // 422 trả danh sách lỗi theo ô; 409 là email đã có.
+    const field = res.status === 409 ? 'email' : Array.isArray(data?.detail)
+      ? data.detail.map((e: { loc?: unknown[] }) => e.loc?.[1]).find((f: unknown) => f === 'email' || f === 'password')
+      : undefined
+    const message = detail ?? (field === 'email' ? 'Email không hợp lệ'
+      : field === 'password' ? 'Mật khẩu phải từ 8 đến 128 ký tự' : `Đăng ký lỗi ${res.status}`)
+    throw Object.assign(new Error(message), { field: field as 'email' | 'password' | undefined })
   }
   await res.body?.cancel()
   clearSessionCache()

@@ -35,6 +35,8 @@ export function Register() {
       navigate('/community', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đăng ký thất bại')
+      const field = (err as { field?: string }).field
+      if (field) setInvalidField(`register-${field}`)
     } finally {
       setBusy(false)
     }
@@ -60,6 +62,8 @@ export function Register() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             autoComplete="email"
+            aria-invalid={invalidField === 'register-email' || undefined}
+            aria-describedby={invalidField === 'register-email' ? 'register-error' : undefined}
             spellCheck={false}
             required
           />

@@ -26,6 +26,9 @@ _TEXT_KEYS = {
     "maintain",
     "purposes",
     "used_amount",
+    "amount",
+    "used",
+    "description",
 }
 
 
