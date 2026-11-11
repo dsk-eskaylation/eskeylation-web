@@ -65,22 +65,31 @@ async def _replace_media(
     _validate_media_in(media_in)
     if media_in:
         ids = [m.media_id for m in media_in]
-        found = set(
-            (
-                await session.scalars(
-                    select(Media.id)
-                    .where(Media.id.in_(ids))
-                    .order_by(Media.id)
-                    .with_for_update(read=True, key_share=True)
+        rows = (
+            await session.scalars(
+                select(Media)
+                .where(
+                    Media.id.in_(ids),
+                    Media.cleanup_pending.is_(False),
+                    (
+                        Media.upload_expires_at.is_(None)
+                        | (Media.upload_expires_at > datetime.now(UTC))
+                    ),
                 )
-            ).all()
-        )
+                .order_by(Media.id)
+                .with_for_update(read=True, key_share=True)
+            )
+        ).all()
+        found = {media.id for media in rows}
         missing = sorted(set(ids) - found)
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Media không tồn tại: {missing}",
+                detail=f"Media không tồn tại hoặc đã hết hạn: {missing}",
             )
+        for media in rows:
+            # First successful attachment makes an upload permanent in this transaction.
+            media.upload_expires_at = None
     await session.execute(
         delete(ContentMedia).where(ContentMedia.content_id == content.id)
     )

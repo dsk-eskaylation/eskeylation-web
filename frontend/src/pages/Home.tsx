@@ -115,6 +115,7 @@ function initials(name: string) {
 }
 
 export function Home() {
+  const [failedHero, setFailedHero] = useState<string | null>(null)
   const state = useLiveApi(() => api.homepage())
   const body = (state.status === 'success' ? state.data.body : {}) as Record<
     string,
@@ -137,8 +138,9 @@ export function Home() {
   ].filter((id) => id !== undefined))
   const heroUploads = media.filter((m) => m.mime_type.startsWith('image/') && m.url && (m.media_id == null || !avatarIds.has(m.media_id)))
   const uploaded = heroUploads.find((m) => m.is_primary) ?? heroUploads[0]
-  // Waiting for the API would flash the default image before an uploaded one.
-  const heroImage = state.status === 'loading' ? undefined : uploaded ? uploaded.original_url || uploaded.url : heroBg
+  // Keep the bundled background visible while loading or if an upload is missing.
+  const preferredHero = uploaded?.url
+  const heroImage = preferredHero && failedHero !== preferredHero ? preferredHero : heroBg
 
   return (
     <div className="home">
@@ -151,7 +153,8 @@ export function Home() {
 
       {/* Hero: ảnh nền full màn + tên + nút cuộn */}
       <section className="home__hero">
-        {heroImage && <img className="home__hero-bg" src={heroImage} alt="" fetchPriority="high" />}
+        <img className="home__hero-bg" src={heroImage} srcSet={heroImage === preferredHero ? uploaded?.srcset || undefined : undefined}
+          sizes="100vw" alt="" fetchPriority="high" onError={() => { if (preferredHero) setFailedHero(preferredHero) }} />
         <div className="home__hero-title">
           <h1 className="home__brand">ESKAYLATION</h1>
           <button

@@ -8,12 +8,88 @@ import subprocess
 import sys
 import time
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 import pytest
 from PIL import Image
 
 from app.config import get_settings
 from app.services import media_jobs
+
+
+@pytest.mark.parametrize(
+    "suffix,codec,mime",
+    [("mp4", "libx264", "video/mp4"), ("webm", "libvpx-vp9", "video/webm")],
+)
+async def test_real_member_video_upload_review_and_byte_range(
+    client, db, make_user, track_media, track_content, tmp_path, suffix, codec, mime
+):
+    from sqlalchemy import select
+
+    from app.models.content import Content
+    from app.models.enums import UserRole
+    from app.models.media import Media
+    from tests.test_cms_api import token_for as cms_token
+    from tests.test_community_api import auth, token_for
+
+    clip = tmp_path / ("fixture." + suffix)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-nostdin",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=320x180:r=10",
+            "-t",
+            "0.6",
+            "-c:v",
+            codec,
+            "-pix_fmt",
+            "yuv420p",
+            str(clip),
+        ],
+        check=True,
+        timeout=30,
+    )
+    user, token = await token_for(client, make_user, UserRole.member)
+    response = await client.post(
+        "/api/community/uploads",
+        files={"file": (clip.name, clip.read_bytes(), mime)},
+        headers=auth(token),
+    )
+    assert response.status_code == 201, response.text
+    media_id = response.json()["id"]
+    track_media.append(media_id)
+    caption = "Real video fixture " + uuid4().hex[:10]
+    response = await client.post(
+        "/api/community/posts",
+        json={"summary": caption, "media_ids": [media_id]},
+        headers=auth(token),
+    )
+    assert response.status_code == 201, response.text
+    post = await db.scalar(
+        select(Content).where(Content.author_id == user.id, Content.title == caption)
+    )
+    track_content.append(post.id)
+    assert post.status.value == "draft"
+    assert (await client.get("/api/community/" + post.slug)).status_code == 404
+    admin = await cms_token(client, make_user, UserRole.admin)
+    response = await client.post(
+        f"/admin/content/{post.id}/publish", headers=auth(admin)
+    )
+    assert response.status_code == 200, response.text
+    public = await client.get("/api/community/" + post.slug)
+    assert public.status_code == 200
+    asset = public.json()["media"][0]
+    assert asset["mime_type"] == mime
+    streamed = await client.get(asset["stream_url"], headers={"Range": "bytes=0-63"})
+    assert streamed.status_code == 206 and streamed.content == clip.read_bytes()[:64]
+    media = await db.get(Media, media_id)
+    assert media.upload_expires_at is None
+
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("MEDIA_WORKER_INTEGRATION") != "1",

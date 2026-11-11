@@ -18,6 +18,9 @@ celery_app.conf.update(
     worker_enable_remote_control=False,
     broker_connection_retry_on_startup=True,
     broker_transport_options={"visibility_timeout": 300},
-    beat_schedule={"dispatch-media": {"task": "media.dispatch", "schedule": 15.0}},
+    beat_schedule={
+        "dispatch-media": {"task": "media.dispatch", "schedule": 15.0},
+        "cleanup-member-uploads": {"task": "media.cleanup_uploads", "schedule": 900.0},
+    },
     timezone="UTC",
 )

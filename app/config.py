@@ -46,7 +46,14 @@ class Settings(BaseSettings):
     max_video_size: int = 200 * 1024 * 1024  # 200 MB
     max_audio_size: int = 100 * 1024 * 1024  # 100 MB
     # Video thành viên đăng kèm bài Cộng đồng (đăng ký mở nên giới hạn chặt hơn).
-    max_post_video_size: int = 50 * 1024 * 1024  # 50 MB
+    max_post_video_size: int = Field(
+        default=50 * 1024 * 1024, ge=1, le=200 * 1024 * 1024
+    )
+    member_upload_user_daily_bytes: int = Field(default=500 * 1024 * 1024, ge=1)
+    member_upload_ip_daily_bytes: int = Field(default=2 * 1024**3, ge=1)
+    member_upload_global_daily_bytes: int = Field(default=5 * 1024**3, ge=1)
+    member_upload_timeout_seconds: int = Field(default=300, ge=30, le=900)
+    member_upload_retention_hours: int = Field(default=48, ge=24, le=168)
     allowed_image_types: list[str] = [
         "image/jpeg",
         "image/png",

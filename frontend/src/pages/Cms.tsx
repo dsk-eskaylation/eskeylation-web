@@ -303,49 +303,68 @@ function Editor({
     } else if (type === 'gallery' || type === 'community') {
       set('author', author)
     } else if (type === 'homepage') {
-      set('intro', intro)
-      const cr = credits
-        .map((c) => ({
-          role: c.role.trim(),
-          members: c.members.filter((member) => member.name.trim()).map((member) => ({ ...member, name: member.name.trim() })),
-        }))
-        .filter((c) => c.role && c.members.length)
-        .map((c) => ({ ...c, names: c.members.map((member) => member.name) }))
-      if (cr.length) body.credits = cr
-      else delete body.credits
-      body.leader = leader.name.trim() ? { ...leader, name: leader.name.trim() } : null
-      set('community_intro', communityIntro)
-      set('community_rules', communityRules)
+      if (part === 'home') {
+        set('intro', intro)
+        const cr = credits
+          .map((c) => ({
+            role: c.role.trim(),
+            members: c.members.filter((member) => member.name.trim()).map((member) => ({ ...member, name: member.name.trim() })),
+          }))
+          .filter((c) => c.role && c.members.length)
+          .map((c) => ({ ...c, names: c.members.map((member) => member.name) }))
+        if (cr.length) body.credits = cr
+        else delete body.credits
+        body.leader = leader.name.trim() ? { ...leader, name: leader.name.trim() } : null
+      }
+      if (part === 'intro') {
+        set('community_intro', communityIntro)
+        set('community_rules', communityRules)
+      }
       const trimmed = (form: object) => Object.fromEntries(Object.entries(form)
         .map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value])
         .filter(([, value]) => value !== '' && value !== undefined))
-      const productBody = trimmed(product)
-      if (Object.keys(productBody).length) body.product = productBody
-      else delete body.product
-      const { statements, purposes, ...supportFields } = support
-      const supportBody = trimmed(supportFields)
-      if (lines(purposes).length) supportBody.purposes = lines(purposes)
-      if (lines(statements).length) supportBody.statements = lines(statements)
-      if (Object.keys(supportBody).length) body.support = supportBody
-      else delete body.support
+      if (part === 'products') {
+        const productBody = { ...section(b.product), ...trimmed(product) }
+        for (const key of ['name', 'description', 'form_url', 'media_id'] as const) {
+          const value = product[key]
+          if (value === undefined || (typeof value === 'string' && !value.trim())) delete productBody[key]
+        }
+        if (Object.keys(productBody).length) body.product = productBody
+        else delete body.product
+      }
+      if (part === 'support') {
+        const { statements, purposes, ...supportFields } = support
+        const supportBody = { ...section(b.support), ...trimmed(supportFields) }
+        delete supportBody.used
+        delete supportBody.purposes
+        delete supportBody.statements
+        for (const key of ['intro', 'amount', 'used_amount', 'qr_media_id'] as const) {
+          const value = supportFields[key]
+          if (value === undefined || (typeof value === 'string' && !value.trim())) delete supportBody[key]
+        }
+        if (lines(purposes).length) supportBody.purposes = lines(purposes)
+        if (lines(statements).length) supportBody.statements = lines(statements)
+        if (Object.keys(supportBody).length) body.support = supportBody
+        else delete body.support
+      }
       // New homepage forms must provide the sections required by publishing.
       // Existing structured sections are preserved when editing older records.
-      if (!Array.isArray(body.sections) || body.sections.length === 0) {
+      if (part === 'home' && (!Array.isArray(body.sections) || body.sections.length === 0)) {
         body.sections = [
           ...(intro.trim() ? [{ type: 'intro', text: intro.trim() }] : []),
           ...(leader.name.trim() ? [{ type: 'leader' }] : []),
           ...(media.some((asset) => !asset.purpose) ? [{ type: 'hero' }] : []),
-          ...(cr.length ? [{ type: 'credits', groups: cr }] : []),
+          ...(Array.isArray(body.credits) && body.credits.length ? [{ type: 'credits', groups: body.credits }] : []),
         ]
       }
     }
 
     const savedTitle = type === 'homepage' ? initial?.title || 'Trang chủ' : title
     const avatarIds = new Set(type === 'homepage' ? [
-      product.media_id,
-      support.qr_media_id,
-      ...(leader.name.trim() ? [leader.media_id] : []),
-      ...credits.filter((group) => group.role.trim()).flatMap((group) => group.members.filter((member) => member.name.trim()).map((member) => member.media_id)),
+      imageId(section(body.product).media_id),
+      imageId(section(body.support).qr_media_id),
+      creditMember(body.leader)?.media_id,
+      ...creditGroups(body.credits).flatMap((group) => group.members.map((member) => member.media_id)),
     ] : [])
     const payload = {
       title: savedTitle,

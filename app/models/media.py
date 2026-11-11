@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -36,6 +37,11 @@ class Media(TimestampMixin, Base):
     uploaded_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
+    # Only new temporary member uploads expire; existing media have no deadline.
+    upload_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cleanup_pending: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     variants: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
     processing_status: Mapped[str] = mapped_column(
         String(16), default="skipped", server_default="skipped"
@@ -49,6 +55,11 @@ class Media(TimestampMixin, Base):
     processing_error_code: Mapped[str | None] = mapped_column(String(32))
 
     __table_args__ = (
+        Index(
+            "ix_media_upload_expiry",
+            "upload_expires_at",
+            postgresql_where=text("upload_expires_at IS NOT NULL"),
+        ),
         CheckConstraint(
             "processing_status IN "
             "('skipped','pending','queued','processing','ready','failed')",

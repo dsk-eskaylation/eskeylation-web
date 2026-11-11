@@ -154,6 +154,11 @@ async def process_media(
     )
     if media is None:
         raise HTTPException(404, "Không tìm thấy media")
+    if media.cleanup_pending or (
+        media.upload_expires_at is not None
+        and media.upload_expires_at <= datetime.now(UTC)
+    ):
+        raise HTTPException(410, "Upload đã hết hạn. Hãy tải lại file.")
     if media.processing_status == "pending" or (
         media.processing_status in {"queued", "processing"}
         and media.processing_lease_until

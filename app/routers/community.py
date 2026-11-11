@@ -47,6 +47,7 @@ from app.schemas.public import ContentOut
 from app.services import (
     community,
     content_admin,
+    member_uploads,
     moderation,
     notifications,
     realtime,
@@ -490,17 +491,38 @@ async def upload_post_image(
     if not length.isdigit() or int(length) > settings.max_image_size + 64 * 1024:
         await check_rate(f"post-video-upload:{user.id}", limit=5, window_seconds=3600)
     # Ảnh vẫn bị create_media chặn ở max_image_size; đây là trần cho video.
-    form = await parse_upload(request, max_bytes=settings.max_post_video_size)
-    try:
-        file = form.get("file")
-        if not isinstance(file, UploadFile):
-            raise HTTPException(422, "Thiếu file ảnh hoặc video")
-        media = await media_service.create_media(
-            session, file, uploaded_by=user.id, visual_only=True
-        )
-        return MediaRead.from_model(media)
-    finally:
-        await form.close()
+    ip = request.client.host if request.client else "unknown"
+    async with member_uploads.slot(user.id, ip):
+        try:
+            async with asyncio.timeout(settings.member_upload_timeout_seconds):
+                form = await parse_upload(
+                    request, max_bytes=settings.max_post_video_size
+                )
+        except TimeoutError:
+            raise HTTPException(
+                408,
+                "Quá thời gian tải lên. Vui lòng thử file nhỏ hơn hoặc kết nối khác.",
+            ) from None
+        # Do not cancel storage/DB writes with the upload-body timeout: their
+        # acknowledgement may be lost while the side effect still succeeds.
+        try:
+            file = form.get("file")
+            if not isinstance(file, UploadFile):
+                raise HTTPException(422, "Thiếu file ảnh hoặc video")
+
+            async def charge(size: int) -> None:
+                await member_uploads.charge(user.id, ip, size)
+
+            media = await media_service.create_media(
+                session,
+                file,
+                uploaded_by=user.id,
+                visual_only=True,
+                before_store=charge,
+            )
+            return MediaRead.from_model(media)
+        finally:
+            await form.close()
 
 
 @router.post("/posts", status_code=status.HTTP_201_CREATED)

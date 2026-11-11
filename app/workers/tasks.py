@@ -10,6 +10,7 @@ from sqlalchemy.pool import NullPool
 
 from app.config import get_settings
 from app.services import media_jobs
+from app.services.member_upload_cleanup import cleanup_expired
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,23 @@ def dispatch() -> None:
         except Exception:
             # Lease expiry recovers a failed publish without losing the DB job.
             logger.warning("media_dispatch_failed media_id=%s", media_id)
+
+
+@celery_app.task(
+    name="media.cleanup_uploads",
+    ignore_result=True,
+    soft_time_limit=180,
+    time_limit=210,
+)
+def cleanup_uploads() -> None:
+    asyncio.run(_run_cleanup())
+
+
+async def _run_cleanup() -> None:
+    async def operation(session):
+        return await cleanup_expired(session, apply=True)
+
+    await _run(operation)
 
 
 @celery_app.task(

@@ -3,6 +3,8 @@
 import io
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 
 import filetype
 from botocore.exceptions import BotoCoreError, ClientError
@@ -75,6 +77,7 @@ async def create_media(
     *,
     uploaded_by: int | None = None,
     visual_only: bool = False,
+    before_store: Callable[[int], Awaitable[None]] | None = None,
 ) -> Media:
     header = await file.read(261)
     await file.seek(0)
@@ -100,9 +103,14 @@ async def create_media(
         duration = None
         ext = _IMAGE_EXT[mime]
     elif mime in settings.allowed_video_types:
-        data = await _read_capped(file, settings.max_video_size)
-        _ensure_size(len(data), settings.max_video_size)
-        # Dimensions/duration video cần ffprobe — bổ sung ở bước sau.
+        limit = (
+            min(settings.max_video_size, settings.max_post_video_size)
+            if visual_only
+            else settings.max_video_size
+        )
+        data = await _read_capped(file, limit)
+        _ensure_size(len(data), limit)
+        # The media worker extracts video dimensions/duration after upload.
         width = height = duration = None
         ext = _VIDEO_EXT[mime]
     elif mime in settings.allowed_audio_types:
@@ -115,6 +123,8 @@ async def create_media(
             detail=f"Định dạng không được hỗ trợ: {mime or 'không xác định'}",
         )
 
+    if before_store is not None:
+        await before_store(len(data))
     key = f"{uuid.uuid4().hex}.{ext}"
     # storage có thể gọi mạng (Supabase) → chạy trong threadpool, không chặn loop.
     try:
@@ -135,6 +145,11 @@ async def create_media(
         duration=duration,
         alt_text=alt_text,
         uploaded_by=uploaded_by,
+        upload_expires_at=(
+            datetime.now(UTC) + timedelta(hours=settings.member_upload_retention_hours)
+            if visual_only
+            else None
+        ),
     )
     if settings.media_processing_enabled:
         queue(media)

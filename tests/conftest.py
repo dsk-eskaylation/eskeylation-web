@@ -66,9 +66,10 @@ def unique_slug(prefix: str = "pytest") -> str:
 def _reset_ratelimit():
     """Bộ đếm rate limit sạch trước mỗi test — login dày đặc trong suite
     không được phép làm 429 lan giữa các test."""
-    from app.services import ratelimit
+    from app.services import member_uploads, ratelimit
 
     ratelimit.reset()
+    member_uploads.reset()
     yield
 
 

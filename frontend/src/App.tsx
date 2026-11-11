@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { PlayerProvider } from './player/PlayerContext'
 import { ToastProvider } from './components/Toast'
@@ -25,6 +25,11 @@ function VideoIndex() {
   return params.has('v') ? <Video /> : <VideoAll />
 }
 
+function LegacyVideoRedirect() {
+  const { search, hash } = useLocation()
+  return <Navigate to={{ pathname: '/video', search, hash }} replace />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -38,7 +43,7 @@ export default function App() {
           <Route path="music" element={<Music />} />
           <Route path="music/all" element={<MusicAll />} />
           <Route path="video" element={<VideoIndex />} />
-          <Route path="video/all" element={<Navigate to="/video" replace />} />
+          <Route path="video/all" element={<LegacyVideoRedirect />} />
           <Route path="photos" element={<Photos />} />
           <Route path="community" element={<Community />} />
           <Route path="profile" element={<Profile />} />

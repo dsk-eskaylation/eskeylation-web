@@ -48,6 +48,7 @@ async def reserve(session: AsyncSession) -> list[tuple[int, str]]:
     rows = await session.scalars(
         select(Media)
         .where(
+            Media.cleanup_pending.is_(False),
             or_(
                 and_(
                     Media.processing_status == "pending",
@@ -57,7 +58,7 @@ async def reserve(session: AsyncSession) -> list[tuple[int, str]]:
                     Media.processing_status.in_(["queued", "processing"]),
                     Media.processing_lease_until <= now,
                 ),
-            )
+            ),
         )
         .order_by(Media.processing_next_at, Media.id)
         .limit(capacity)

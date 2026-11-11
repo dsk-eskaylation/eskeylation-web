@@ -575,6 +575,9 @@ def check_ui(password: str, tag: str) -> None:
             from scripts.social_browser_checks import check_social_release
 
             check_social_release(BASE, context, passed, EVIDENCE)
+            from scripts.feedback_safety_browser_checks import check_feedback_safety
+
+            check_feedback_safety(BASE, context, passed, EVIDENCE)
         except BaseException:
             if page is not None and not page.is_closed():
                 page.screenshot(path=str(EVIDENCE / "failure.png"))
