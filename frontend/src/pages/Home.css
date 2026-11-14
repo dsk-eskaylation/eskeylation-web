@@ -464,11 +464,11 @@
 /* ---- "Cảm ơn DSK" ---- */
 .home__closing {
   align-self: flex-start;
-  /* 2 dòng "Cảm ơn" / "DSK" (DSK căn phải theo dòng trên). Dòng rộng nhất
-     ~3em -> 26vw/400px vẫn vừa khung từ mobile tới desktop. */
+  /* 2 dòng "Cảm ơn" / "DSK" (DSK căn phải theo dòng trên). Tính theo font
+     dự phòng (~3.7em, rộng hơn Google Sans) để vẫn vừa khung khi webfont chưa tải. */
   display: flex;
   flex-direction: column;
-  font-size: clamp(56px, 26vw, 400px);
+  font-size: clamp(48px, 22vw, 340px);
   font-weight: 400;
   letter-spacing: -0.03em;
   line-height: 0.9;
