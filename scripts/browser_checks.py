@@ -234,6 +234,8 @@ def check_ui(password: str, tag: str) -> None:
                 assert page.locator(".layout__nav").bounding_box()["y"] == 0
                 page.goto(BASE + "/", wait_until="networkidle")
                 assert "Maintain" not in page.locator("body").inner_text()
+                expect(page.locator(".home__closing")).to_have_text("Cảm ơn DSK")
+                assert page.evaluate("document.documentElement.scrollWidth<=innerWidth")
                 passed(f"{width}px pinned header, modal without scroll jump, homepage")
                 ctx.close()
 

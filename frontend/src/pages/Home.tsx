@@ -227,12 +227,9 @@ export function Home() {
         <ul className="home__thanks">
           {THANKS.map((line) => <li key={line}>{line}</li>)}
         </ul>
-        <p className="home__thanks-dsk">CẢM ƠN DSK</p>
       </section>
 
-      <div className="home__respect" aria-hidden="true">
-        Respect.
-      </div>
+      <p className="home__closing">Cảm ơn DSK</p>
     </div>
   )
 }

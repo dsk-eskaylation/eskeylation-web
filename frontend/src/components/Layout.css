@@ -28,8 +28,10 @@
   padding: 50px 40px 0;
   pointer-events: none;
   isolation: isolate;
-  padding-bottom: 12px;
-  background: linear-gradient(#090909 0%, rgba(9, 9, 9, 0.9) 65%, transparent);
+  /* Solid behind the pill, then a short fade, so scrolled text never shows through it. */
+  --nav-fade: 28px;
+  padding-bottom: var(--nav-fade);
+  background: linear-gradient(#090909 calc(100% - var(--nav-fade)), rgba(9, 9, 9, 0));
 }
 
 .layout__nav > * {
@@ -105,9 +107,7 @@
     align-items: center;
     row-gap: 12px;
     column-gap: 10px;
-    padding: 14px 16px 16px;
-    /* Two rows here; the default 65% fade let page text show through the pill row. */
-    background: linear-gradient(#090909 82%, rgba(9, 9, 9, 0));
+    padding: 14px 16px var(--nav-fade);
   }
   .layout__brand {
     grid-area: brand;
