@@ -229,7 +229,7 @@ export function Home() {
         </ul>
       </section>
 
-      <p className="home__closing">Cảm ơn DSK</p>
+      <p className="home__closing"><span>Cảm ơn</span> <span>DSK</span></p>
     </div>
   )
 }

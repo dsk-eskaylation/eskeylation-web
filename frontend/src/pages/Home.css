@@ -464,9 +464,11 @@
 /* ---- "Cảm ơn DSK" ---- */
 .home__closing {
   align-self: flex-start;
-  /* Co giãn theo bề rộng màn để LUÔN vừa khung (không cần cắt).
-     Chữ rộng ~5em -> 17vw/260px vẫn vừa từ mobile tới desktop. */
-  font-size: clamp(40px, 17vw, 260px);
+  /* 2 dòng "Cảm ơn" / "DSK" (DSK căn phải theo dòng trên). Dòng rộng nhất
+     ~3em -> 26vw/400px vẫn vừa khung từ mobile tới desktop. */
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(56px, 26vw, 400px);
   font-weight: 400;
   letter-spacing: -0.03em;
   line-height: 0.9;
@@ -478,6 +480,9 @@
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
+}
+.home__closing > span:last-child {
+  align-self: flex-end;
 }
 
 /* ---- iPad ---- */
