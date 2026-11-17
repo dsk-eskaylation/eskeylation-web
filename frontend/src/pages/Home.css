@@ -298,13 +298,6 @@
   font-size: 22px;
   color: var(--color-text-muted);
 }
-.home__thanks-dsk {
-  margin: 0;
-  text-align: center;
-  font-size: 48px;
-  letter-spacing: -0.01em;
-  color: var(--color-text);
-}
 .home__credits {
   display: flex;
   flex-direction: column;
@@ -468,12 +461,14 @@
   transform: rotate(180deg);
 }
 
-/* ---- "Respect." ---- */
-.home__respect {
+/* ---- "Cảm ơn DSK" ---- */
+.home__closing {
   align-self: flex-start;
-  /* Co giãn theo bề rộng màn để LUÔN vừa khung (không cần cắt).
-     ~22vw giữ chữ to trên desktop nhưng vẫn nhỏ vừa trên mobile. */
-  font-size: clamp(44px, 22vw, 340px);
+  /* 2 dòng "Cảm ơn" / "DSK" (DSK căn phải theo dòng trên). Tính theo font
+     dự phòng (~3.7em, rộng hơn Google Sans) để vẫn vừa khung khi webfont chưa tải. */
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(48px, 22vw, 340px);
   font-weight: 400;
   letter-spacing: -0.03em;
   line-height: 0.9;
@@ -485,6 +480,9 @@
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
+}
+.home__closing > span:last-child {
+  align-self: flex-end;
 }
 
 /* ---- iPad ---- */
@@ -524,9 +522,6 @@
   .home__thanks {
     font-size: 18px;
     padding: 0 var(--space-4);
-  }
-  .home__thanks-dsk {
-    font-size: 36px;
   }
   .home__about-text {
     font-size: 18px;
