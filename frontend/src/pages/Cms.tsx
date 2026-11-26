@@ -1056,6 +1056,8 @@ function LyricsModeration() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<{ item: LyricSuggestion; status: 'accepted' | 'rejected' } | null>(null)
+  // Lời admin đã sửa (vd. bỏ từ nhạy cảm) cho từng đóng góp đang chờ; credit vẫn là người gửi.
+  const [drafts, setDrafts] = useState<Record<number, string>>({})
   const generation = useRef(0)
   const load = useCallback(async () => {
     const request = ++generation.current
@@ -1079,8 +1081,9 @@ function LyricsModeration() {
   const review = async () => {
     if (!confirm || busy) return
     setBusy(true)
+    const draft = drafts[confirm.item.id]
     try {
-      await adminApi.reviewLyrics(confirm.item.id, confirm.status)
+      await adminApi.reviewLyrics(confirm.item.id, confirm.status, draft !== undefined && draft !== confirm.item.body ? draft : undefined)
       setConfirm(null)
       notify(confirm.status === 'accepted' ? 'Đã duyệt và cập nhật lời bài hát' : 'Đã từ chối đóng góp', { tone: 'success' })
       await load()
@@ -1118,10 +1121,22 @@ function LyricsModeration() {
           <article key={item.id} className="cms-lyrics__item">
             <h3>{item.title ?? `Bài hát #${item.content_id}`}</h3>
             <p className="cms__row-meta">{item.user_email ?? 'Tài khoản đã xóa'} · {fmtTime(item.created_at)}</p>
-            <pre className="cms-lyrics__body">{item.body}</pre>
+            {item.status === 'pending' ? (
+              <label className="cms-field">
+                <span>Lời nhạc (sửa từ nhạy cảm nếu cần; credit vẫn ghi người gửi)</span>
+                <textarea
+                  className="cms-lyrics__body"
+                  value={drafts[item.id] ?? item.body}
+                  onChange={(e) => setDrafts((d) => ({ ...d, [item.id]: e.target.value }))}
+                  rows={8}
+                  maxLength={8000}
+                  disabled={busy}
+                />
+              </label>
+            ) : <pre className="cms-lyrics__body">{item.body}</pre>}
             {!item.can_accept && <p className="cms-field__hint">Bài hát chưa liên kết với CMS hoặc đã bị xóa; chưa thể duyệt.</p>}
             {item.status === 'pending' && <div className="cms__row-actions">
-              <button type="button" className="cms-pill cms-pill--publish" disabled={busy || !item.can_accept} onClick={() => setConfirm({ item, status: 'accepted' })}>Duyệt lời nhạc</button>
+              <button type="button" className="cms-pill cms-pill--publish" disabled={busy || !item.can_accept || !(drafts[item.id] ?? item.body).trim()} onClick={() => setConfirm({ item, status: 'accepted' })}>Duyệt lời nhạc</button>
               <button type="button" className="cms-pill" disabled={busy} onClick={() => setConfirm({ item, status: 'rejected' })}>Từ chối lời nhạc</button>
             </div>}
           </article>
@@ -1129,7 +1144,9 @@ function LyricsModeration() {
       <CmsPagination page={page} pages={pages} onChange={setPage} label="Phân trang lời nhạc" />
       {confirm && <ConfirmDialog
         title={confirm.status === 'accepted' ? 'Duyệt lời nhạc' : 'Từ chối lời nhạc'}
-        message={confirm.status === 'accepted' ? `Thay lời hiện tại của “${confirm.item.title}” bằng đóng góp này?` : 'Từ chối đóng góp này? Lời bài hát hiện tại được giữ nguyên.'}
+        message={confirm.status === 'accepted'
+          ? `Thay lời hiện tại của “${confirm.item.title}” bằng đóng góp này${drafts[confirm.item.id] !== undefined && drafts[confirm.item.id] !== confirm.item.body ? ' (bản anh đã sửa)' : ''}?`
+          : 'Từ chối đóng góp này? Lời bài hát hiện tại được giữ nguyên.'}
         confirmLabel={busy ? 'Đang xử lý…' : confirm.status === 'accepted' ? 'Duyệt và cập nhật' : 'Xác nhận từ chối'}
         onConfirm={review}
         onClose={() => { if (!busy) setConfirm(null) }}

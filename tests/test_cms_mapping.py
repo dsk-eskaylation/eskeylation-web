@@ -425,3 +425,36 @@ async def test_unmapped_contribution_can_only_be_rejected(client, make_user, db)
             delete(InteractionTarget).where(InteractionTarget.id == target_id)
         )
         await db.commit()
+
+
+async def test_admin_can_edit_lyrics_before_accepting_and_credit_stays(
+    client, make_user, track_content, db
+):
+    admin, _, song, item = await song_and_suggestion(
+        client, make_user, track_content, db
+    )
+    url = f"/admin/moderation/lyrics/{item['id']}"
+    single = await client.get(url, headers=auth(admin))
+    assert single.status_code == 200 and single.json()["body"] == item["body"]
+    assert (
+        await client.patch(
+            url, json={"status": "accepted", "body": "<b> </b>"}, headers=auth(admin)
+        )
+    ).status_code == 422
+    accepted = await client.patch(
+        url,
+        json={"status": "accepted", "body": "Fake contribution\n<i>Clean</i> line"},
+        headers=auth(admin),
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["body"] == "Fake contribution\nClean line"
+    public = (await client.get(f"/api/music/{song['slug']}")).json()
+    assert public["body"]["lyrics"] == "Fake contribution\nClean line"
+    assert public["body"]["lyrics_credit"] == item["user_email"].split("@")[0]
+    log = await db.scalar(
+        select(ActivityLog).where(
+            ActivityLog.entity_type == "lyric_suggestion",
+            ActivityLog.entity_id == item["id"],
+        )
+    )
+    assert log.detail["edited"] is True
