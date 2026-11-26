@@ -252,3 +252,14 @@
     grid-template-columns: 72px 1fr 32px;
   }
 }
+
+.dash__feed-peek {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.dash__feed-lyric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}

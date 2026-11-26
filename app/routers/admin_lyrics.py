@@ -19,6 +19,7 @@ from app.schemas.lyrics import LyricReview, LyricStatus, LyricSuggestionOut
 from app.schemas.pagination import Page
 from app.services import moderation
 from app.services.community import author_name
+from app.services.sanitize import sanitize_summary
 
 router = APIRouter(prefix="/admin/moderation/lyrics", tags=["moderation"])
 Session = Annotated[AsyncSession, Depends(get_session)]
@@ -77,6 +78,20 @@ async def list_lyrics(
     )
 
 
+@router.get("/{suggestion_id}")
+async def get_lyrics(
+    suggestion_id: int, session: Session, _: Admin
+) -> LyricSuggestionOut:
+    row = (
+        (await session.execute(_query().where(LyricSuggestion.id == suggestion_id)))
+        .unique()
+        .one_or_none()
+    )
+    if row is None:
+        raise HTTPException(404, "Không tìm thấy đóng góp lời nhạc")
+    return _out(row)
+
+
 @router.patch("/{suggestion_id}")
 async def review_lyrics(
     suggestion_id: int, payload: LyricReview, session: Session, user: Admin
@@ -102,9 +117,16 @@ async def review_lyrics(
         )
         .with_for_update(of=Content)
     )
+    edited = False
     if payload.status == "accepted":
         if content is None:
             raise HTTPException(409, "Bài hát chưa liên kết với CMS hoặc đã bị xóa")
+        if payload.body is not None:
+            body = (sanitize_summary(payload.body) or "").strip()
+            if not body:
+                raise HTTPException(422, "Nội dung lời trống")
+            edited = body != suggestion.body
+            suggestion.body = body
         await moderation.assert_clean(session, body={"lyrics": suggestion.body})
         content.body = {
             **content.body,
@@ -127,6 +149,7 @@ async def review_lyrics(
             detail={
                 "content_id": suggestion.content_id,
                 "cms_content_id": content.id if content else None,
+                "edited": edited,
             },
         )
     )

@@ -6,6 +6,7 @@ import {
   type ContentStatus,
   type ContentType,
   type DashboardStats,
+  type LyricSuggestion,
 } from '../api/admin'
 import './Dashboard.css'
 import MediaJobsPanel from '../components/MediaJobsPanel'
@@ -131,6 +132,7 @@ function activityDetail(e: ActivityEntry): string | null {
     }
     return parts.join(' · ') || null
   }
+  if (e.action === 'lyrics_accept' && e.detail.edited === true) return 'admin đã chỉnh lời trước khi duyệt'
   if (e.action === 'user_update') {
     const parts: string[] = []
     if (e.detail.is_active === true) parts.push('duyệt / mở khoá')
@@ -142,6 +144,37 @@ function activityDetail(e: ActivityEntry): string | null {
     return TYPE_LABEL[e.detail.type as ContentType] ?? (e.detail.type as string)
   }
   return null
+}
+
+const PEEK_LABEL = { idle: 'Xem nội dung', loading: 'Đang tải…', error: 'Không tải được, thử lại' }
+
+/** Nút "Xem nội dung" cho dòng nhật ký lời nhạc: tải đóng góp và hiện ngay dưới dòng. */
+function LyricPeek({ id }: { id: number }) {
+  const [item, setItem] = useState<LyricSuggestion | keyof typeof PEEK_LABEL>('idle')
+  if (typeof item === 'string') {
+    return (
+      <button
+        type="button"
+        className="cms-pill dash__feed-peek"
+        disabled={item === 'loading'}
+        onClick={() => {
+          setItem('loading')
+          adminApi.lyric(id).then(setItem, () => setItem('error'))
+        }}
+      >
+        {PEEK_LABEL[item]}
+      </button>
+    )
+  }
+  return (
+    <div className="dash__feed-lyric">
+      <span className="dash__feed-meta">
+        {item.user_email ?? 'Tài khoản đã xóa'} · {item.title ?? `Bài hát #${item.content_id}`}
+      </span>
+      <pre className="cms-lyrics__body">{item.body}</pre>
+      <button type="button" className="cms-pill dash__feed-peek" onClick={() => setItem('idle')}>Ẩn</button>
+    </div>
+  )
 }
 
 /** Ô số liệu: nhãn + số lớn + dòng phụ (breakdown). */
@@ -411,6 +444,7 @@ export function Dashboard() {
                       {relTime(e.created_at)}
                       {detail && ` · ${detail}`}
                     </span>
+                    {e.entity_type === 'lyric_suggestion' && e.entity_id !== null && <LyricPeek id={e.entity_id} />}
                   </div>
                 </li>
               )

@@ -264,8 +264,10 @@ export const adminApi = {
   lyrics: (page = 1, status: LyricStatus = 'pending') =>
     request<Page<LyricSuggestion>>(`/admin/moderation/lyrics?page=${page}&review_status=${status}`),
 
-  reviewLyrics: (id: number, status: 'accepted' | 'rejected') =>
-    request<LyricSuggestion>(`/admin/moderation/lyrics/${id}`, jsonInit('PATCH', { status })),
+  lyric: (id: number) => request<LyricSuggestion>(`/admin/moderation/lyrics/${id}`),
+
+  reviewLyrics: (id: number, status: 'accepted' | 'rejected', body?: string) =>
+    request<LyricSuggestion>(`/admin/moderation/lyrics/${id}`, jsonInit('PATCH', { status, body })),
 
   bannedWords: () => request<BannedWord[]>('/admin/moderation/banned-words'),
 
